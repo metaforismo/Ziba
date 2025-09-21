@@ -1,0 +1,41 @@
+{
+  "name": "synapsium",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "tsc --noEmit",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
+  },
+  "dependencies": {
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "react-router-dom": "^6.26.2",
+    "zustand": "^4.5.2",
+    "gray-matter": "^4.0.3",
+    "js-yaml": "^4.1.0",
+    "react-markdown": "^9.0.3",
+    "remark-gfm": "^4.0.0",
+    "cytoscape": "^3.26.0",
+    "cytoscape-dagre": "^2.5.0",
+    "@uiw/react-codemirror": "^4.23.7",
+    "@codemirror/language": "^6.10.2",
+    "@codemirror/view": "^6.24.1",
+    "@codemirror/state": "^6.4.2",
+    "@codemirror/autocomplete": "^6.14.0",
+    "lucide-react": "^0.462.0",
+    "clsx": "^2.1.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3",
+    "vite": "^5.4.8",
+    "@vitejs/plugin-react": "^4.3.3",
+    "@types/react": "^19.0.1",
+    "@types/react-dom": "^19.0.1",
+    "@tauri-apps/cli": "^1.5.10"
+  }
+}
