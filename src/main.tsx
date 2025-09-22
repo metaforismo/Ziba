@@ -5,6 +5,9 @@ import './index.css'
 import Home from './pages/Home'
 import Category from './pages/Category'
 import NotePage from './pages/Note'
+import Highlights from './pages/Highlights'
+import SettingsPage from './pages/Settings'
+import Chat from './pages/Chat'
 
 function Shell() {
   return (
@@ -20,7 +23,9 @@ function Shell() {
             <Link to="/category/libri" className="badge">📚 Libri</Link>
             <Link to="/category/serie_tv" className="badge">📺 Serie TV</Link>
             <Link to="/graph" className="badge">🕸️ Grafo</Link>
+            <Link to="/highlights" className="badge">✨ Highlights</Link>
             <Link to="/settings" className="badge">⚙️ Impostazioni</Link>
+            <Link to="/chat" className="badge">🧠 Chat</Link>
           </nav>
         </div>
       </header>
@@ -30,7 +35,9 @@ function Shell() {
           <Route path="/category/:type" element={<Category/>} />
           <Route path="/note/:id" element={<NotePage/>} />
           <Route path="/graph" element={<NotePage mode="graph"/>} />
-          <Route path="/settings" element={<NotePage mode="settings"/>} />
+          <Route path="/highlights" element={<Highlights/>} />
+          <Route path="/settings" element={<SettingsPage/>} />
+          <Route path="/chat" element={<Chat/>} />
           <Route path="*" element={<Navigate to="/" replace/>} />
         </Routes>
       </main>

@@ -5,7 +5,10 @@ import { parseNote, stringifyNote } from '@/lib/parsers'
 import Editor from '@/components/Editor'
 import PreviewCard from '@/components/PreviewCard'
 import GraphView from '@/components/GraphView'
+import MarkdownBody from '@/components/MarkdownBody'
 import { getVaultAdapter } from '@/lib/vault'
+import { summarize, suggestLinks } from '@/lib/ai'
+import { useSettings } from '@/store/settings'
 
 export default function NotePage({ mode }:{ mode?: 'graph'|'settings' }){
   const nav = useNavigate()
@@ -15,7 +18,7 @@ export default function NotePage({ mode }:{ mode?: 'graph'|'settings' }){
       <GraphView/>
     </div>
   )
-  if (mode==='settings') return <Settings/>
+  if (mode==='settings') return <div/>
   const { id='' } = useParams()
   const { findById, load, loaded, save, remove } = useApp()
   const base = findById(id)
@@ -43,12 +46,36 @@ export default function NotePage({ mode }:{ mode?: 'graph'|'settings' }){
             Carica copertina
           </label>
           <button className="btn secondary" onClick={async()=>{ await remove(base.id); nav(-1) }}>Elimina</button>
+          <button className="btn secondary" onClick={async()=>{
+            if (!current) return
+            try{
+              const sum = await summarize(current.body)
+              const meta = { ...current.meta, riassunto: String(sum).trim() }
+              const n = { ...current, meta }
+              setRaw(stringifyNote(n))
+            }catch{}
+          }}>Riassumi (AI)</button>
+          <button className="btn secondary" onClick={async()=>{
+            if (!current) return
+            const titles = Array.from(new Set(useApp.getState().notes.map(n=>n.title)))
+            try{
+              const picks = await suggestLinks({ note: current.body, candidates: titles })
+              const body = current.body + '\n\nSuggerimenti collegamenti: ' + picks.map(p=>`[[${p}]]`).join(' ')
+              const n = { ...current, body }
+              setRaw(stringifyNote(n))
+            }catch{}
+          }}>Suggerisci link (AI)</button>
           <button className="btn" onClick={async()=>{ if(!current) return; await save(current) }}>Salva</button>
         </div>
       </div>
       <div className="split">
         <Editor value={raw} onChange={setRaw}/>
-        {current && <div className="card" style={{padding:12}}><PreviewCard n={current}/></div>}
+        {current && <div className="card" style={{padding:12,display:'grid',gap:12}}>
+          <PreviewCard n={current}/>
+          <div style={{borderTop:'1px solid #1a234a',paddingTop:8}}>
+            <MarkdownBody>{current.body}</MarkdownBody>
+          </div>
+        </div>}
       </div>
     </div>
   )
