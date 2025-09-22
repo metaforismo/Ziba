@@ -5,16 +5,18 @@ Synapsium è un second brain ultra‑veloce per organizzare film, libri, serie T
 > Dati tuoi, per sempre tuoi. Synapsium usa Markdown e metadati aperti: nessun lock‑in, perfetta portabilità.
 
 
-## Caratteristiche principali (MVP)
+## Caratteristiche principali
 
 - Editor Markdown con anteprima dal vivo in stile scheda
-- Frontmatter YAML strutturato per categorie predefinite (Film, Libri, Serie TV, YouTube, Live, Persona, Idea)
-- Autocompletamento dei link `[[...]]` verso note esistenti
+- Frontmatter YAML strutturato per categorie predefinite (Film, Libri, Serie TV, YouTube, Live, Persona, Idea) + tipologia `highlight`
+- Autocompletamento dei link `[[...]]` e dei `#tag` suggeriti
 - Drag‑and‑drop per copertine e asset (salvati in `assets/`)
 - Dashboard con “In visione/lettura”, “Da vedere/leggere”, “Ultimi aggiunti”
 - Viste per categoria: Gallery, Tabella, Timeline
-- Grafo interattivo delle connessioni (Cytoscape)
-- Temi e personalizzazione colori brand (direttamente da Impostazioni)
+- Grafo interattivo delle connessioni (Cytoscape) con colori/icone per tipo e etichette connessioni configurabili
+- Libreria Highlights + Quick Capture per catturare frammenti da web/libri/pdf/tweet
+- AI integrata (OpenRouter): riassunti 1‑click, suggerimenti collegamenti, Q&A sul vault
+- Temi e personalizzazione colori brand (Impostazioni)
 - Web app + Desktop app (Windows/macOS/Linux) via Tauri
 
 > Nota: l’MVP salva i file in un vault locale. Nel browser viene usato uno storage locale interno al sito; nella versione desktop i file risiedono sul disco. La sincronizzazione con Dropbox/Google Drive/iCloud/OneDrive è nativa perché i dati sono Markdown.
@@ -23,10 +25,12 @@ Synapsium è un second brain ultra‑veloce per organizzare film, libri, serie T
 ## Architettura
 
 - Frontend: Vite + React + TypeScript
-- Editor: CodeMirror 6 con autocompletamento `[[...]]`
+- Editor: CodeMirror 6 con autocompletamento `[[...]]` e `#tag`
 - Parser: gray‑matter + js‑yaml
 - Stato: Zustand
+- Config in vault: `vault/config/synapsium.config.json` (tipi, icone, colori, edge rules, tag iniziali)
 - Grafo: Cytoscape (+ dagre)
+- AI: OpenRouter (modello configurabile da Impostazioni)
 - Desktop: Tauri v1 (Rust) per massima efficienza e footprint minimo
 
 Struttura cartelle principale:
@@ -140,21 +144,23 @@ bun run tauri:build
 ## Utilizzo
 
 - Nuova nota: dalla Home aggiungi “+ Film / + Libro / + Idea”. Verrà generato un frontmatter di base.
-- Editor: a sinistra scrivi in Markdown; a destra vedi la scheda/anteprima con copertina, voto, metadati.
+- Editor: a sinistra scrivi in Markdown; a destra vedi la scheda/anteprima con copertina, voto, metadati e corpo Markdown (con card YouTube/link).
 - Link `[[...]]`: scrivendo `[[` compaiono suggerimenti con le note già presenti.
+- Tag: scrivendo `#` compaiono suggerimenti dai tag iniziali e dalla tua libreria.
 - Copertine/asset: usa “Carica copertina” nella nota; i file finiscono in `assets/`.
 - Viste: Gallery, Tabella, Timeline. La ricerca è disponibile nella vista Tabella.
-- Grafo: pagina “Grafo” per navigare le connessioni tra note e persone/idee.
-- Impostazioni: configura colori brand primario/secondario e API key (TMDB, YouTube) per import automatici.
+- Highlights: pagina “Highlights” con cattura rapida “+ Cattura”.
+- Grafo: pagina “Grafo” per navigare le connessioni con colori/icone per tipo.
+- Chat: pagina “Chat” per porre domande al vault (retrieval semplice) con risposta AI.
+- Impostazioni: tema, AI (OpenRouter), schemi, grafo (icone/colore/etichette), tag iniziali, Readwise token.
 
 
-## Importazione intelligente (stato attuale)
+## Importazione e Integrazioni
 
-- Libri: supporto pronto per Open Library (ISBN o ricerca). UI arriverà a breve nel pannello Import.
-- Film/Serie: previsto TMDB (richiede API key). Inserisci la tua chiave in Impostazioni.
-- YouTube: previsto tramite YouTube Data API (richiede API key).
-
-L’MVP include i campi e i punti di estensione necessari. Le chiamate saranno abilitate progressivamente nelle prossime iterazioni.
+- Readwise: inserisci il token in Impostazioni → Readwise e lancia l’import (Tauri consigliato per evitare CORS). Gli highlight diventano note `type: highlight`.
+- Libri: Open Library (ISBN o ricerca) — in arrivo.
+- Film/Serie: TMDB (API key) — in arrivo.
+- YouTube: YouTube Data API (API key) — in arrivo.
 
 
 ## Temi e brand
@@ -184,9 +190,10 @@ Se disponi di brand assets ufficiali (palette, logotipo, lockup), copiali in `pu
 - Import wizard completo (TMDB/Open Library/YouTube)
 - Ricerca avanzata per metadati YAML (query salvabili)
 - Esportazione/Importazione vault (ZIP) su web
-- Editor di schemi per “Altri” tipi personalizzati
+- Editor di schemi visuale più ricco (UI dedicata oltre al JSON editor)
 - Statistiche approfondite e dashboard evolute
 - Sincronizzazione opzionale con provider esterni via cartella del vault
+- Web Clipper (estensione browser) per cattura pagine/articoli
 
 
 ## Sviluppo
