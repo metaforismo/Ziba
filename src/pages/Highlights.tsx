@@ -16,6 +16,7 @@ export default function Highlights(){
         <h1 style={{margin:0}}>Highlights</h1>
         <div className="toolbar">
           <input placeholder="Cerca…" value={q} onChange={e=>setQ(e.target.value)} />
+          <button className="btn secondary" onClick={async()=>{ try{ const { importReadwise } = await import('@/lib/readwise'); await importReadwise(); await load() }catch{} }}>Importa Readwise</button>
           <QuickCapture/>
         </div>
       </div>
