@@ -13,11 +13,14 @@ import {
   INDEX_DIR_NAME,
   PRAGMAS,
   SCHEMA_SQL,
+  type FullTextHit,
   type IndexStoreAdapter,
-  type Note,
   type NotePath,
   type NoteSummary,
   type OutgoingWikilink,
+  type TagPair,
+  type TagSummaryRow,
+  type UpsertNoteInput,
   type WikilinkRow,
 } from '@synapsium/core';
 
@@ -29,6 +32,39 @@ import {
 function stripHeadingRef(target: string): string {
   const hash = target.indexOf('#');
   return hash === -1 ? target : target.slice(0, hash);
+}
+
+/**
+ * FTS5 query characters that have special meaning. We rewrite raw user
+ * input into a safe MATCH expression by:
+ *   - rejecting empty input (caller should short-circuit before calling).
+ *   - if the user typed boolean operators (AND / OR / NOT) or grouping,
+ *     pass it through after escaping internal double-quotes.
+ *   - otherwise wrap each whitespace-separated term in double quotes so
+ *     punctuation in titles/bodies (e.g. apostrophes) doesn't blow up the
+ *     parser.
+ */
+function escapeFts5Query(query: string): string {
+  const trimmed = query.trim();
+  if (trimmed.length === 0) return '';
+
+  // Heuristic: if the user already typed FTS5-style operators or grouping,
+  // assume they know what they're doing — only neutralise stray quotes.
+  const hasOperators = /\b(AND|OR|NOT)\b|[()"]/.test(trimmed);
+  if (hasOperators) {
+    // Escape any double-quotes by doubling them (FTS5 syntax for embedded
+    // quotes in a phrase). Best-effort: malformed queries still surface as
+    // SQLite errors to the caller.
+    return trimmed.replace(/"/g, '""');
+  }
+
+  // Tokenise on whitespace, drop empty pieces, wrap each token as a phrase.
+  // FTS5 phrases use double quotes; we escape any internal `"`.
+  return trimmed
+    .split(/\s+/)
+    .filter((t) => t.length > 0)
+    .map((t) => '"' + t.replace(/"/g, '""') + '"')
+    .join(' ');
 }
 
 type Row = {
@@ -62,6 +98,15 @@ export class SqliteIndexStore implements IndexStoreAdapter {
     resolveTitle: Database.Statement;
     clearWikilinks: Database.Statement;
     clearNotes: Database.Statement;
+    deleteFts: Database.Statement;
+    insertFts: Database.Statement;
+    searchFts: Database.Statement;
+    deleteTagsFor: Database.Statement;
+    insertTag: Database.Statement;
+    listTags: Database.Statement;
+    getNotesByTag: Database.Statement;
+    clearTags: Database.Statement;
+    clearFts: Database.Statement;
   } | null = null;
 
   async init(vaultRoot: string): Promise<void> {
@@ -138,6 +183,46 @@ export class SqliteIndexStore implements IndexStoreAdapter {
       `),
       clearWikilinks: db.prepare(`DELETE FROM wikilinks`),
       clearNotes: db.prepare(`DELETE FROM notes`),
+      deleteFts: db.prepare(`DELETE FROM notes_fts WHERE path = ?`),
+      // Plain FTS5 table: we delete-then-insert rather than rely on rowid
+      // tricks. Slightly more writes, vastly simpler than external-content.
+      insertFts: db.prepare(`
+        INSERT INTO notes_fts (path, title, body)
+        VALUES (?, ?, ?)
+      `),
+      searchFts: db.prepare(`
+        SELECT path,
+               title,
+               snippet(notes_fts, 2, '<mark>', '</mark>', '…', 32) AS snippet
+        FROM notes_fts
+        WHERE notes_fts MATCH ?
+        ORDER BY rank
+        LIMIT ?
+      `),
+      deleteTagsFor: db.prepare(`DELETE FROM tags WHERE source_path = ?`),
+      insertTag: db.prepare(`
+        INSERT OR REPLACE INTO tags (source_path, tag, display_tag)
+        VALUES (?, ?, ?)
+      `),
+      // MAX(display_tag) is a stable choice when multiple notes spell a tag
+      // differently; we just need *some* canonicalised display value.
+      listTags: db.prepare(`
+        SELECT tag,
+               MAX(display_tag) AS display,
+               COUNT(*) AS count
+        FROM tags
+        GROUP BY tag
+        ORDER BY count DESC, tag ASC
+      `),
+      getNotesByTag: db.prepare(`
+        SELECT n.path AS path, n.title AS title, n.mtime AS mtime
+        FROM tags t
+        INNER JOIN notes n ON t.source_path = n.path
+        WHERE t.tag = ? COLLATE NOCASE
+        ORDER BY n.title COLLATE NOCASE
+      `),
+      clearTags: db.prepare(`DELETE FROM tags`),
+      clearFts: db.prepare(`DELETE FROM notes_fts`),
     };
   }
 
@@ -154,21 +239,42 @@ export class SqliteIndexStore implements IndexStoreAdapter {
     return this.stmts;
   }
 
-  async upsertNote(note: Omit<Note, 'content'>): Promise<void> {
+  async upsertNote(note: UpsertNoteInput): Promise<void> {
     const s = this.require();
-    s.upsertNote.run({
-      path: note.path,
-      title: note.title,
-      frontmatter_json: JSON.stringify(note.frontmatter ?? {}),
-      mtime: note.mtimeMs,
+    if (!this.db) throw new Error('IndexStore not initialized');
+    // Bundle the notes-table upsert and the FTS mirror update so a partial
+    // failure can't leave them out of sync.
+    const tx = this.db.transaction((n: UpsertNoteInput) => {
+      s.upsertNote.run({
+        path: n.path,
+        title: n.title,
+        frontmatter_json: JSON.stringify(n.frontmatter ?? {}),
+        mtime: n.mtimeMs,
+      });
+      // Always refresh the FTS row when a body is supplied. Callers without
+      // body in scope simply leave the existing snippet intact (which may
+      // become stale until the next full-body upsert / reindex).
+      if (n.body !== undefined) {
+        s.deleteFts.run(n.path);
+        s.insertFts.run(n.path, n.title, n.body);
+      }
     });
+    tx(note);
     return Promise.resolve();
   }
 
   async deleteNote(p: NotePath): Promise<void> {
     const s = this.require();
-    // FK with ON DELETE CASCADE wipes wikilinks rows too.
-    s.deleteNote.run(p);
+    if (!this.db) throw new Error('IndexStore not initialized');
+    // FK with ON DELETE CASCADE wipes wikilinks AND tags rows for us, but we
+    // also delete tags explicitly for clarity AND to cover the FTS mirror
+    // (which is a virtual table -- no FKs reach it).
+    const tx = this.db.transaction((path: NotePath) => {
+      s.deleteFts.run(path);
+      s.deleteTagsFor.run(path);
+      s.deleteNote.run(path);
+    });
+    tx(p);
     return Promise.resolve();
   }
 
@@ -252,11 +358,58 @@ export class SqliteIndexStore implements IndexStoreAdapter {
     return row ? row.path : null;
   }
 
+  async searchFullText(query: string, limit: number): Promise<FullTextHit[]> {
+    const s = this.require();
+    const safeLimit = limit > 0 ? limit : 20;
+    const matchExpr = escapeFts5Query(query);
+    if (matchExpr.length === 0) return [];
+    type FtsRow = { path: string; title: string; snippet: string };
+    let rows: FtsRow[];
+    try {
+      rows = s.searchFts.all(matchExpr, safeLimit) as FtsRow[];
+    } catch (err) {
+      // Malformed FTS5 expression (e.g. user typed unbalanced quotes after
+      // we passed through). Surface as an empty result rather than crash.
+      console.warn('[index-store] FTS5 query failed:', err);
+      return [];
+    }
+    return rows.map((r) => ({ path: r.path, title: r.title, snippet: r.snippet }));
+  }
+
+  async listTags(): Promise<TagSummaryRow[]> {
+    const s = this.require();
+    type Row = { tag: string; display: string; count: number };
+    const rows = s.listTags.all() as Row[];
+    return rows.map((r) => ({ tag: r.tag, display: r.display, count: r.count }));
+  }
+
+  async getNotesByTag(canonicalTag: string): Promise<NoteSummary[]> {
+    const s = this.require();
+    type Row = { path: string; title: string; mtime: number };
+    const rows = s.getNotesByTag.all(canonicalTag) as Row[];
+    return rows.map((r) => ({ path: r.path, title: r.title, mtimeMs: r.mtime }));
+  }
+
+  async replaceTags(sourcePath: NotePath, tags: TagPair[]): Promise<void> {
+    const s = this.require();
+    if (!this.db) throw new Error('IndexStore not initialized');
+    const tx = this.db.transaction((src: NotePath, ts: TagPair[]) => {
+      s.deleteTagsFor.run(src);
+      for (const t of ts) {
+        s.insertTag.run(src, t.canonical, t.display);
+      }
+    });
+    tx(sourcePath, tags);
+    return Promise.resolve();
+  }
+
   async clear(): Promise<void> {
     const s = this.require();
     if (!this.db) throw new Error('IndexStore not initialized');
     const tx = this.db.transaction(() => {
       s.clearWikilinks.run();
+      s.clearTags.run();
+      s.clearFts.run();
       s.clearNotes.run();
     });
     tx();

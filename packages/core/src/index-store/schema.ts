@@ -48,4 +48,25 @@ CREATE TABLE IF NOT EXISTS wikilinks (
 CREATE INDEX IF NOT EXISTS idx_wikilinks_target_title ON wikilinks(target_title);
 CREATE INDEX IF NOT EXISTS idx_wikilinks_target_path  ON wikilinks(target_path);
 CREATE INDEX IF NOT EXISTS idx_notes_title            ON notes(title);
+
+-- Full-text search via FTS5 virtual table. Mirrors \`notes.path\`/\`title\`/\`body\`
+-- so wildcards like \`synapsium\` or \`architecture OR design\` work.
+CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
+  path UNINDEXED,
+  title,
+  body,
+  tokenize = 'unicode61 remove_diacritics 2'
+);
+
+-- Tags. We store one row per (note, tag) pair. Tags come from two sources:
+-- (1) \`#tag\` occurrences in the markdown body (extracted by a parser),
+-- (2) frontmatter \`tags: [array]\`. Both feed in via the upsert path.
+CREATE TABLE IF NOT EXISTS tags (
+  source_path TEXT NOT NULL,
+  tag TEXT NOT NULL,                  -- canonical lowercase form
+  display_tag TEXT NOT NULL,          -- preserved-case form for UI
+  PRIMARY KEY (source_path, tag),
+  FOREIGN KEY (source_path) REFERENCES notes(path) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_tags_tag ON tags(tag);
 `.trim();

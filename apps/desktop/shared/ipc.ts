@@ -30,6 +30,11 @@ export const IpcChannels = {
   getBacklinks: 'links:backlinks',
   resolveTitle: 'links:resolveTitle',
 
+  // Search / tags
+  searchFullText: 'search:fullText',
+  listTags: 'tags:list',
+  getNotesByTag: 'tags:notesByTag',
+
   // Settings / persisted state
   getRecentVaults: 'settings:recentVaults',
 
@@ -70,6 +75,10 @@ export type IpcRequests = {
   [IpcChannels.getBacklinks]: { path: NotePath };
   [IpcChannels.resolveTitle]: { title: string };
 
+  [IpcChannels.searchFullText]: { query: string; limit?: number };
+  [IpcChannels.listTags]: void;
+  [IpcChannels.getNotesByTag]: { tag: string };
+
   [IpcChannels.getRecentVaults]: void;
 };
 
@@ -77,6 +86,23 @@ export type Backlink = {
   sourcePath: NotePath;
   sourceTitle: string;
   context?: string; // short snippet around the wikilink occurrence
+};
+
+/** A single full-text-search hit returned to the renderer. */
+export type SearchHit = {
+  path: NotePath;
+  title: string;
+  /** FTS5 snippet with `<mark>` highlight markers around matched terms. */
+  snippet: string;
+};
+
+/** Aggregated tag listing entry. */
+export type TagSummary = {
+  /** Canonical lowercase tag. */
+  tag: string;
+  /** Display-case form for UI. */
+  display: string;
+  count: number;
 };
 
 export type IpcResponses = {
@@ -100,6 +126,10 @@ export type IpcResponses = {
 
   [IpcChannels.getBacklinks]: Backlink[];
   [IpcChannels.resolveTitle]: NotePath | null;
+
+  [IpcChannels.searchFullText]: SearchHit[];
+  [IpcChannels.listTags]: TagSummary[];
+  [IpcChannels.getNotesByTag]: NoteSummary[];
 
   [IpcChannels.getRecentVaults]: VaultInfo[];
 };

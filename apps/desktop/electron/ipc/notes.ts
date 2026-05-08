@@ -10,9 +10,11 @@ import { promises as fsp } from 'node:fs';
 import path from 'node:path';
 import {
   deriveTitleFromPath,
+  extractTags,
   extractWikilinks,
   getFrontmatterTitle,
   loadNote as coreLoadNote,
+  mergeTagsFromFrontmatter,
   parseMarkdown,
   saveNote as coreSaveNote,
   type Frontmatter,
@@ -60,13 +62,18 @@ async function reindexSingle(
     deriveTitleFromPath(filePath);
 
   const wikilinks = extractWikilinks(body);
+  const contentTags = extractTags(body);
+  const mergedTags = mergeTagsFromFrontmatter(frontmatter, contentTags);
 
+  // Pass body so the FTS5 mirror picks up the latest content. Without it,
+  // search:fullText would return stale snippets for this note.
   await store.upsertNote({
     path: filePath,
     title,
     frontmatter,
     wikilinks,
     mtimeMs,
+    body,
   });
 
   const links: OutgoingWikilink[] = [];
@@ -75,6 +82,7 @@ async function reindexSingle(
     links.push({ targetTitle: target, targetPath: resolved });
   }
   await store.replaceWikilinks(filePath, links);
+  await store.replaceTags(filePath, mergedTags);
 }
 
 export async function saveNote(args: {
@@ -174,6 +182,7 @@ export async function renameNote(args: {
     frontmatter: note.frontmatter,
     wikilinks: note.wikilinks,
     mtimeMs: note.mtimeMs,
+    body: note.content,
   });
   const links: OutgoingWikilink[] = [];
   for (const target of note.wikilinks) {
@@ -181,6 +190,10 @@ export async function renameNote(args: {
     links.push({ targetTitle: target, targetPath: resolved });
   }
   await store.replaceWikilinks(args.to, links);
+
+  const contentTags = extractTags(note.content);
+  const mergedTags = mergeTagsFromFrontmatter(note.frontmatter, contentTags);
+  await store.replaceTags(args.to, mergedTags);
 
   return { newPath: args.to };
 }

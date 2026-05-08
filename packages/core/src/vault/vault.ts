@@ -1,8 +1,9 @@
 import type { FilesystemAdapter } from '../adapters/filesystem.js';
-import type { IndexStoreAdapter, OutgoingWikilink } from '../adapters/index-store.js';
+import type { IndexStoreAdapter, OutgoingWikilink, TagPair } from '../adapters/index-store.js';
 import type { NotePath } from '../types/note.js';
 import { loadNote } from './note.js';
 import { INDEX_DIR_NAME } from '../index-store/schema.js';
+import { extractTags, mergeTagsFromFrontmatter } from '../markdown/tags.js';
 
 /**
  * Directory names always skipped during a vault scan.
@@ -72,7 +73,7 @@ export async function indexVault(
 ): Promise<IndexResult> {
   await indexStore.clear();
 
-  // Pass 1: notes + raw wikilinks (unresolved).
+  // Pass 1: notes + raw wikilinks (unresolved) + tags.
   const sources: { path: NotePath; targets: string[] }[] = [];
   let count = 0;
   for await (const path of scanVault(fs, vaultRoot)) {
@@ -89,7 +90,15 @@ export async function indexVault(
       frontmatter: note.frontmatter,
       wikilinks: note.wikilinks,
       mtimeMs: note.mtimeMs,
+      body: note.content,
     });
+
+    // Tags can be persisted immediately -- they don't need cross-note
+    // resolution like wikilinks do.
+    const contentTags = extractTags(note.content);
+    const mergedTags: TagPair[] = mergeTagsFromFrontmatter(note.frontmatter, contentTags);
+    await indexStore.replaceTags(note.path, mergedTags);
+
     if (note.wikilinks.length > 0) {
       sources.push({ path: note.path, targets: note.wikilinks });
     }

@@ -30,6 +30,8 @@ import {
 } from './notes.js';
 import { createFolder, renameFolder, deleteFolder } from './folder.js';
 import { getBacklinks, resolveTitle } from './links.js';
+import { searchFullText } from './search.js';
+import { listTags, getNotesByTag } from './tags.js';
 import { getRecentVaults } from './settings.js';
 
 type Handler<C extends keyof IpcRequests> = (
@@ -81,6 +83,11 @@ export function registerIpcHandlers(win: BrowserWindow): void {
   // Links
   handle(IpcChannels.getBacklinks, (args) => getBacklinks(args));
   handle(IpcChannels.resolveTitle, (args) => resolveTitle(args));
+
+  // Search / tags
+  handle(IpcChannels.searchFullText, (args) => searchFullText(args));
+  handle(IpcChannels.listTags, () => listTags());
+  handle(IpcChannels.getNotesByTag, (args) => getNotesByTag(args));
 
   // Settings
   handle(IpcChannels.getRecentVaults, () => getRecentVaults());

@@ -6,6 +6,8 @@ import type { Frontmatter, Note, NotePath, NoteSummary } from '@synapsium/core';
 import type {
   Backlink,
   IndexProgressPayload,
+  SearchHit,
+  TagSummary,
   VaultEventPayload,
   VaultInfo,
 } from '../../shared/ipc';
@@ -83,6 +85,17 @@ export const ipc = {
   },
   resolveTitle(args: { title: string }): Promise<NotePath | null> {
     return api().invoke(IpcChannels.resolveTitle, args);
+  },
+
+  // Search / tags
+  searchFullText(args: { query: string; limit?: number }): Promise<SearchHit[]> {
+    return api().invoke(IpcChannels.searchFullText, args);
+  },
+  listTags(): Promise<TagSummary[]> {
+    return api().invoke(IpcChannels.listTags);
+  },
+  getNotesByTag(args: { tag: string }): Promise<NoteSummary[]> {
+    return api().invoke(IpcChannels.getNotesByTag, args);
   },
 
   // Settings
