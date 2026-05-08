@@ -5,6 +5,7 @@ import type { SuggestionKeyDownProps, SuggestionProps } from '@tiptap/suggestion
 import { useEditorStore } from '../../stores/editor';
 import { ipc } from '../../lib/ipc';
 import { debounce } from '../../lib/debounce';
+import { AUTOSAVE_DEBOUNCE_MS } from '../../lib/timings';
 import { buildEditorExtensions } from './EditorExtensions';
 import {
   type WikilinkSuggestionItem,
@@ -186,7 +187,7 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
           void saveRef.current();
         }
       });
-    }, 500);
+    }, AUTOSAVE_DEBOUNCE_MS);
   }, []);
 
   // Cancel pending autosaves when the component unmounts so we don't

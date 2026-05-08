@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Backlink } from '../../../shared/ipc';
 import { ipc } from '../../lib/ipc';
 import { debounce } from '../../lib/debounce';
+import { BACKLINKS_REFETCH_MS } from '../../lib/timings';
 import { useEditorStore } from '../../stores/editor';
 
 export function BacklinksPanel(): JSX.Element {
@@ -42,7 +43,7 @@ export function BacklinksPanel(): JSX.Element {
     // vault event so the panel stays in sync without thrashing during bursts.
     const debouncedRefetch = debounce(() => {
       void fetchBacklinks();
-    }, 250);
+    }, BACKLINKS_REFETCH_MS);
 
     const offEvent = ipc.onVaultEvent(() => {
       debouncedRefetch();

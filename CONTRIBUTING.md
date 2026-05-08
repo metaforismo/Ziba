@@ -63,10 +63,16 @@ HMR sul renderer è attivo. Modifiche al main process richiedono un reload (elec
 ```bash
 pnpm typecheck   # tipi su tutto il monorepo
 pnpm lint        # ESLint su tutto il codice
+pnpm format:check
+pnpm test        # 85 test su packages/core
 pnpm build       # build di produzione
 ```
 
-Tutti e tre devono passare prima di aprire una PR. La CI li esegue automaticamente.
+Tutti devono passare prima di aprire una PR.
+
+### Pre-commit hook
+
+`pnpm install` configura automaticamente husky. Su ogni commit, lint-staged esegue `eslint --fix` + `prettier --write` solo sui file staged — tipicamente sotto un secondo. Se hai bisogno di skipparlo in un'emergenza: `git commit --no-verify`.
 
 ## Workflow di sviluppo
 

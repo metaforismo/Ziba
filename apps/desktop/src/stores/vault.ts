@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import type { IndexProgressPayload, VaultEventPayload, VaultInfo } from '../../shared/ipc';
 import { debounce } from '../lib/debounce';
 import { ipc } from '../lib/ipc';
+import { VAULT_EVENT_REFRESH_MS } from '../lib/timings';
 
 type IndexProgress = { processed: number; total: number | null };
 
@@ -28,7 +29,7 @@ export const useVaultStore = create<VaultState>((set, get) => {
   // owner of this debouncer so concurrent events coalesce correctly.
   const debouncedRefresh = debounce((): void => {
     void get().refreshNotes();
-  }, 150);
+  }, VAULT_EVENT_REFRESH_MS);
 
   return {
     current: null,

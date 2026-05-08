@@ -1,0 +1,3 @@
+# Run lint-staged on staged files only — fast, won't slow down commits.
+# If you need to skip in an emergency: `git commit --no-verify`.
+pnpm exec lint-staged
