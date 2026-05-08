@@ -116,7 +116,6 @@ export class SqliteIndexStore implements IndexStoreAdapter {
     clearFts: Database.Statement;
     deletePropsFor: Database.Statement;
     insertProp: Database.Statement;
-    getPropsForPath: Database.Statement;
     clearProps: Database.Statement;
     graphNodes: Database.Statement;
     graphEdges: Database.Statement;
@@ -242,12 +241,6 @@ export class SqliteIndexStore implements IndexStoreAdapter {
           (source_path, prop_key, prop_type,
            text_value, number_value, boolean_value, date_value, array_value)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `),
-      getPropsForPath: db.prepare(`
-        SELECT prop_key, prop_type, text_value, number_value,
-               boolean_value, date_value, array_value
-        FROM note_properties
-        WHERE source_path = ?
       `),
       clearProps: db.prepare(`DELETE FROM note_properties`),
       graphNodes: db.prepare(`SELECT path, title FROM notes`),
@@ -677,11 +670,18 @@ export class SqliteIndexStore implements IndexStoreAdapter {
       .prepare(selectSql)
       .all(...sortJoinParams, ...params, limit) as NoteRow[];
 
+    // Batched property fetch: one query covers every row in the result
+    // set, then we group by source_path in JS. This replaces an
+    // N+1 (`materializePropsForPath` per row) that became measurable
+    // around 500-row results — at limit=1000 we used to do 1001 SQLite
+    // round-trips, now we do 2.
+    const propertiesByPath = this.materializePropsBatch(rowsRaw.map((r) => r.path));
+
     const rows: DatabaseRow[] = rowsRaw.map((r) => ({
       path: r.path,
       title: r.title,
       mtimeMs: r.mtime,
-      properties: this.materializePropsForPath(r.path),
+      properties: propertiesByPath.get(r.path) ?? {},
     }));
 
     let groups: DatabaseGroup[] = [];
@@ -693,13 +693,22 @@ export class SqliteIndexStore implements IndexStoreAdapter {
   }
 
   /**
-   * Fetch `note_properties` rows for one note and rebuild a
-   * `Record<string, DetectedProperty>` map. N+1 over the result set —
-   * acceptable for v0.3, optimise when vaults exceed ~5k notes.
+   * Fetch `note_properties` rows for many notes in a single SQL query,
+   * grouping the result by source_path in JS. Replaces the per-path
+   * lookup that used to dominate `runQuery` cost on large result sets.
+   *
+   * SQLite's `IN (?, ?, ...)` placeholder list has a default cap of
+   * SQLITE_LIMIT_VARIABLE_NUMBER (~999 in older builds, ~32k in
+   * newer). Our limit is clamped to 5000, so we chunk at 900 to stay
+   * safely under the conservative cap regardless of the runtime.
    */
-  private materializePropsForPath(path: NotePath): Record<string, DetectedProperty> {
-    const s = this.require();
+  private materializePropsBatch(
+    paths: NotePath[],
+  ): Map<NotePath, Record<string, DetectedProperty>> {
+    const out = new Map<NotePath, Record<string, DetectedProperty>>();
+    if (paths.length === 0 || !this.db) return out;
     type Row = {
+      source_path: string;
       prop_key: string;
       prop_type: string;
       text_value: string | null;
@@ -708,11 +717,26 @@ export class SqliteIndexStore implements IndexStoreAdapter {
       date_value: string | null;
       array_value: string | null;
     };
-    const rows = s.getPropsForPath.all(path) as Row[];
-    const out: Record<string, DetectedProperty> = {};
-    for (const r of rows) {
-      const detected = sqliteRowToDetected(r);
-      if (detected) out[r.prop_key] = detected;
+    const CHUNK = 900;
+    for (let i = 0; i < paths.length; i += CHUNK) {
+      const chunk = paths.slice(i, i + CHUNK);
+      const placeholders = chunk.map(() => '?').join(',');
+      const sql = `
+        SELECT source_path, prop_key, prop_type,
+               text_value, number_value, boolean_value, date_value, array_value
+        FROM note_properties
+        WHERE source_path IN (${placeholders})
+      `;
+      const rows = this.db.prepare(sql).all(...chunk) as Row[];
+      for (const r of rows) {
+        let bucket = out.get(r.source_path);
+        if (bucket === undefined) {
+          bucket = {};
+          out.set(r.source_path, bucket);
+        }
+        const detected = sqliteRowToDetected(r);
+        if (detected) bucket[r.prop_key] = detected;
+      }
     }
     return out;
   }
