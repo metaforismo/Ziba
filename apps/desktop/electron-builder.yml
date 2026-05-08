@@ -1,0 +1,50 @@
+appId: com.metaforismo.synapsium
+productName: synapsium
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - out/**
+  - package.json
+
+# better-sqlite3 is a native module and cannot live inside an asar archive —
+# the `.node` binary needs to be loaded via require() from disk. `bindings`
+# resolves the binary path at runtime and must also be unpacked.
+asar: true
+asarUnpack:
+  - "**/node_modules/better-sqlite3/**"
+  - "**/node_modules/bindings/**"
+
+# v0.1: no signing, no notarization. Builds will be unsigned for now.
+mac:
+  category: public.app-category.productivity
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64
+  identity: null
+  hardenedRuntime: false
+  gatekeeperAssess: false
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+  category: Utility

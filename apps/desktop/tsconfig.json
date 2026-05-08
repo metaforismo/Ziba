@@ -1,0 +1,16 @@
+{
+  "extends": "@synapsium/tsconfig/base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "types": ["vite/client"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@shared/*": ["shared/*"]
+    },
+    "noEmit": true
+  },
+  "include": ["src/**/*", "shared/**/*"],
+  "exclude": ["electron", "out", "dist", "node_modules"]
+}

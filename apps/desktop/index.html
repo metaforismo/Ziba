@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!--
+      CSP for the Electron renderer.
+      - default-src 'self' so only bundled assets are loaded.
+      - 'unsafe-inline' on style-src is required because Tailwind / React
+        components inject inline <style> blocks at runtime; we explicitly do
+        NOT enable 'unsafe-eval' on script-src.
+      - img-src allows data: URIs (e.g. inline SVG icons).
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none';"
+    />
+    <title>synapsium</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

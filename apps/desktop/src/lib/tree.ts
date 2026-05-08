@@ -1,0 +1,85 @@
+import type { NotePath, NoteSummary } from '@synapsium/core';
+
+/**
+ * Hierarchical view of a flat NoteSummary list. Folders are derived purely
+ * from the path segments — empty folders that no note belongs to don't
+ * exist in this tree. They appear naturally once any note inside them is
+ * created (folders are not first-class entities at the index layer; they
+ * are an artifact of the path structure).
+ */
+export type TreeNode =
+  | {
+      kind: 'folder';
+      /** Vault-relative path of the folder, e.g. "projects/synapsium". */
+      path: string;
+      /** Last segment of the path, used as display name. */
+      name: string;
+      children: TreeNode[];
+    }
+  | {
+      kind: 'file';
+      path: NotePath;
+      title: string;
+    };
+
+type FolderShell = {
+  kind: 'folder';
+  path: string;
+  name: string;
+  children: TreeNode[];
+};
+
+function getOrCreateFolder(
+  parent: FolderShell,
+  segments: string[],
+  startIdx: number,
+): FolderShell {
+  let cursor = parent;
+  for (let i = startIdx; i < segments.length; i++) {
+    const seg = segments[i] as string;
+    const folderPath = cursor.path === '' ? seg : `${cursor.path}/${seg}`;
+    let next = cursor.children.find(
+      (c): c is FolderShell => c.kind === 'folder' && c.name === seg,
+    );
+    if (next === undefined) {
+      next = { kind: 'folder', path: folderPath, name: seg, children: [] };
+      cursor.children.push(next);
+    }
+    cursor = next;
+  }
+  return cursor;
+}
+
+function sortChildren(node: FolderShell): void {
+  // Folders first (alphabetical by name), then files (alphabetical by title).
+  node.children.sort((a, b) => {
+    if (a.kind !== b.kind) return a.kind === 'folder' ? -1 : 1;
+    if (a.kind === 'folder' && b.kind === 'folder') {
+      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    }
+    if (a.kind === 'file' && b.kind === 'file') {
+      return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
+    }
+    return 0;
+  });
+  for (const child of node.children) {
+    if (child.kind === 'folder') sortChildren(child);
+  }
+}
+
+/**
+ * Build a folder/file tree from a flat NoteSummary[] list. Pure function:
+ * no React, no side effects. Sorted with folders before files.
+ */
+export function buildTree(notes: NoteSummary[]): TreeNode[] {
+  const root: FolderShell = { kind: 'folder', path: '', name: '', children: [] };
+  for (const note of notes) {
+    const segments = note.path.split('/');
+    const fileSeg = segments.pop();
+    if (fileSeg === undefined || fileSeg === '') continue;
+    const parent = getOrCreateFolder(root, segments, 0);
+    parent.children.push({ kind: 'file', path: note.path, title: note.title });
+  }
+  sortChildren(root);
+  return root.children;
+}

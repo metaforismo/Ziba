@@ -1,0 +1,49 @@
+{
+  "name": "synapsium-desktop",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "out/main/main.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
+    "package": "electron-vite build && electron-builder --dir",
+    "dist:mac": "electron-vite build && electron-builder --mac",
+    "dist:win": "electron-vite build && electron-builder --win",
+    "dist:linux": "electron-vite build && electron-builder --linux",
+    "clean": "rimraf out dist .turbo"
+  },
+  "dependencies": {
+    "@synapsium/core": "workspace:*",
+    "@tiptap/core": "^2.10.3",
+    "@tiptap/pm": "^2.10.3",
+    "@tiptap/react": "^2.10.3",
+    "@tiptap/starter-kit": "^2.10.3",
+    "@tiptap/suggestion": "^2.10.3",
+    "better-sqlite3": "^11.5.0",
+    "chokidar": "^3.6.0",
+    "clsx": "^2.1.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tiptap-markdown": "^0.8.10",
+    "zustand": "^4.5.5"
+  },
+  "devDependencies": {
+    "@synapsium/tsconfig": "workspace:*",
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/node": "^20.16.13",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "autoprefixer": "^10.4.20",
+    "electron": "^32.2.0",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^2.3.0",
+    "postcss": "^8.4.47",
+    "rimraf": "^6",
+    "tailwindcss": "^3.4.14",
+    "typescript": "^5.5",
+    "vite": "^5.4.10"
+  }
+}
