@@ -19,6 +19,7 @@ export type IpcErrorCode =
   | 'NOT_FOUND'
   | 'ALREADY_EXISTS'
   | 'INVALID_PATH'
+  | 'INVALID_QUERY'
   | 'PERMISSION_DENIED'
   | 'INTERNAL';
 

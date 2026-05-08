@@ -4,6 +4,7 @@ import type { NotePath } from '../types/note.js';
 import { loadNote } from './note.js';
 import { INDEX_DIR_NAME } from '../index-store/schema.js';
 import { extractTags, mergeTagsFromFrontmatter } from '../markdown/tags.js';
+import { extractProperties } from '../query/index.js';
 
 /**
  * Directory names always skipped during a vault scan.
@@ -98,6 +99,11 @@ export async function indexVault(
     const contentTags = extractTags(note.content);
     const mergedTags: TagPair[] = mergeTagsFromFrontmatter(note.frontmatter, contentTags);
     await indexStore.replaceTags(note.path, mergedTags);
+
+    // Typed property extraction (v0.3 Wave 1). Same pass: no cross-note
+    // dependency, so we can persist immediately. Empty list is fine — the
+    // adapter just clears any existing rows for this note.
+    await indexStore.replaceProperties(note.path, extractProperties(note.frontmatter));
 
     if (note.wikilinks.length > 0) {
       sources.push({ path: note.path, targets: note.wikilinks });

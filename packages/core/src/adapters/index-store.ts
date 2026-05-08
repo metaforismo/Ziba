@@ -1,4 +1,5 @@
 import type { Note, NotePath, NoteSummary } from '../types/note.js';
+import type { DatabaseQuery, DatabaseResult, DetectedProperty, FullGraph } from '../query/index.js';
 
 export type WikilinkRow = {
   sourcePath: NotePath;
@@ -92,6 +93,27 @@ export interface IndexStoreAdapter {
   replaceWikilinks(sourcePath: NotePath, links: OutgoingWikilink[]): Promise<void>;
 
   resolveTitleToPath(title: string): Promise<NotePath | null>;
+
+  /**
+   * Replace all property rows for `sourcePath` with the given list.
+   * Called from the indexer after each `upsertNote`. Empty list clears
+   * the note's property rows.
+   */
+  replaceProperties(sourcePath: NotePath, props: DetectedProperty[]): Promise<void>;
+
+  /**
+   * Run a typed query against `note_properties`, joined back to `notes`
+   * for path/title/mtime. Implementations clamp the limit and N+1 the
+   * per-row property fetch — fine for v0.3 vault sizes.
+   */
+  runQuery(query: DatabaseQuery): Promise<DatabaseResult>;
+
+  /**
+   * Return all notes + all RESOLVED outgoing wikilinks as a graph.
+   * Broken edges (target_path IS NULL) are excluded — useless for the
+   * global graph rendering. Powers v0.3 Wave 2 global graph view.
+   */
+  getFullGraph(): Promise<FullGraph>;
 
   clear(): Promise<void>;
 }

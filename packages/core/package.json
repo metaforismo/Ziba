@@ -29,6 +29,10 @@
     "./index-store": {
       "types": "./dist/index-store/index.d.ts",
       "import": "./dist/index-store/index.js"
+    },
+    "./query": {
+      "types": "./dist/query/index.d.ts",
+      "import": "./dist/query/index.js"
     }
   },
   "files": [

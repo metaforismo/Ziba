@@ -5,6 +5,9 @@
 import type { Frontmatter, Note, NotePath, NoteSummary } from '@synapsium/core';
 import type {
   Backlink,
+  DatabaseQuery,
+  DatabaseResult,
+  FullGraph,
   IndexProgressPayload,
   SearchHit,
   TagSummary,
@@ -96,6 +99,14 @@ export const ipc = {
   },
   getNotesByTag(args: { tag: string }): Promise<NoteSummary[]> {
     return api().invoke(IpcChannels.getNotesByTag, args);
+  },
+
+  // Database queries (v0.3 Wave 1)
+  runDatabaseQuery(args: { query: DatabaseQuery }): Promise<DatabaseResult> {
+    return api().invoke(IpcChannels.runDatabaseQuery, args);
+  },
+  getFullGraph(): Promise<FullGraph> {
+    return api().invoke(IpcChannels.getFullGraph);
   },
 
   // Settings

@@ -32,6 +32,8 @@ import { createFolder, renameFolder, deleteFolder } from './folder.js';
 import { getBacklinks, resolveTitle } from './links.js';
 import { searchFullText } from './search.js';
 import { listTags, getNotesByTag } from './tags.js';
+import { runDatabaseQuery } from './database.js';
+import { getFullGraph } from './graph.js';
 import { getRecentVaults } from './settings.js';
 
 type Handler<C extends keyof IpcRequests> = (
@@ -88,6 +90,10 @@ export function registerIpcHandlers(win: BrowserWindow): void {
   handle(IpcChannels.searchFullText, (args) => searchFullText(args));
   handle(IpcChannels.listTags, () => listTags());
   handle(IpcChannels.getNotesByTag, (args) => getNotesByTag(args));
+
+  // Database queries / global graph (v0.3 Wave 1)
+  handle(IpcChannels.runDatabaseQuery, (args) => runDatabaseQuery(args));
+  handle(IpcChannels.getFullGraph, () => getFullGraph());
 
   // Settings
   handle(IpcChannels.getRecentVaults, () => getRecentVaults());

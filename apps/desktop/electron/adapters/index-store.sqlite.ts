@@ -13,11 +13,18 @@ import {
   INDEX_DIR_NAME,
   PRAGMAS,
   SCHEMA_SQL,
+  type DatabaseGroup,
+  type DatabaseQuery,
+  type DatabaseResult,
+  type DatabaseRow,
+  type DetectedProperty,
+  type FullGraph,
   type FullTextHit,
   type IndexStoreAdapter,
   type NotePath,
   type NoteSummary,
   type OutgoingWikilink,
+  type ScalarFilter,
   type TagPair,
   type TagSummaryRow,
   type UpsertNoteInput,
@@ -107,6 +114,12 @@ export class SqliteIndexStore implements IndexStoreAdapter {
     getNotesByTag: Database.Statement;
     clearTags: Database.Statement;
     clearFts: Database.Statement;
+    deletePropsFor: Database.Statement;
+    insertProp: Database.Statement;
+    getPropsForPath: Database.Statement;
+    clearProps: Database.Statement;
+    graphNodes: Database.Statement;
+    graphEdges: Database.Statement;
   } | null = null;
 
   async init(vaultRoot: string): Promise<void> {
@@ -223,6 +236,29 @@ export class SqliteIndexStore implements IndexStoreAdapter {
       `),
       clearTags: db.prepare(`DELETE FROM tags`),
       clearFts: db.prepare(`DELETE FROM notes_fts`),
+      deletePropsFor: db.prepare(`DELETE FROM note_properties WHERE source_path = ?`),
+      insertProp: db.prepare(`
+        INSERT INTO note_properties
+          (source_path, prop_key, prop_type,
+           text_value, number_value, boolean_value, date_value, array_value)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `),
+      getPropsForPath: db.prepare(`
+        SELECT prop_key, prop_type, text_value, number_value,
+               boolean_value, date_value, array_value
+        FROM note_properties
+        WHERE source_path = ?
+      `),
+      clearProps: db.prepare(`DELETE FROM note_properties`),
+      graphNodes: db.prepare(`SELECT path, title FROM notes`),
+      graphEdges: db.prepare(`
+        SELECT w.source_path AS source,
+               w.target_path  AS target,
+               n.title         AS target_title
+        FROM wikilinks w
+        JOIN notes n ON n.path = w.target_path
+        WHERE w.target_path IS NOT NULL
+      `),
     };
   }
 
@@ -409,10 +445,384 @@ export class SqliteIndexStore implements IndexStoreAdapter {
     const tx = this.db.transaction(() => {
       s.clearWikilinks.run();
       s.clearTags.run();
+      s.clearProps.run();
       s.clearFts.run();
       s.clearNotes.run();
     });
     tx();
     return Promise.resolve();
+  }
+
+  // ---- v0.3 Wave 1: typed property index + query API + full graph ------
+
+  async replaceProperties(sourcePath: NotePath, props: DetectedProperty[]): Promise<void> {
+    const s = this.require();
+    if (!this.db) throw new Error('IndexStore not initialized');
+    const tx = this.db.transaction((src: NotePath, ps: DetectedProperty[]) => {
+      s.deletePropsFor.run(src);
+      for (const p of ps) {
+        // Populate ONLY the typed column matching `p.type`. The other
+        // columns stay NULL — readers branch on `prop_type`.
+        const text = p.type === 'text' || p.type === 'url' ? p.value : null;
+        const num = p.type === 'number' ? p.value : null;
+        const bool = p.type === 'boolean' ? (p.value ? 1 : 0) : null;
+        const date = p.type === 'date' ? p.value : null;
+        const arr = p.type === 'string-array' ? JSON.stringify(p.value) : null;
+        s.insertProp.run(src, p.key, p.type, text, num, bool, date, arr);
+      }
+    });
+    tx(sourcePath, props);
+    return Promise.resolve();
+  }
+
+  /**
+   * Build a typed-column expression to compare against for a given filter.
+   * Numbers compare on `number_value`, ISO date strings compare on
+   * `date_value`, everything else falls back to `text_value`. This is a
+   * heuristic — the indexer wrote the value to exactly one column, so we
+   * can only match if the caller picks the right column for their RHS.
+   */
+  private static columnForRhs(rhs: number | string | boolean): {
+    column: 'number_value' | 'text_value' | 'boolean_value' | 'date_value';
+    bound: number | string | 0 | 1;
+  } {
+    if (typeof rhs === 'boolean') {
+      return { column: 'boolean_value', bound: rhs ? 1 : 0 };
+    }
+    if (typeof rhs === 'number') {
+      return { column: 'number_value', bound: rhs };
+    }
+    // string: detect ISO date.
+    if (/^\d{4}-\d{2}-\d{2}$/.test(rhs)) {
+      return { column: 'date_value', bound: rhs };
+    }
+    return { column: 'text_value', bound: rhs };
+  }
+
+  /**
+   * Translate a single filter into an EXISTS / NOT EXISTS predicate
+   * referencing `notes n`. Returns the SQL fragment plus the bound
+   * parameters in order. Caller AND's all fragments together.
+   */
+  private buildFilterFragment(f: ScalarFilter): { sql: string; params: Array<string | number> } {
+    switch (f.kind) {
+      case 'eq': {
+        const { column, bound } = SqliteIndexStore.columnForRhs(f.value);
+        return {
+          sql: `EXISTS (SELECT 1 FROM note_properties np WHERE np.source_path = n.path AND np.prop_key = ? AND np.${column} = ?)`,
+          params: [f.key, bound],
+        };
+      }
+      case 'in': {
+        if (f.values.length === 0) {
+          // No values → matches nothing.
+          return { sql: '0 = 1', params: [] };
+        }
+        // Group by inferred RHS column so we only pick the right typed col.
+        // In practice all `in` values should share a type; if they don't,
+        // we union per-column subqueries.
+        const byColumn = new Map<string, Array<number | string | 0 | 1>>();
+        for (const v of f.values) {
+          const { column, bound } = SqliteIndexStore.columnForRhs(v);
+          const arr = byColumn.get(column) ?? [];
+          arr.push(bound);
+          byColumn.set(column, arr);
+        }
+        const subs: string[] = [];
+        const params: Array<string | number> = [];
+        for (const [column, vals] of byColumn) {
+          const placeholders = vals.map(() => '?').join(', ');
+          subs.push(
+            `EXISTS (SELECT 1 FROM note_properties np WHERE np.source_path = n.path AND np.prop_key = ? AND np.${column} IN (${placeholders}))`,
+          );
+          params.push(f.key, ...vals);
+        }
+        return { sql: `(${subs.join(' OR ')})`, params };
+      }
+      case 'has':
+        return {
+          sql: `EXISTS (SELECT 1 FROM note_properties np WHERE np.source_path = n.path AND np.prop_key = ?)`,
+          params: [f.key],
+        };
+      case 'lacks':
+        return {
+          sql: `NOT EXISTS (SELECT 1 FROM note_properties np WHERE np.source_path = n.path AND np.prop_key = ?)`,
+          params: [f.key],
+        };
+      case 'lt':
+      case 'gt':
+      case 'lte':
+      case 'gte': {
+        const op = { lt: '<', gt: '>', lte: '<=', gte: '>=' }[f.kind];
+        const { column, bound } = SqliteIndexStore.columnForRhs(f.value);
+        return {
+          sql: `EXISTS (SELECT 1 FROM note_properties np WHERE np.source_path = n.path AND np.prop_key = ? AND np.${column} ${op} ?)`,
+          params: [f.key, bound],
+        };
+      }
+      case 'contains': {
+        // Substring match over text/url, plus JSON `"value"` token match
+        // on string-array. The token form is approximate but good enough
+        // for v0.3 — the array_value is JSON-encoded so an exact element
+        // match shows up as `"value"` somewhere in the string.
+        const like = `%${f.value.replace(/[\\%_]/g, (c) => '\\' + c)}%`;
+        const arrayLike = `%${JSON.stringify(f.value).replace(/[\\%_]/g, (c) => '\\' + c)}%`;
+        return {
+          sql: `EXISTS (SELECT 1 FROM note_properties np WHERE np.source_path = n.path AND np.prop_key = ? AND (np.text_value LIKE ? ESCAPE '\\' OR np.array_value LIKE ? ESCAPE '\\'))`,
+          params: [f.key, like, arrayLike],
+        };
+      }
+    }
+  }
+
+  async runQuery(query: DatabaseQuery): Promise<DatabaseResult> {
+    this.require();
+    if (!this.db) throw new Error('IndexStore not initialized');
+
+    const where: string[] = [];
+    const params: Array<string | number> = [];
+
+    if (query.folder !== undefined && query.folder.length > 0) {
+      // Match notes whose path begins with `<folder>/`. We escape LIKE
+      // metacharacters so a literal underscore in a folder name doesn't
+      // act as a wildcard.
+      const trimmed = query.folder.replace(/\/+$/, '');
+      const escaped = trimmed.replace(/[\\%_]/g, (c) => '\\' + c);
+      where.push(`n.path LIKE ? ESCAPE '\\'`);
+      params.push(escaped + '/%');
+    }
+
+    if (query.filters && query.filters.length > 0) {
+      for (const f of query.filters) {
+        const frag = this.buildFilterFragment(f);
+        where.push(frag.sql);
+        params.push(...frag.params);
+      }
+    }
+
+    // Build sort joins. Mixed-type sort is best-effort: COALESCE picks
+    // whichever typed column was populated, in priority order text →
+    // number → date. Adapters won't promise stable ordering across
+    // mixed-type columns; document this in the interface comment.
+    const sortJoins: string[] = [];
+    const sortClauses: string[] = [];
+    const sortJoinParams: Array<string | number> = [];
+    if (query.sort && query.sort.length > 0) {
+      query.sort.forEach((s, idx) => {
+        const alias = `sp_${idx}`;
+        sortJoins.push(
+          `LEFT JOIN note_properties ${alias} ON ${alias}.source_path = n.path AND ${alias}.prop_key = ?`,
+        );
+        sortJoinParams.push(s.key);
+        const dir = s.direction === 'desc' ? 'DESC' : 'ASC';
+        sortClauses.push(
+          `COALESCE(${alias}.text_value, CAST(${alias}.number_value AS TEXT), ${alias}.date_value) ${dir}`,
+        );
+      });
+    }
+    // Deterministic tiebreak on path so ordering is stable.
+    sortClauses.push('n.path ASC');
+
+    // Total count BEFORE limit, on the same WHERE clause. We don't need
+    // the sort joins here — they don't affect cardinality.
+    const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+    const countSql = `SELECT COUNT(*) AS c FROM notes n ${whereSql}`;
+    const totalRow = this.db.prepare(countSql).get(...params) as { c: number } | undefined;
+    const totalCount = totalRow?.c ?? 0;
+
+    // Clamp limit to [1, 5000], default 1000.
+    const requested = query.limit ?? 1000;
+    const limit = Math.max(1, Math.min(requested, 5000));
+
+    const selectSql = `
+      SELECT n.path AS path, n.title AS title, n.mtime AS mtime
+      FROM notes n
+      ${sortJoins.join('\n')}
+      ${whereSql}
+      ORDER BY ${sortClauses.join(', ')}
+      LIMIT ?
+    `;
+    type NoteRow = { path: string; title: string; mtime: number };
+    const rowsRaw = this.db
+      .prepare(selectSql)
+      .all(...sortJoinParams, ...params, limit) as NoteRow[];
+
+    const rows: DatabaseRow[] = rowsRaw.map((r) => ({
+      path: r.path,
+      title: r.title,
+      mtimeMs: r.mtime,
+      properties: this.materializePropsForPath(r.path),
+    }));
+
+    let groups: DatabaseGroup[] = [];
+    if (query.groupBy !== undefined && query.groupBy.length > 0) {
+      groups = this.computeGroups(query.groupBy, where, params);
+    }
+
+    return Promise.resolve({ rows, groups, totalCount });
+  }
+
+  /**
+   * Fetch `note_properties` rows for one note and rebuild a
+   * `Record<string, DetectedProperty>` map. N+1 over the result set —
+   * acceptable for v0.3, optimise when vaults exceed ~5k notes.
+   */
+  private materializePropsForPath(path: NotePath): Record<string, DetectedProperty> {
+    const s = this.require();
+    type Row = {
+      prop_key: string;
+      prop_type: string;
+      text_value: string | null;
+      number_value: number | null;
+      boolean_value: number | null;
+      date_value: string | null;
+      array_value: string | null;
+    };
+    const rows = s.getPropsForPath.all(path) as Row[];
+    const out: Record<string, DetectedProperty> = {};
+    for (const r of rows) {
+      const detected = sqliteRowToDetected(r);
+      if (detected) out[r.prop_key] = detected;
+    }
+    return out;
+  }
+
+  /**
+   * Compute group counts for the given key, applying the same WHERE clause
+   * the row query used. Picks the typed column matching the prop_type the
+   * indexer wrote (so heterogeneous data — say, some rows storing the key
+   * as a number and others as text — still groups sensibly).
+   */
+  private computeGroups(
+    groupKey: string,
+    where: string[],
+    params: Array<string | number>,
+  ): DatabaseGroup[] {
+    if (!this.db) throw new Error('IndexStore not initialized');
+    const whereSql = where.length > 0 ? `AND ${where.join(' AND ')}` : '';
+    const sql = `
+      SELECT np.prop_type AS prop_type,
+             np.text_value AS tv,
+             np.number_value AS nv,
+             np.boolean_value AS bv,
+             np.date_value AS dv,
+             np.array_value AS av,
+             COUNT(*) AS c
+      FROM notes n
+      JOIN note_properties np ON np.source_path = n.path AND np.prop_key = ?
+      WHERE 1=1 ${whereSql}
+      GROUP BY np.prop_type, np.text_value, np.number_value, np.boolean_value, np.date_value, np.array_value
+      ORDER BY c DESC, np.text_value ASC
+    `;
+    type Row = {
+      prop_type: string;
+      tv: string | null;
+      nv: number | null;
+      bv: number | null;
+      dv: string | null;
+      av: string | null;
+      c: number;
+    };
+    const rows = this.db.prepare(sql).all(groupKey, ...params) as Row[];
+    return rows.map((r) => ({
+      value: groupRowToValue(r),
+      count: r.c,
+    }));
+  }
+
+  async getFullGraph(): Promise<FullGraph> {
+    const s = this.require();
+    type NodeRow = { path: string; title: string };
+    type EdgeRow = { source: string; target: string; target_title: string };
+    const nodes = (s.graphNodes.all() as NodeRow[]).map((r) => ({
+      path: r.path,
+      title: r.title,
+    }));
+    const edges = (s.graphEdges.all() as EdgeRow[]).map((r) => ({
+      source: r.source,
+      target: r.target,
+      targetTitle: r.target_title,
+    }));
+    return Promise.resolve({ nodes, edges });
+  }
+}
+
+// ---- Helpers --------------------------------------------------------------
+
+/**
+ * Reverse the column-mapping done by `replaceProperties` to get a
+ * `DetectedProperty` back. Returns `null` for malformed rows (shouldn't
+ * happen if writes go through the typed adapter, but we guard anyway).
+ */
+function sqliteRowToDetected(r: {
+  prop_key: string;
+  prop_type: string;
+  text_value: string | null;
+  number_value: number | null;
+  boolean_value: number | null;
+  date_value: string | null;
+  array_value: string | null;
+}): DetectedProperty | null {
+  switch (r.prop_type) {
+    case 'text':
+      return r.text_value !== null ? { key: r.prop_key, type: 'text', value: r.text_value } : null;
+    case 'url':
+      return r.text_value !== null ? { key: r.prop_key, type: 'url', value: r.text_value } : null;
+    case 'number':
+      return r.number_value !== null
+        ? { key: r.prop_key, type: 'number', value: r.number_value }
+        : null;
+    case 'boolean':
+      return r.boolean_value !== null
+        ? { key: r.prop_key, type: 'boolean', value: r.boolean_value !== 0 }
+        : null;
+    case 'date':
+      return r.date_value !== null ? { key: r.prop_key, type: 'date', value: r.date_value } : null;
+    case 'string-array': {
+      if (r.array_value === null) return null;
+      try {
+        const parsed = JSON.parse(r.array_value) as unknown;
+        if (Array.isArray(parsed) && parsed.every((v) => typeof v === 'string')) {
+          return { key: r.prop_key, type: 'string-array', value: parsed as string[] };
+        }
+        return null;
+      } catch {
+        return null;
+      }
+    }
+    default:
+      return null;
+  }
+}
+
+/**
+ * Pick the value that represents the row's group key, based on
+ * `prop_type`. `null` is returned when the typed column we expect for
+ * that type is itself null (shouldn't happen with clean writes).
+ */
+function groupRowToValue(r: {
+  prop_type: string;
+  tv: string | null;
+  nv: number | null;
+  bv: number | null;
+  dv: string | null;
+  av: string | null;
+}): string | number | boolean | null {
+  switch (r.prop_type) {
+    case 'text':
+    case 'url':
+      return r.tv;
+    case 'number':
+      return r.nv;
+    case 'boolean':
+      return r.bv === null ? null : r.bv !== 0;
+    case 'date':
+      return r.dv;
+    case 'string-array':
+      // Group on the JSON-encoded form; readers can JSON.parse if they need
+      // the array. Falls back to null when missing.
+      return r.av;
+    default:
+      return null;
   }
 }

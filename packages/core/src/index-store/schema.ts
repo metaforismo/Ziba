@@ -69,4 +69,31 @@ CREATE TABLE IF NOT EXISTS tags (
   FOREIGN KEY (source_path) REFERENCES notes(path) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_tags_tag ON tags(tag);
+
+-- v0.3 Wave 1: typed extraction of frontmatter properties for fast querying.
+-- One row per (note, key) pair. Type is detected at index time using the
+-- same rules as the renderer-side PropertyEditor (text/number/boolean/date/
+-- url/string-array). Multiple typed columns coexist; only the one matching
+-- \`prop_type\` is meaningful for any given row.
+--
+-- Note for upgrades from v0.2: \`IF NOT EXISTS\` means existing vaults pick
+-- up this table empty on first open. The next save (or a manual reindex via
+-- the existing \`vault:reindex\` IPC) will populate it. Until that happens,
+-- database queries against an upgraded vault will return zero rows.
+CREATE TABLE IF NOT EXISTS note_properties (
+  source_path TEXT NOT NULL,
+  prop_key TEXT NOT NULL,
+  prop_type TEXT NOT NULL,
+  text_value TEXT,
+  number_value REAL,
+  boolean_value INTEGER,
+  date_value TEXT,
+  array_value TEXT,                   -- JSON-encoded string[] for multi-select
+  PRIMARY KEY (source_path, prop_key),
+  FOREIGN KEY (source_path) REFERENCES notes(path) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_note_props_key    ON note_properties(prop_key);
+CREATE INDEX IF NOT EXISTS idx_note_props_text   ON note_properties(prop_key, text_value);
+CREATE INDEX IF NOT EXISTS idx_note_props_number ON note_properties(prop_key, number_value);
+CREATE INDEX IF NOT EXISTS idx_note_props_date   ON note_properties(prop_key, date_value);
 `.trim();

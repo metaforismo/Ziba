@@ -2,7 +2,37 @@
 // Imported by both `electron/` (handlers) and `src/` (client).
 // Keep this file framework-agnostic: only types + channel name constants.
 
-import type { Note, NoteSummary, NotePath, Frontmatter } from '@synapsium/core';
+import type {
+  DatabaseGroup,
+  DatabaseQuery,
+  DatabaseResult,
+  DatabaseRow,
+  DetectedProperty,
+  Frontmatter,
+  FullGraph,
+  GraphEdge,
+  GraphNode,
+  Note,
+  NotePath,
+  NoteSummary,
+  PropertyType,
+  ScalarFilter,
+} from '@synapsium/core';
+
+// Re-export the v0.3 query / graph types so renderers can keep a single
+// import surface (`'@shared/ipc'`) for everything they touch via IPC.
+export type {
+  DatabaseGroup,
+  DatabaseQuery,
+  DatabaseResult,
+  DatabaseRow,
+  DetectedProperty,
+  FullGraph,
+  GraphEdge,
+  GraphNode,
+  PropertyType,
+  ScalarFilter,
+};
 
 export const IpcChannels = {
   // Vault lifecycle
@@ -34,6 +64,11 @@ export const IpcChannels = {
   searchFullText: 'search:fullText',
   listTags: 'tags:list',
   getNotesByTag: 'tags:notesByTag',
+
+  // Database queries (v0.3 Wave 1)
+  runDatabaseQuery: 'db:query',
+  // Full graph (v0.3 Wave 1, used by Wave 2's global graph view)
+  getFullGraph: 'graph:full',
 
   // Settings / persisted state
   getRecentVaults: 'settings:recentVaults',
@@ -78,6 +113,9 @@ export type IpcRequests = {
   [IpcChannels.searchFullText]: { query: string; limit?: number };
   [IpcChannels.listTags]: void;
   [IpcChannels.getNotesByTag]: { tag: string };
+
+  [IpcChannels.runDatabaseQuery]: { query: DatabaseQuery };
+  [IpcChannels.getFullGraph]: void;
 
   [IpcChannels.getRecentVaults]: void;
 };
@@ -130,6 +168,9 @@ export type IpcResponses = {
   [IpcChannels.searchFullText]: SearchHit[];
   [IpcChannels.listTags]: TagSummary[];
   [IpcChannels.getNotesByTag]: NoteSummary[];
+
+  [IpcChannels.runDatabaseQuery]: DatabaseResult;
+  [IpcChannels.getFullGraph]: FullGraph;
 
   [IpcChannels.getRecentVaults]: VaultInfo[];
 };

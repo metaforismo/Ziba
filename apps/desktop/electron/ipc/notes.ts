@@ -10,6 +10,7 @@ import { promises as fsp } from 'node:fs';
 import path from 'node:path';
 import {
   deriveTitleFromPath,
+  extractProperties,
   extractTags,
   extractWikilinks,
   getFrontmatterTitle,
@@ -83,6 +84,11 @@ async function reindexSingle(
   }
   await store.replaceWikilinks(filePath, links);
   await store.replaceTags(filePath, mergedTags);
+
+  // Typed property index (v0.3 Wave 1). Drops unsupported values silently
+  // -- those won't be queryable, but we keep them in the original
+  // frontmatter_json for round-tripping.
+  await store.replaceProperties(filePath, extractProperties(frontmatter));
 }
 
 export async function saveNote(args: {
@@ -194,6 +200,10 @@ export async function renameNote(args: {
   const contentTags = extractTags(note.content);
   const mergedTags = mergeTagsFromFrontmatter(note.frontmatter, contentTags);
   await store.replaceTags(args.to, mergedTags);
+
+  // Carry typed properties over to the new path. The CASCADE delete on
+  // `deleteNote(args.from)` already wiped the old rows.
+  await store.replaceProperties(args.to, extractProperties(note.frontmatter));
 
   return { newPath: args.to };
 }
