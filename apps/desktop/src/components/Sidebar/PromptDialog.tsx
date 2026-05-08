@@ -88,15 +88,10 @@ export function PromptDialog({
         aria-modal="true"
         aria-labelledby="prompt-dialog-title"
       >
-        <h2
-          id="prompt-dialog-title"
-          className="mb-2 text-sm font-semibold text-fg"
-        >
+        <h2 id="prompt-dialog-title" className="mb-2 text-sm font-semibold text-fg">
           {title}
         </h2>
-        {message !== undefined && (
-          <p className="mb-3 text-xs text-fg-muted">{message}</p>
-        )}
+        {message !== undefined && <p className="mb-3 text-xs text-fg-muted">{message}</p>}
         <input
           ref={inputRef}
           type="text"
@@ -111,9 +106,7 @@ export function PromptDialog({
           }}
           className="w-full rounded border border-border bg-bg-subtle px-2 py-1.5 text-sm text-fg outline-none focus:border-accent"
         />
-        {validationError !== null && (
-          <p className="mt-1 text-xs text-red-500">{validationError}</p>
-        )}
+        {validationError !== null && <p className="mt-1 text-xs text-red-500">{validationError}</p>}
         <div className="mt-4 flex justify-end gap-2">
           <button
             type="button"

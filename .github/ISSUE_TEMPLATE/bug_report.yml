@@ -1,0 +1,77 @@
+name: 🐛 Bug report
+description: Segnala un bug riproducibile
+title: 'bug: '
+labels: [bug, triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Grazie per il bug report. Prima di aprire la issue, controlla che non ce ne sia già una simile nelle [issue esistenti](https://github.com/metaforismo/Synapsium/issues).
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Descrizione
+      description: Cosa è successo? Cosa ti aspettavi succedesse?
+      placeholder: Apro un vault con file.md, click su una nota, l'editor mostra...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Passi per riprodurre
+      description: Lista numerata, il più precisa possibile
+      placeholder: |
+        1. Avvia synapsium con `pnpm --filter synapsium-desktop dev`
+        2. Apri vault `~/Desktop/test-vault`
+        3. Click su `nota.md`
+        4. Bug: ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportamento atteso
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Comportamento osservato
+      description: Includi screenshot o video se utili
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Sistema operativo
+      options:
+        - macOS
+        - Windows
+        - Linux
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Versione synapsium
+      description: Commit SHA o tag, es. `abc123` o `v0.1.0`
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log / output console
+      description: Apri DevTools (Cmd+Opt+I / Ctrl+Shift+I) e copia eventuali errori. Anche output del terminale dove gira `pnpm dev`.
+      render: shell
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Note aggiuntive

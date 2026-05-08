@@ -27,8 +27,7 @@ export async function loadNote(
   const abs = fs.resolveAbsolute(vaultRoot, path);
   const [raw, st] = await Promise.all([fs.readFile(abs), fs.stat(abs)]);
   const { frontmatter, body, headingTitle } = parseMarkdown(raw);
-  const title =
-    getFrontmatterTitle(frontmatter) ?? headingTitle ?? deriveTitleFromPath(path);
+  const title = getFrontmatterTitle(frontmatter) ?? headingTitle ?? deriveTitleFromPath(path);
   const wikilinks = extractWikilinks(body);
   return {
     path,

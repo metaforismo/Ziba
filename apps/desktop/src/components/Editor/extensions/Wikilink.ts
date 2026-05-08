@@ -94,24 +94,17 @@ export const Wikilink = Node.create<WikilinkOptions>({
   renderHTML({ node, HTMLAttributes }) {
     const target = String(node.attrs.target ?? '');
     const alias =
-      node.attrs.alias !== null && node.attrs.alias !== undefined
-        ? String(node.attrs.alias)
-        : '';
+      node.attrs.alias !== null && node.attrs.alias !== undefined ? String(node.attrs.alias) : '';
     const display = alias.length > 0 ? alias : target;
 
     // Storage may not be populated yet on first render. Treat unknown as
     // "valid" (optimistic) so we don't flash red while resolution is in
     // flight; `useResolvedWikilinks` will repaint shortly after.
-    const resolvedMap = this.storage?.resolved as
-      | WikilinkResolutionMap
-      | undefined;
-    const isResolved =
-      resolvedMap === undefined ? true : resolvedMap.get(target) !== false;
+    const resolvedMap = this.storage?.resolved as WikilinkResolutionMap | undefined;
+    const isResolved = resolvedMap === undefined ? true : resolvedMap.get(target) !== false;
 
     const baseClass = 'synapsium-wikilink';
-    const stateClass = isResolved
-      ? 'synapsium-wikilink--resolved'
-      : 'synapsium-wikilink--broken';
+    const stateClass = isResolved ? 'synapsium-wikilink--resolved' : 'synapsium-wikilink--broken';
 
     return [
       'span',
@@ -135,9 +128,7 @@ export const Wikilink = Node.create<WikilinkOptions>({
   renderText({ node }): string {
     const target = String(node.attrs.target ?? '');
     const alias =
-      node.attrs.alias !== null && node.attrs.alias !== undefined
-        ? String(node.attrs.alias)
-        : '';
+      node.attrs.alias !== null && node.attrs.alias !== undefined ? String(node.attrs.alias) : '';
     return alias.length > 0 ? `[[${target}|${alias}]]` : `[[${target}]]`;
   },
 
@@ -151,8 +142,7 @@ export const Wikilink = Node.create<WikilinkOptions>({
         serialize(state: MarkdownSerializerState, node: ProseMirrorNode): void {
           const target = String(node.attrs.target ?? '');
           const aliasAttr = node.attrs.alias;
-          const alias =
-            aliasAttr !== null && aliasAttr !== undefined ? String(aliasAttr) : '';
+          const alias = aliasAttr !== null && aliasAttr !== undefined ? String(aliasAttr) : '';
           state.write(alias.length > 0 ? `[[${target}|${alias}]]` : `[[${target}]]`);
         },
         parse: {
@@ -168,52 +158,54 @@ export const Wikilink = Node.create<WikilinkOptions>({
             if (md.synapsiumWikilinkRegistered === true) return;
             md.synapsiumWikilinkRegistered = true;
 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            md.inline.ruler.before('emphasis', 'wikilink', (state: any, silent: boolean): boolean => {
-              const start = state.pos;
-              const src: string = state.src;
-              if (src.charCodeAt(start) !== 0x5b /* [ */) return false;
-              if (src.charCodeAt(start + 1) !== 0x5b /* [ */) return false;
+            md.inline.ruler.before(
+              'emphasis',
+              'wikilink',
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (state: any, silent: boolean): boolean => {
+                const start = state.pos;
+                const src: string = state.src;
+                if (src.charCodeAt(start) !== 0x5b /* [ */) return false;
+                if (src.charCodeAt(start + 1) !== 0x5b /* [ */) return false;
 
-              // Look for the matching `]]`. A wikilink can't span lines or
-              // contain `[` / `]`. This keeps the rule local — a stray `[[`
-              // without a closing `]]` remains literal text.
-              let pos = start + 2;
-              let found = -1;
-              while (pos < src.length - 1) {
-                const c = src.charCodeAt(pos);
-                if (c === 0x0a /* \n */) return false;
-                if (c === 0x5b /* [ */) return false;
-                if (c === 0x5d /* ] */ && src.charCodeAt(pos + 1) === 0x5d) {
-                  found = pos;
-                  break;
+                // Look for the matching `]]`. A wikilink can't span lines or
+                // contain `[` / `]`. This keeps the rule local — a stray `[[`
+                // without a closing `]]` remains literal text.
+                let pos = start + 2;
+                let found = -1;
+                while (pos < src.length - 1) {
+                  const c = src.charCodeAt(pos);
+                  if (c === 0x0a /* \n */) return false;
+                  if (c === 0x5b /* [ */) return false;
+                  if (c === 0x5d /* ] */ && src.charCodeAt(pos + 1) === 0x5d) {
+                    found = pos;
+                    break;
+                  }
+                  pos += 1;
                 }
-                pos += 1;
-              }
-              if (found === -1) return false;
+                if (found === -1) return false;
 
-              const inner = src.slice(start + 2, found);
-              if (inner.length === 0) return false;
-              if (inner.includes('\n')) return false;
+                const inner = src.slice(start + 2, found);
+                if (inner.length === 0) return false;
+                if (inner.includes('\n')) return false;
 
-              // Split target|alias.
-              const pipeIdx = inner.indexOf('|');
-              const target =
-                pipeIdx === -1 ? inner.trim() : inner.slice(0, pipeIdx).trim();
-              const alias =
-                pipeIdx === -1 ? '' : inner.slice(pipeIdx + 1).trim();
-              if (target.length === 0) return false;
+                // Split target|alias.
+                const pipeIdx = inner.indexOf('|');
+                const target = pipeIdx === -1 ? inner.trim() : inner.slice(0, pipeIdx).trim();
+                const alias = pipeIdx === -1 ? '' : inner.slice(pipeIdx + 1).trim();
+                if (target.length === 0) return false;
 
-              if (!silent) {
-                const token = state.push('wikilink', 'span', 0);
-                token.markup = '[[';
-                token.content = inner;
-                token.meta = { target, alias };
-              }
+                if (!silent) {
+                  const token = state.push('wikilink', 'span', 0);
+                  token.markup = '[[';
+                  token.content = inner;
+                  token.meta = { target, alias };
+                }
 
-              state.pos = found + 2;
-              return true;
-            });
+                state.pos = found + 2;
+                return true;
+              },
+            );
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             md.renderer.rules.wikilink = (tokens: any[], idx: number): string => {
@@ -223,13 +215,9 @@ export const Wikilink = Node.create<WikilinkOptions>({
                 alias: '',
               };
               const target = escapeHtml(meta.target);
-              const display = escapeHtml(
-                meta.alias.length > 0 ? meta.alias : meta.target,
-              );
+              const display = escapeHtml(meta.alias.length > 0 ? meta.alias : meta.target);
               const aliasAttr =
-                meta.alias.length > 0
-                  ? ` data-alias="${escapeHtml(meta.alias)}"`
-                  : '';
+                meta.alias.length > 0 ? ` data-alias="${escapeHtml(meta.alias)}"` : '';
               return `<span data-wikilink data-target="${target}"${aliasAttr}>${display}</span>`;
             };
           },
@@ -275,15 +263,13 @@ export const Wikilink = Node.create<WikilinkOptions>({
   addInputRules() {
     return [
       nodeInputRule({
-        find: /\[\[([^\[\]\n|]+)(?:\|([^\[\]\n]+))?\]\]$/,
+        find: /\[\[([^[\]\n|]+)(?:\|([^[\]\n]+))?\]\]$/,
         type: this.type,
         getAttributes: (match): { target: string; alias: string | null } => {
           const target = (match[1] ?? '').trim();
           const aliasRaw = match[2];
           const alias =
-            aliasRaw !== undefined && aliasRaw.trim().length > 0
-              ? aliasRaw.trim()
-              : null;
+            aliasRaw !== undefined && aliasRaw.trim().length > 0 ? aliasRaw.trim() : null;
           return { target, alias };
         },
       }),

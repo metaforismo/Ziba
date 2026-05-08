@@ -44,16 +44,13 @@ export function Resizer({ width, onWidthChange, side, ariaLabel }: ResizerProps)
     [onWidthChange, side],
   );
 
-  const handlePointerUp = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      const el = ref.current;
-      if (el !== null && el.hasPointerCapture(e.pointerId)) {
-        el.releasePointerCapture(e.pointerId);
-      }
-      dragState.current = null;
-    },
-    [],
-  );
+  const handlePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const el = ref.current;
+    if (el !== null && el.hasPointerCapture(e.pointerId)) {
+      el.releasePointerCapture(e.pointerId);
+    }
+    dragState.current = null;
+  }, []);
 
   // Reset cursor-disrupting drag state if the component unmounts mid-drag.
   useEffect(() => {

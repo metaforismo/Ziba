@@ -1,10 +1,6 @@
 import type { NoteSummary } from '@synapsium/core';
 import { create } from 'zustand';
-import type {
-  IndexProgressPayload,
-  VaultEventPayload,
-  VaultInfo,
-} from '../../shared/ipc';
+import type { IndexProgressPayload, VaultEventPayload, VaultInfo } from '../../shared/ipc';
 import { debounce } from '../lib/debounce';
 import { ipc } from '../lib/ipc';
 

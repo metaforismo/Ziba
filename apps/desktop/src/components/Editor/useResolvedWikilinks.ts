@@ -19,10 +19,7 @@ import type { WikilinkResolutionMap } from './extensions/Wikilink';
  * 50 wikilinks costs 50 IPC round-trips on first load — acceptable for
  * v0.1, optimize to a batch RPC later.
  */
-export function useResolvedWikilinks(
-  editor: Editor | null,
-  noteKey: string | null,
-): void {
+export function useResolvedWikilinks(editor: Editor | null, noteKey: string | null): void {
   useEffect(() => {
     if (editor === null) return;
     if (editor.isDestroyed) return;
@@ -32,9 +29,7 @@ export function useResolvedWikilinks(
 
     const resolve = async (): Promise<void> => {
       if (editor.isDestroyed) return;
-      const resolvedMap = editor.storage.wikilink?.resolved as
-        | WikilinkResolutionMap
-        | undefined;
+      const resolvedMap = editor.storage.wikilink?.resolved as WikilinkResolutionMap | undefined;
       if (resolvedMap === undefined) return;
 
       const targets = new Set<string>();
@@ -91,9 +86,7 @@ export function useResolvedWikilinks(
 
     // Reset the cache when the note changes. The Map lives in
     // `editor.storage.wikilink.resolved` and is otherwise long-lived.
-    const map = editor.storage.wikilink?.resolved as
-      | WikilinkResolutionMap
-      | undefined;
+    const map = editor.storage.wikilink?.resolved as WikilinkResolutionMap | undefined;
     map?.clear();
 
     const onUpdate = (): void => {

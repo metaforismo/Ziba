@@ -11,9 +11,7 @@ export function App(): JSX.Element {
   const applyVaultEvent = useVaultStore((s) => s.applyVaultEvent);
   const setIndexProgress = useVaultStore((s) => s.setIndexProgress);
   const pickAndOpenVault = useVaultStore((s) => s.pickAndOpenVault);
-  const applyExternalChange = useEditorStore(
-    (s) => s._internalApplyExternalChange,
-  );
+  const applyExternalChange = useEditorStore((s) => s._internalApplyExternalChange);
 
   // Bootstrap: ask main for the currently-open vault, then attach push
   // listeners. Both subscriptions return unsubscribe functions, so the

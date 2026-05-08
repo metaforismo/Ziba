@@ -32,9 +32,7 @@ export function WikilinkPopup(props: WikilinkPopupProps): JSX.Element | null {
   useEffect(() => {
     const root = listRef.current;
     if (root === null) return;
-    const active = root.querySelector<HTMLElement>(
-      `[data-index="${String(selectedIndex)}"]`,
-    );
+    const active = root.querySelector<HTMLElement>(`[data-index="${String(selectedIndex)}"]`);
     if (active === null) return;
     active.scrollIntoView({ block: 'nearest' });
   }, [selectedIndex]);
@@ -69,9 +67,7 @@ export function WikilinkPopup(props: WikilinkPopupProps): JSX.Element | null {
       style={{ top: placement.top, left: placement.left }}
     >
       {items.length === 0 ? (
-        <div className="px-3 py-2 text-xs text-fg-muted">
-          Nessun risultato per «{query}»
-        </div>
+        <div className="px-3 py-2 text-xs text-fg-muted">Nessun risultato per «{query}»</div>
       ) : (
         items.slice(0, MAX_VISIBLE).map((item, idx) => {
           const isSelected = idx === selectedIndex;
@@ -92,9 +88,7 @@ export function WikilinkPopup(props: WikilinkPopupProps): JSX.Element | null {
               onMouseEnter={(): void => onHover(idx)}
               className={[
                 'flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-sm',
-                isSelected
-                  ? 'bg-accent/10 text-fg'
-                  : 'bg-transparent text-fg hover:bg-bg-subtle',
+                isSelected ? 'bg-accent/10 text-fg' : 'bg-transparent text-fg hover:bg-bg-subtle',
               ].join(' ')}
             >
               <span className="truncate">
@@ -108,9 +102,7 @@ export function WikilinkPopup(props: WikilinkPopupProps): JSX.Element | null {
                 )}
               </span>
               {!item.isCreate && item.path !== null && (
-                <span className="ml-2 shrink-0 truncate text-xs text-fg-muted">
-                  {item.path}
-                </span>
+                <span className="ml-2 shrink-0 truncate text-xs text-fg-muted">{item.path}</span>
               )}
             </button>
           );
@@ -137,9 +129,7 @@ function HighlightedTitle(props: { title: string; query: string }): JSX.Element 
   return (
     <>
       {title.slice(0, idx)}
-      <span className="font-semibold text-accent">
-        {title.slice(idx, idx + trimmed.length)}
-      </span>
+      <span className="font-semibold text-accent">{title.slice(idx, idx + trimmed.length)}</span>
       {title.slice(idx + trimmed.length)}
     </>
   );

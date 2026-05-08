@@ -23,14 +23,6 @@ type Scan = {
   i: number;
 };
 
-function startsWith(s: Scan, needle: string): boolean {
-  if (s.i + needle.length > s.src.length) return false;
-  for (let k = 0; k < needle.length; k++) {
-    if (s.src[s.i + k] !== needle[k]) return false;
-  }
-  return true;
-}
-
 /**
  * Advance past a fenced code block opened by `marker` (``` or ~~~).
  * `marker` is the opener already detected at s.i. We move past the opener,
@@ -138,12 +130,19 @@ function walkWikilinks(
     if (c === '[' && s.src[s.i + 1] === '[') {
       const innerStart = s.i + 2;
       // Find closing ]] without crossing a newline (wikilinks are single-line).
+      // Reject `[` inside the inner content too — this matches the editor's
+      // markdown-it parser, so what the index sees and what the editor
+      // renders agree.
       let j = innerStart;
       let found = -1;
-      while (j < s.src.length - 1) {
+      while (j < s.src.length) {
         const ch = s.src[j]!;
         if (ch === '\n') break;
-        if (ch === ']' && s.src[j + 1] === ']') {
+        if (ch === '[') {
+          found = -1;
+          break;
+        }
+        if (ch === ']' && j + 1 < s.src.length && s.src[j + 1] === ']') {
           found = j;
           break;
         }

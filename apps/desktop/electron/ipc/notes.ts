@@ -2,8 +2,9 @@
 // search-by-title.
 //
 // All paths from the renderer are vault-relative NotePaths (forward
-// slashes). We resolve to absolute via the filesystem adapter immediately
-// to keep platform-specific separators contained.
+// slashes). `assertVaultRelative` rejects anything that could escape the
+// vault before we touch the filesystem; `assertResolvedWithinVault` is a
+// belt-and-braces check after `path.resolve`.
 
 import { promises as fsp } from 'node:fs';
 import path from 'node:path';
@@ -21,15 +22,22 @@ import {
   type OutgoingWikilink,
 } from '@synapsium/core';
 import { getFilesystemAdapter } from '../adapters/filesystem.electron.js';
-import { requireIndexStore, requireVault } from '../state.js';
+import { assertResolvedWithinVault, assertVaultRelative, IpcError } from '../security.js';
+import { markSelfWrite, requireIndexStore, requireVault } from '../state.js';
+
+const SEARCH_LIMIT_DEFAULT = 20;
+const SEARCH_LIMIT_MAX = 100;
 
 export async function listNotes(): Promise<NoteSummary[]> {
   return requireIndexStore().listNotes();
 }
 
 export async function loadNote(args: { path: NotePath }): Promise<Note> {
+  assertVaultRelative(args.path);
   const vault = requireVault();
   const fs = getFilesystemAdapter();
+  const abs = fs.resolveAbsolute(vault.root, args.path);
+  assertResolvedWithinVault(vault.root, abs);
   return coreLoadNote(fs, vault.root, args.path);
 }
 
@@ -74,15 +82,21 @@ export async function saveNote(args: {
   body: string;
   frontmatter: Frontmatter;
 }): Promise<{ mtimeMs: number }> {
+  assertVaultRelative(args.path);
   const vault = requireVault();
   const fs = getFilesystemAdapter();
+  const abs = fs.resolveAbsolute(vault.root, args.path);
+  assertResolvedWithinVault(vault.root, abs);
+
+  // Mark BEFORE the write so the watcher's echo (which can fire before
+  // `coreSaveNote` resolves on slow disks) gets suppressed.
+  markSelfWrite(args.path);
 
   await coreSaveNote(fs, vault.root, args.path, args.body, args.frontmatter);
 
   // Re-stat to get the freshly-written mtime. We could trust Date.now() but
   // the FS-reported value is what the watcher / index will see, so use it
   // for consistency.
-  const abs = fs.resolveAbsolute(vault.root, args.path);
   const st = await fs.stat(abs);
 
   await reindexSingle(args.path, args.body, args.frontmatter, st.mtimeMs);
@@ -90,22 +104,23 @@ export async function saveNote(args: {
   return { mtimeMs: st.mtimeMs };
 }
 
-export async function createNote(args: {
-  path: NotePath;
-  initialBody?: string;
-}): Promise<Note> {
+export async function createNote(args: { path: NotePath; initialBody?: string }): Promise<Note> {
+  assertVaultRelative(args.path);
   const vault = requireVault();
   const fs = getFilesystemAdapter();
   const abs = fs.resolveAbsolute(vault.root, args.path);
+  assertResolvedWithinVault(vault.root, abs);
 
   // Refuse to clobber an existing file -- the renderer should pick a
   // unique name (e.g. by appending " 2" or similar) before calling.
   if (await fs.exists(abs)) {
-    throw new Error(`Note already exists: ${args.path}`);
+    throw new IpcError('ALREADY_EXISTS', `Una nota a "${args.path}" esiste già.`);
   }
 
   const parent = path.dirname(abs);
   await fsp.mkdir(parent, { recursive: true });
+
+  markSelfWrite(args.path);
 
   const body = args.initialBody ?? '';
   const frontmatter: Frontmatter = {};
@@ -114,8 +129,7 @@ export async function createNote(args: {
   const st = await fs.stat(abs);
   await reindexSingle(args.path, body, frontmatter, st.mtimeMs);
 
-  const title =
-    parseMarkdown(body).headingTitle ?? deriveTitleFromPath(args.path);
+  const title = parseMarkdown(body).headingTitle ?? deriveTitleFromPath(args.path);
 
   return {
     path: args.path,
@@ -131,17 +145,23 @@ export async function renameNote(args: {
   from: NotePath;
   to: NotePath;
 }): Promise<{ newPath: NotePath }> {
+  assertVaultRelative(args.from);
+  assertVaultRelative(args.to);
   const vault = requireVault();
   const fs = getFilesystemAdapter();
   const store = requireIndexStore();
 
   const fromAbs = fs.resolveAbsolute(vault.root, args.from);
   const toAbs = fs.resolveAbsolute(vault.root, args.to);
+  assertResolvedWithinVault(vault.root, fromAbs);
+  assertResolvedWithinVault(vault.root, toAbs);
 
   if (await fs.exists(toAbs)) {
-    throw new Error(`Destination already exists: ${args.to}`);
+    throw new IpcError('ALREADY_EXISTS', `La destinazione "${args.to}" esiste già.`);
   }
 
+  markSelfWrite(args.from);
+  markSelfWrite(args.to);
   await fs.rename(fromAbs, toAbs);
 
   // Update the index. v0.1: we don't rewrite wikilinks in other files that
@@ -166,11 +186,15 @@ export async function renameNote(args: {
 }
 
 export async function deleteNote(args: { path: NotePath }): Promise<void> {
+  assertVaultRelative(args.path);
   const vault = requireVault();
   const fs = getFilesystemAdapter();
   const store = requireIndexStore();
 
   const abs = fs.resolveAbsolute(vault.root, args.path);
+  assertResolvedWithinVault(vault.root, abs);
+
+  markSelfWrite(args.path);
   await fs.deleteFile(abs);
   await store.deleteNote(args.path);
 }
@@ -180,5 +204,10 @@ export async function searchByTitle(args: {
   limit?: number;
 }): Promise<NoteSummary[]> {
   const store = requireIndexStore();
-  return store.searchNotesByTitle(args.prefix, args.limit ?? 20);
+  // Clamp the limit at the boundary so a malicious renderer can't ask for
+  // millions of rows. The interface enforces non-null at the type level,
+  // but defence in depth is cheap here.
+  const requested = args.limit ?? SEARCH_LIMIT_DEFAULT;
+  const limit = Math.max(1, Math.min(requested, SEARCH_LIMIT_MAX));
+  return store.searchNotesByTitle(args.prefix, limit);
 }

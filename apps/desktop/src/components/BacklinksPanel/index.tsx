@@ -60,22 +60,14 @@ export function BacklinksPanel(): JSX.Element {
         <span className="text-xs font-semibold uppercase tracking-wide text-fg-muted">
           Backlinks
         </span>
-        {loading && (
-          <span className="text-[10px] uppercase tracking-wide text-fg-muted">
-            …
-          </span>
-        )}
+        {loading && <span className="text-[10px] uppercase tracking-wide text-fg-muted">…</span>}
       </div>
 
       <div className="flex-1 overflow-y-auto">
         {currentPath === null ? (
-          <p className="px-3 py-2 text-xs text-fg-muted">
-            Apri una nota per vedere i backlink.
-          </p>
+          <p className="px-3 py-2 text-xs text-fg-muted">Apri una nota per vedere i backlink.</p>
         ) : backlinks.length === 0 ? (
-          <p className="px-3 py-2 text-xs text-fg-muted">
-            Nessuna nota linka questa.
-          </p>
+          <p className="px-3 py-2 text-xs text-fg-muted">Nessuna nota linka questa.</p>
         ) : (
           <ul className="px-1 pb-2">
             {backlinks.map((b) => (
@@ -87,13 +79,9 @@ export function BacklinksPanel(): JSX.Element {
                   }}
                   className="block w-full rounded px-2 py-1.5 text-left text-sm text-fg-subtle hover:bg-bg-muted hover:text-fg"
                 >
-                  <span className="block truncate font-medium">
-                    {b.sourceTitle}
-                  </span>
+                  <span className="block truncate font-medium">{b.sourceTitle}</span>
                   {b.context !== undefined && (
-                    <span className="mt-0.5 block truncate text-xs text-fg-muted">
-                      {b.context}
-                    </span>
+                    <span className="mt-0.5 block truncate text-xs text-fg-muted">{b.context}</span>
                   )}
                 </button>
               </li>

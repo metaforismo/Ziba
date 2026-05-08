@@ -4,6 +4,13 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Open-source second brain: Notion DB + Obsidian local-first markdown + graph + AI-native",
+  "homepage": "https://github.com/metaforismo/Synapsium",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/metaforismo/Synapsium.git"
+  },
+  "license": "MIT",
+  "author": "Francesco Giannicola",
   "engines": {
     "node": ">=20"
   },
@@ -11,14 +18,23 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
-    "lint": "turbo run lint",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "typecheck": "turbo run typecheck",
     "clean": "turbo run clean && rm -rf node_modules .turbo"
   },
   "devDependencies": {
+    "@eslint/js": "^9.16.0",
+    "@types/node": "^20.0.0",
+    "eslint": "^9.16.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-react": "^7.37.2",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "prettier": "^3.4.2",
     "turbo": "^2.0.0",
     "typescript": "^5.5.0",
-    "@types/node": "^20.0.0",
-    "prettier": "^3.0.0"
+    "typescript-eslint": "^8.18.0"
   }
 }

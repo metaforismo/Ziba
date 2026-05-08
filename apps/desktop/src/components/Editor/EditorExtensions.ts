@@ -26,9 +26,7 @@ export type BuildExtensionsOptions = {
  * node — otherwise the parser instance won't pick up our markdown-it
  * plugin registration.
  */
-export function buildEditorExtensions(
-  options: BuildExtensionsOptions,
-): Extensions {
+export function buildEditorExtensions(options: BuildExtensionsOptions): Extensions {
   return [
     StarterKit.configure({
       // StarterKit's defaults are mostly fine. We disable the codeBlock's

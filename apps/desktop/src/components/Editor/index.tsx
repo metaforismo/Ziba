@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EditorContent, useEditor } from '@tiptap/react';
 import type { Editor as TiptapEditor } from '@tiptap/core';
-import type {
-  SuggestionKeyDownProps,
-  SuggestionProps,
-} from '@tiptap/suggestion';
+import type { SuggestionKeyDownProps, SuggestionProps } from '@tiptap/suggestion';
 import { useEditorStore } from '../../stores/editor';
 import { ipc } from '../../lib/ipc';
 import { debounce } from '../../lib/debounce';
@@ -81,9 +78,7 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
   // Suggestion popup state lives in React so the popup can be a normal
   // component. The extension's render lifecycle calls back into these
   // setters via refs (so the extension closure stays stable).
-  const [suggestion, setSuggestion] = useState<SuggestionState>(
-    INITIAL_SUGGESTION_STATE,
-  );
+  const [suggestion, setSuggestion] = useState<SuggestionState>(INITIAL_SUGGESTION_STATE);
   const suggestionRef = useRef<SuggestionState>(INITIAL_SUGGESTION_STATE);
   useEffect(() => {
     suggestionRef.current = suggestion;
@@ -92,93 +87,83 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
   // The `command` callback baked into the suggestion plugin captures the
   // initial reference. We keep the latest one in a ref so item-selection
   // always uses the freshest editor / range.
-  const suggestionCommandRef = useRef<
-    ((item: WikilinkSuggestionItem) => void) | null
-  >(null);
+  const suggestionCommandRef = useRef<((item: WikilinkSuggestionItem) => void) | null>(null);
 
-  const createSuggestionRenderer =
-    useCallback((): WikilinkSuggestionRenderer => {
-      return {
-        onStart: (props: SuggestionProps<WikilinkSuggestionItem>): void => {
-          suggestionCommandRef.current = (item): void => {
-            props.command(item);
-          };
-          const rect = props.clientRect?.();
-          setSuggestion({
-            open: true,
-            items: props.items,
-            query: props.query,
-            position: rect
-              ? { top: rect.top, left: rect.left, bottom: rect.bottom }
-              : { top: 0, left: 0, bottom: 0 },
-            selectedIndex: 0,
-          });
-        },
-        onUpdate: (props: SuggestionProps<WikilinkSuggestionItem>): void => {
-          suggestionCommandRef.current = (item): void => {
-            props.command(item);
-          };
-          const rect = props.clientRect?.();
-          setSuggestion((prev) => ({
-            open: true,
-            items: props.items,
-            query: props.query,
-            position: rect
-              ? { top: rect.top, left: rect.left, bottom: rect.bottom }
-              : prev.position,
-            // Clamp the previously-selected index to the new list length
-            // so wrap-around doesn't land out of range when items shrink.
-            selectedIndex:
-              props.items.length === 0
-                ? 0
-                : Math.min(prev.selectedIndex, props.items.length - 1),
-          }));
-        },
-        onKeyDown: (props: SuggestionKeyDownProps): boolean => {
-          const state = suggestionRef.current;
-          if (!state.open) return false;
-          if (props.event.key === 'Escape') {
-            setSuggestion(INITIAL_SUGGESTION_STATE);
-            return true;
-          }
-          if (props.event.key === 'ArrowDown') {
-            setSuggestion((prev) => ({
-              ...prev,
-              selectedIndex:
-                prev.items.length === 0
-                  ? 0
-                  : (prev.selectedIndex + 1) % prev.items.length,
-            }));
-            return true;
-          }
-          if (props.event.key === 'ArrowUp') {
-            setSuggestion((prev) => ({
-              ...prev,
-              selectedIndex:
-                prev.items.length === 0
-                  ? 0
-                  : (prev.selectedIndex - 1 + prev.items.length) %
-                    prev.items.length,
-            }));
-            return true;
-          }
-          if (props.event.key === 'Enter' || props.event.key === 'Tab') {
-            const items = state.items;
-            if (items.length === 0) return false;
-            const item = items[state.selectedIndex] ?? items[0];
-            if (item === undefined) return false;
-            const cmd = suggestionCommandRef.current;
-            if (cmd !== null) cmd(item);
-            return true;
-          }
-          return false;
-        },
-        onExit: (): void => {
+  const createSuggestionRenderer = useCallback((): WikilinkSuggestionRenderer => {
+    return {
+      onStart: (props: SuggestionProps<WikilinkSuggestionItem>): void => {
+        suggestionCommandRef.current = (item): void => {
+          props.command(item);
+        };
+        const rect = props.clientRect?.();
+        setSuggestion({
+          open: true,
+          items: props.items,
+          query: props.query,
+          position: rect
+            ? { top: rect.top, left: rect.left, bottom: rect.bottom }
+            : { top: 0, left: 0, bottom: 0 },
+          selectedIndex: 0,
+        });
+      },
+      onUpdate: (props: SuggestionProps<WikilinkSuggestionItem>): void => {
+        suggestionCommandRef.current = (item): void => {
+          props.command(item);
+        };
+        const rect = props.clientRect?.();
+        setSuggestion((prev) => ({
+          open: true,
+          items: props.items,
+          query: props.query,
+          position: rect ? { top: rect.top, left: rect.left, bottom: rect.bottom } : prev.position,
+          // Clamp the previously-selected index to the new list length
+          // so wrap-around doesn't land out of range when items shrink.
+          selectedIndex:
+            props.items.length === 0 ? 0 : Math.min(prev.selectedIndex, props.items.length - 1),
+        }));
+      },
+      onKeyDown: (props: SuggestionKeyDownProps): boolean => {
+        const state = suggestionRef.current;
+        if (!state.open) return false;
+        if (props.event.key === 'Escape') {
           setSuggestion(INITIAL_SUGGESTION_STATE);
-          suggestionCommandRef.current = null;
-        },
-      };
-    }, []);
+          return true;
+        }
+        if (props.event.key === 'ArrowDown') {
+          setSuggestion((prev) => ({
+            ...prev,
+            selectedIndex:
+              prev.items.length === 0 ? 0 : (prev.selectedIndex + 1) % prev.items.length,
+          }));
+          return true;
+        }
+        if (props.event.key === 'ArrowUp') {
+          setSuggestion((prev) => ({
+            ...prev,
+            selectedIndex:
+              prev.items.length === 0
+                ? 0
+                : (prev.selectedIndex - 1 + prev.items.length) % prev.items.length,
+          }));
+          return true;
+        }
+        if (props.event.key === 'Enter' || props.event.key === 'Tab') {
+          const items = state.items;
+          if (items.length === 0) return false;
+          const item = items[state.selectedIndex] ?? items[0];
+          if (item === undefined) return false;
+          const cmd = suggestionCommandRef.current;
+          if (cmd !== null) cmd(item);
+          return true;
+        }
+        return false;
+      },
+      onExit: (): void => {
+        setSuggestion(INITIAL_SUGGESTION_STATE);
+        suggestionCommandRef.current = null;
+      },
+    };
+  }, []);
 
   // Build extensions once. The closure captures `createSuggestionRenderer`
   // which is stable across renders (it's wrapped in useCallback with no
@@ -217,16 +202,14 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
     content: '',
     editorProps: {
       attributes: {
-        class:
-          'synapsium-prose prose prose-sm max-w-none focus:outline-none px-8 py-6',
+        class: 'synapsium-prose prose prose-sm max-w-none focus:outline-none px-8 py-6',
         spellcheck: 'false',
       },
     },
     onUpdate: ({ editor: ed }): void => {
       // tiptap-markdown attaches `getMarkdown` on the storage namespace.
       const md =
-        (ed.storage.markdown as { getMarkdown?: () => string } | undefined)
-          ?.getMarkdown?.() ?? '';
+        (ed.storage.markdown as { getMarkdown?: () => string } | undefined)?.getMarkdown?.() ?? '';
       debouncedAutosave(md);
     },
   });
@@ -250,8 +233,8 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
       // path in the store) — refresh the editor only if its current
       // markdown differs. Otherwise we'd clobber the user's selection.
       const current =
-        (editor.storage.markdown as { getMarkdown?: () => string } | undefined)
-          ?.getMarkdown?.() ?? '';
+        (editor.storage.markdown as { getMarkdown?: () => string } | undefined)?.getMarkdown?.() ??
+        '';
       if (current !== currentNote.content) {
         // Cancel any in-flight autosave before overwriting; otherwise the
         // debounced flush fires for the new content and marks the note
@@ -275,6 +258,34 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
   // Resolve wikilinks against the index so broken targets get the red
   // styling. Re-keyed on note path so the cache resets on navigation.
   useResolvedWikilinks(editor, currentNote?.path ?? null);
+
+  // Click router: resolve the title; if it exists, open the note; if
+  // not, create a `<title>.md` at the vault root and open that. The
+  // create-then-open path mirrors Obsidian's "make a stub" behavior.
+  // Defined before the click-handler effect so the effect's deps array
+  // can reference it without hitting the temporal dead zone.
+  const handleWikilinkClick = useCallback(async (title: string): Promise<void> => {
+    try {
+      const path = await ipc.resolveTitle({ title });
+      if (path !== null) {
+        await openNoteRef.current(path);
+        return;
+      }
+      // Create a new note at the vault root. The slugging /
+      // sanitization of the filename is the responsibility of the
+      // backend (it already enforces that the path ends in `.md`).
+      const newPath = `${title}.md`;
+      const created = await ipc.createNote({ path: newPath });
+      await openNoteRef.current(created.path);
+    } catch (err) {
+      // Surface the failure via the editor store's existing error
+      // channel; we don't have a global toast in v0.1.
+      const message = err instanceof Error ? err.message : 'Errore wikilink sconosciuto';
+      useEditorStore.setState({
+        lastSaveError: `Impossibile aprire «${title}»: ${message}`,
+      });
+    }
+  }, []);
 
   // Click handling: navigate (or create-then-navigate) on wikilink click.
   // We attach to the editor's DOM root and event-delegate on
@@ -302,48 +313,17 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
     return (): void => {
       dom.removeEventListener('click', handler);
     };
-  }, [editor]);
-
-  // Click router: resolve the title; if it exists, open the note; if
-  // not, create a `<title>.md` at the vault root and open that. The
-  // create-then-open path mirrors Obsidian's "make a stub" behavior.
-  const handleWikilinkClick = useCallback(
-    async (title: string): Promise<void> => {
-      try {
-        const path = await ipc.resolveTitle({ title });
-        if (path !== null) {
-          await openNoteRef.current(path);
-          return;
-        }
-        // Create a new note at the vault root. The slugging /
-        // sanitization of the filename is the responsibility of the
-        // backend (it already enforces that the path ends in `.md`).
-        const newPath = `${title}.md`;
-        const created = await ipc.createNote({ path: newPath });
-        await openNoteRef.current(created.path);
-      } catch (err) {
-        // Surface the failure via the editor store's existing error
-        // channel; we don't have a global toast in v0.1.
-        const message =
-          err instanceof Error ? err.message : 'Errore wikilink sconosciuto';
-        useEditorStore.setState({
-          lastSaveError: `Impossibile aprire «${title}»: ${message}`,
-        });
-      }
-    },
-    [],
-  );
+  }, [editor, handleWikilinkClick]);
 
   const isExternalConflict =
-    lastSaveError !== null &&
-    lastSaveError.includes('modificato esternamente');
+    lastSaveError !== null && lastSaveError.includes('modificato esternamente');
 
   const handleManualSave = (): void => {
     debouncedAutosave.cancel();
     if (editor !== null) {
       const md =
-        (editor.storage.markdown as { getMarkdown?: () => string } | undefined)
-          ?.getMarkdown?.() ?? '';
+        (editor.storage.markdown as { getMarkdown?: () => string } | undefined)?.getMarkdown?.() ??
+        '';
       setBodyRef.current(md);
     }
     if (onSave !== undefined) void onSave();

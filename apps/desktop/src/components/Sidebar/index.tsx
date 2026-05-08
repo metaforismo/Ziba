@@ -88,10 +88,7 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
   const [focusedPath, setFocusedPath] = useState<string | null>(null);
 
   const tree = useMemo(() => buildTree(notes), [notes]);
-  const expandedSet = useMemo(
-    () => new Set(expandedFolders),
-    [expandedFolders],
-  );
+  const expandedSet = useMemo(() => new Set(expandedFolders), [expandedFolders]);
 
   // Auto-expand the chain of folders that lead to the currently-open note,
   // so the active row is always visible after opening from another surface
@@ -139,12 +136,9 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
     [onSelectNote, openNote],
   );
 
-  const handleContextMenu = useCallback(
-    (target: TreeTarget, x: number, y: number): void => {
-      setContextMenu({ target, x, y });
-    },
-    [],
-  );
+  const handleContextMenu = useCallback((target: TreeTarget, x: number, y: number): void => {
+    setContextMenu({ target, x, y });
+  }, []);
 
   // ----- Dialog action handlers -----
 
@@ -160,10 +154,7 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
     }
   };
 
-  const createFolderIn = async (
-    rawName: string,
-    parentFolder: string,
-  ): Promise<void> => {
+  const createFolderIn = async (rawName: string, parentFolder: string): Promise<void> => {
     try {
       const path = buildFolderPath(rawName, parentFolder);
       await ipc.createFolder({ path });
@@ -340,9 +331,7 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
       const flat = flattenTree(tree, expandedSet);
       if (flat.length === 0) return;
 
-      const currentIdx = focusedPath === null
-        ? -1
-        : flat.findIndex((r) => r.path === focusedPath);
+      const currentIdx = focusedPath === null ? -1 : flat.findIndex((r) => r.path === focusedPath);
 
       if (e.key === 'ArrowDown') {
         e.preventDefault();
@@ -399,15 +388,7 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
         }
       }
     },
-    [
-      dialog.kind,
-      contextMenu,
-      tree,
-      expandedSet,
-      focusedPath,
-      handleSelectFile,
-      toggleFolder,
-    ],
+    [dialog.kind, contextMenu, tree, expandedSet, focusedPath, handleSelectFile, toggleFolder],
   );
 
   const closeDialog = (): void => setDialog({ kind: 'none' });
@@ -420,9 +401,7 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
       aria-label="Esplora vault"
     >
       <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2">
-        <span className="text-xs font-semibold uppercase tracking-wide text-fg-muted">
-          Note
-        </span>
+        <span className="text-xs font-semibold uppercase tracking-wide text-fg-muted">Note</span>
         <NewNoteButton />
       </div>
 
@@ -458,11 +437,7 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
 
       {dialog.kind === 'newNoteIn' && (
         <PromptDialog
-          title={
-            dialog.parentFolder === ''
-              ? 'Nuova nota'
-              : `Nuova nota in ${dialog.parentFolder}`
-          }
+          title={dialog.parentFolder === '' ? 'Nuova nota' : `Nuova nota in ${dialog.parentFolder}`}
           message="Inserisci un nome. Usa `/` per creare sottocartelle."
           placeholder="nome-della-nota"
           okLabel="Crea"

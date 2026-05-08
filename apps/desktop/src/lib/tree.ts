@@ -29,18 +29,12 @@ type FolderShell = {
   children: TreeNode[];
 };
 
-function getOrCreateFolder(
-  parent: FolderShell,
-  segments: string[],
-  startIdx: number,
-): FolderShell {
+function getOrCreateFolder(parent: FolderShell, segments: string[], startIdx: number): FolderShell {
   let cursor = parent;
   for (let i = startIdx; i < segments.length; i++) {
     const seg = segments[i] as string;
     const folderPath = cursor.path === '' ? seg : `${cursor.path}/${seg}`;
-    let next = cursor.children.find(
-      (c): c is FolderShell => c.kind === 'folder' && c.name === seg,
-    );
+    let next = cursor.children.find((c): c is FolderShell => c.kind === 'folder' && c.name === seg);
     if (next === undefined) {
       next = { kind: 'folder', path: folderPath, name: seg, children: [] };
       cursor.children.push(next);

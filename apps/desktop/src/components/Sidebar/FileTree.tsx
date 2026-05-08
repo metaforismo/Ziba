@@ -190,10 +190,7 @@ export function FileTree({
               }
               title={row.path}
             >
-              <span
-                aria-hidden="true"
-                className="inline-block w-3 shrink-0"
-              />
+              <span aria-hidden="true" className="inline-block w-3 shrink-0" />
               <span aria-hidden="true" className="shrink-0">
                 📄
               </span>
@@ -211,10 +208,7 @@ export function FileTree({
  * needs the same row order). Exported as a named helper to avoid
  * duplicating the walk logic.
  */
-export function flattenTree(
-  tree: TreeNode[],
-  expanded: ReadonlySet<string>,
-): FlatRow[] {
+export function flattenTree(tree: TreeNode[], expanded: ReadonlySet<string>): FlatRow[] {
   const out: FlatRow[] = [];
   flatten(tree, 0, expanded, out);
   return out;

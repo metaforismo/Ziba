@@ -1,37 +1,191 @@
+<div align="center">
+
 # synapsium
 
-> Un second brain open-source: Notion DB + Obsidian local-first markdown + grafo connessioni + futuro AI native.
+**Un second brain open-source che fonde Notion e Obsidian.**
 
-synapsium fonde i punti di forza di Notion (block editor con `/`-menu, database con property strutturate, viste multiple) e Obsidian (local-first markdown, wikilinks, knowledge graph) in un'unica app pensata per crescere verso un futuro AI-native: semantic search, auto-linking, agent organizzativi, sempre con i tuoi file `.md` come source of truth sul disco.
+Markdown locale come fonte unica di verità, database strutturati come Notion, grafo di connessioni come Obsidian. In futuro: AI-native (semantic search, auto-link, agent organizzativi).
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Status](https://img.shields.io/badge/status-alpha%20%E2%80%94%20v0.1-orange)](#stato)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
+[Filosofia](#filosofia--perché-synapsium) ·
+[Funzionalità](#funzionalità) ·
+[Architettura](#architettura) ·
+[Quick start](#quick-start) ·
+[Roadmap](#roadmap) ·
+[Contribuire](CONTRIBUTING.md)
+
+</div>
+
+---
+
+## Filosofia — Perché synapsium
+
+Notion e Obsidian sono entrambi strumenti eccellenti, ma costringono a scegliere:
+
+|  | **Notion** | **Obsidian** | **synapsium** |
+|---|---|---|---|
+| Storage | Cloud proprietario | File markdown locali | File markdown locali |
+| Block editor con `/` menu | ✅ | ❌ | ✅ (in roadmap) |
+| Database con property tipizzate | ✅ | Limitato | ✅ (in roadmap) |
+| Wikilinks `[[...]]` + backlink | Limitato | ✅ | ✅ |
+| Knowledge graph | ❌ | ✅ | ✅ (in roadmap) |
+| Lock-in | Sì | No | No |
+| Open source | No | No | ✅ |
+| AI nativa | Limitata | Plugin | In roadmap |
+
+**Posizionamento:** Notion's power, Obsidian's freedom, AI-ready.
+
+I tuoi dati restano file `.md` con frontmatter YAML sul tuo disco. Sincronizzabili con qualsiasi servizio (Dropbox, iCloud, git). Nessun lock-in. Mai.
 
 ## Stato
 
-Stato: in sviluppo, v0.1 in costruzione.
+> **Alpha — v0.1 in costruzione.** Non è ancora installabile come app distribuita. Funziona solo in modalità sviluppo.
+
+Cosa funziona oggi:
+
+- Apertura e cambio di vault (cartella di file `.md` sul disco)
+- File tree laterale con cartelle annidate, CRUD via menu contestuale, navigazione tastiera
+- Editor a blocchi (Tiptap) con shortcut markdown live: `# ` → heading, `**testo**` → bold, `> ` → quote, ecc.
+- Wikilinks `[[Nota]]` con autocomplete su `[[`, click per navigare, link rotti evidenziati, creazione automatica
+- Pannello backlink che si aggiorna live al variare del vault
+- Watcher su disco che riconcilia modifiche esterne (vim, altro editor) con conflitto detection
+- Round-trip markdown completo (apri/modifica/salva → file `.md` sul disco invariato strutturalmente)
+
+## Funzionalità
+
+### Disponibili (v0.1)
+
+- 📂 Vault locale: scegli una cartella, è il tuo workspace
+- 📝 Editor Tiptap con markdown shortcut nativi
+- 🔗 Wikilink `[[...]]` con autocomplete e backlink
+- 🌳 Sidebar con file tree annidato
+- ⌨️ Navigazione completa da tastiera nel file tree
+- 💾 Autosave debounced
+- 👀 Watcher disco con detection conflitti
+
+### In arrivo
+
+Vedi la [roadmap](#roadmap).
 
 ## Architettura
 
-- Monorepo Turborepo + pnpm workspaces
-- Desktop app: Electron + React + TypeScript
-- Editor: Tiptap (ProseMirror) con markdown input rules e `tiptap-markdown`
-- Storage: file markdown puri sul disco, source of truth = filesystem
-- Index: SQLite cache (`<vault>/.synapsium/index.db`) ricreabile, alimentata da `better-sqlite3`
-- Styling: Tailwind CSS
-- State management: Zustand
-- Logica condivisa platform-agnostic in `packages/core` (pronta per web e mobile in futuro)
+```
+synapsium/
+├── apps/
+│   └── desktop/              # App Electron (l'unica nell'MVP v0.1)
+│       ├── electron/         # Main process: IPC, fs, SQLite, watcher
+│       ├── src/              # Renderer: React + Tiptap + Tailwind + Zustand
+│       └── shared/           # Contratto IPC tipizzato (main ↔ renderer)
+└── packages/
+    ├── core/                 # Logica condivisa (TS puro, zero React/Electron)
+    │   └── src/
+    │       ├── adapters/     # Interfacce: Filesystem, IndexStore, Watcher
+    │       ├── markdown/     # Parser, serializer, wikilink extractor
+    │       ├── vault/        # Scan, indicizzazione, load/save note
+    │       ├── index-store/  # Schema SQLite condiviso
+    │       └── types/        # Tipi domain (Note, Frontmatter, NotePath)
+    └── tsconfig/             # Config TypeScript condivisa
+```
+
+### Principio architetturale: adapter pattern
+
+`packages/core` non importa React, Electron, o Node-specific code. Espone interfacce che ogni piattaforma implementa:
+
+- **Desktop (Electron):** Node `fs/promises`, `better-sqlite3`, `chokidar`
+- **Web (futuro):** File System Access API, IndexedDB, custom file watcher
+- **Mobile (futuro):** Expo FileSystem, expo-sqlite, Expo file events
+
+Aggiungere una nuova piattaforma significa scrivere solo gli adapter, non riscrivere la logica.
+
+### Stack tecnico
+
+| Layer | Tecnologia | Perché |
+|---|---|---|
+| Monorepo | Turborepo + pnpm workspaces | Caching incrementale, link automatico tra package |
+| Linguaggio | TypeScript strict | Type safety end-to-end, condivisa tra processi |
+| Desktop runtime | Electron 32 | Ecosistema npm completo, futuro AI locale via Node |
+| Build desktop | electron-vite + electron-builder | DX moderna, HMR, build multi-piattaforma |
+| UI | React 18 | Standard di settore |
+| Editor | Tiptap (ProseMirror) | Block editor estendibile, round-trip markdown via `tiptap-markdown` |
+| Stato | Zustand | Minimale, niente boilerplate |
+| Styling | Tailwind CSS | Utility-first, niente runtime |
+| Storage | File `.md` + cache SQLite | Local-first, source of truth = filesystem |
+| Index | better-sqlite3 (sync) | Veloce, zero overhead async, perfetto in Electron main |
+| Watcher | chokidar | Standard de facto cross-platform |
+
+### Modello dati
+
+```ts
+type Note = {
+  path: string;                    // relativo al vault, "projects/synapsium.md"
+  title: string;                   // frontmatter.title > primo H1 > basename
+  frontmatter: Record<string, unknown>;
+  content: string;                 // body markdown senza frontmatter
+  wikilinks: string[];             // target estratti da [[...]]
+  mtimeMs: number;
+};
+```
+
+Il file `.md` sul disco è la fonte unica di verità. La cache SQLite (in `<vault>/.synapsium/index.db`) accelera query come "trova tutti i backlink di X" e "autocomplete per `[[`". Cancellabile in qualsiasi momento — viene ricostruita all'apertura del vault.
+
+## Quick start
+
+### Prerequisiti
+
+- **Node.js** ≥ 20
+- **pnpm** ≥ 9 (`corepack enable && corepack use pnpm@9` o `npm i -g pnpm`)
+- **macOS / Linux / Windows** (primary dev su macOS, gli altri non sono ancora stati testati a fondo)
+
+### Installazione e dev
+
+```bash
+git clone https://github.com/metaforismo/Synapsium.git synapsium
+cd synapsium
+pnpm install
+pnpm --filter synapsium-desktop run dev
+```
+
+L'app si apre. Al primo avvio: scegli una cartella vuota o piena di `.md` come vault e si parte.
+
+### Verifica
+
+```bash
+pnpm typecheck   # tutto il monorepo
+pnpm build       # produce dist/ per packages e out/ per app
+```
+
+### Build distributable
+
+```bash
+pnpm --filter synapsium-desktop run dist:mac     # .dmg + .zip per macOS (x64+arm64)
+pnpm --filter synapsium-desktop run dist:win     # NSIS installer
+pnpm --filter synapsium-desktop run dist:linux   # AppImage + .deb
+```
+
+> ⚠️ Non c'è ancora code signing. Su macOS l'app non firmata richiede "Apri" dal menu contestuale del Finder la prima volta.
 
 ## Roadmap
 
-- v0.1 — MVP desktop: vault opening, sidebar file tree, Tiptap editor, wikilinks + autocomplete, backlinks panel, file watcher
-- v0.2 — Search full-text, slash menu `/`, drag handles, frontmatter UI, mini-graph locale, tag system, theme support
-- v0.3 — Database views (table/board/kanban/calendar), graph globale del vault, blocchi avanzati (callout, embed, table)
-- v1.0 — Web app, plugin system base, sync semplice via filesystem-based cloud drive
-- v1.x — AI native: embeddings, semantic search, auto-link suggestions, Q&A sul vault
-- v1.5+ — Mobile app (Expo), sync server custom
+| Versione | Tema | Funzionalità chiave |
+|---|---|---|
+| **v0.1** ✨ in costruzione | Foundation desktop | Vault + editor + wikilink + backlink + watcher |
+| v0.2 | Power editing | Slash menu `/`, drag handles blocchi, frontmatter UI, full-text search, mini-graph locale alla nota, tag system, theme support |
+| v0.3 | Database & graph | Database views (table/board/kanban/calendar), grafo globale interattivo, blocchi avanzati (callout, embed, table, equation) |
+| v1.0 | Multi-piattaforma | Web app, plugin system base, sync via filesystem-cloud (Dropbox/iCloud/Drive) |
+| v1.x | AI native | Embeddings locali, semantic search, auto-link suggestions, Q&A sul vault, agent organizzativi |
+| v1.5+ | Mobile | Expo app (iOS/Android), sync server custom |
 
-## Quickstart
+Le issue del repository taggano la versione obiettivo. La roadmap è indicativa, non promessa di delivery.
 
-In arrivo.
+## Contribuire
+
+Le contribuzioni sono benvenute. Vedi [CONTRIBUTING.md](CONTRIBUTING.md) per linee guida, setup ambiente, e processo di PR.
+
+Per discussioni più aperte (idee di feature, design, dubbi di architettura), apri una [Discussion](https://github.com/metaforismo/Synapsium/discussions). Per bug riproducibili, una [Issue](https://github.com/metaforismo/Synapsium/issues).
 
 ## License
 
-MIT
+[MIT](LICENSE) © 2026 Francesco Giannicola e contributor.

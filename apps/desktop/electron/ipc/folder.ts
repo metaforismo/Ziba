@@ -5,38 +5,38 @@
 // v0.1 we just walk the index and patch rows; we don't rewrite wikilinks
 // in other files that referenced the moved notes.
 
-import {
-  loadNote as coreLoadNote,
-  type NotePath,
-  type OutgoingWikilink,
-} from '@synapsium/core';
+import { loadNote as coreLoadNote, type NotePath, type OutgoingWikilink } from '@synapsium/core';
 import { getFilesystemAdapter } from '../adapters/filesystem.electron.js';
-import { requireIndexStore, requireVault } from '../state.js';
+import { assertResolvedWithinVault, assertVaultRelative, IpcError } from '../security.js';
+import { markSelfWrite, requireIndexStore, requireVault } from '../state.js';
 
 function ensureTrailingSlash(p: string): string {
   return p.endsWith('/') ? p : p + '/';
 }
 
 export async function createFolder(args: { path: NotePath }): Promise<void> {
+  assertVaultRelative(args.path);
   const vault = requireVault();
   const fs = getFilesystemAdapter();
   const abs = fs.resolveAbsolute(vault.root, args.path);
+  assertResolvedWithinVault(vault.root, abs);
   await fs.mkdir(abs, { recursive: true });
 }
 
-export async function renameFolder(args: {
-  from: NotePath;
-  to: NotePath;
-}): Promise<void> {
+export async function renameFolder(args: { from: NotePath; to: NotePath }): Promise<void> {
+  assertVaultRelative(args.from);
+  assertVaultRelative(args.to);
   const vault = requireVault();
   const fs = getFilesystemAdapter();
   const store = requireIndexStore();
 
   const fromAbs = fs.resolveAbsolute(vault.root, args.from);
   const toAbs = fs.resolveAbsolute(vault.root, args.to);
+  assertResolvedWithinVault(vault.root, fromAbs);
+  assertResolvedWithinVault(vault.root, toAbs);
 
   if (await fs.exists(toAbs)) {
-    throw new Error(`Destination folder already exists: ${args.to}`);
+    throw new IpcError('ALREADY_EXISTS', `La cartella "${args.to}" esiste già.`);
   }
 
   await fs.rename(fromAbs, toAbs);
@@ -52,9 +52,8 @@ export async function renameFolder(args: {
 
   for (const summary of affected) {
     const newPath = toPrefix + summary.path.slice(fromPrefix.length);
-    // Reload from disk at the new path to refresh mtime / wikilinks (the
-    // wikilinks themselves haven't changed, but mtime may have updated
-    // depending on the FS).
+    markSelfWrite(summary.path);
+    markSelfWrite(newPath);
     let reloaded;
     try {
       reloaded = await coreLoadNote(fs, vault.root, newPath);
@@ -83,11 +82,14 @@ export async function renameFolder(args: {
 }
 
 export async function deleteFolder(args: { path: NotePath }): Promise<void> {
+  assertVaultRelative(args.path);
   const vault = requireVault();
   const fs = getFilesystemAdapter();
   const store = requireIndexStore();
 
   const abs = fs.resolveAbsolute(vault.root, args.path);
+  assertResolvedWithinVault(vault.root, abs);
+
   await fs.rmdir(abs, { recursive: true });
 
   // Drop every index row inside the folder.
@@ -95,6 +97,7 @@ export async function deleteFolder(args: { path: NotePath }): Promise<void> {
   const all = await store.listNotes();
   for (const summary of all) {
     if (summary.path.startsWith(prefix)) {
+      markSelfWrite(summary.path);
       await store.deleteNote(summary.path);
     }
   }

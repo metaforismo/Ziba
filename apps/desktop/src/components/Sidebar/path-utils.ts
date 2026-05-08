@@ -18,8 +18,9 @@ export function validateNameSegment(name: string): string | null {
   if (ILLEGAL_NAME_RE.test(trimmed)) {
     return 'Il nome contiene caratteri non validi (\\ : * ? " < > |).';
   }
-  if (trimmed.startsWith('/')) return 'Il nome non può iniziare con "/".';
-  if (trimmed.endsWith('/')) return 'Il nome non può finire con "/".';
+  if (trimmed.includes('/')) {
+    return 'Il nome non può contenere "/" (usa "Nuova cartella" per creare sottocartelle).';
+  }
   return null;
 }
 
@@ -50,20 +51,13 @@ export function validateRelativeNotePath(input: string): string | null {
  * `parentFolder` should be the vault-relative folder path (no trailing
  * slash, empty string for vault root).
  */
-export function buildNotePath(
-  rawName: string,
-  parentFolder: string,
-): NotePath {
+export function buildNotePath(rawName: string, parentFolder: string): NotePath {
   let name = rawName.trim();
   if (name.toLowerCase().endsWith('.md')) {
     name = name.slice(0, -3);
   }
   const hasExplicitFolder = name.includes('/');
-  const fullRel = hasExplicitFolder
-    ? name
-    : parentFolder === ''
-      ? name
-      : `${parentFolder}/${name}`;
+  const fullRel = hasExplicitFolder ? name : parentFolder === '' ? name : `${parentFolder}/${name}`;
   return `${fullRel}.md`;
 }
 
@@ -71,10 +65,7 @@ export function buildNotePath(
  * Build a NotePath for a new folder (no `.md` suffix, just the relative
  * path). The IPC contract uses NotePath as the type for folder paths too.
  */
-export function buildFolderPath(
-  rawName: string,
-  parentFolder: string,
-): NotePath {
+export function buildFolderPath(rawName: string, parentFolder: string): NotePath {
   const name = rawName.trim();
   if (name.includes('/')) {
     // User typed a nested path — just normalize it relative to root.

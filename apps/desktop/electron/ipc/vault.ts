@@ -5,16 +5,20 @@
 // to the renderer over IPC.
 
 import { dialog, BrowserWindow } from 'electron';
+import { promises as fsp } from 'node:fs';
 import path from 'node:path';
 import { indexVault } from '@synapsium/core';
 import { IpcChannels, type VaultInfo } from '../../shared/ipc.js';
 import { getFilesystemAdapter } from '../adapters/filesystem.electron.js';
 import { SqliteIndexStore } from '../adapters/index-store.sqlite.js';
 import { ChokidarWatcher } from '../adapters/watcher.chokidar.js';
+import { IpcError } from '../security.js';
 import {
+  consumeIfSelfWrite,
   getCurrentVault,
   getIndexStore,
   getWatcher,
+  requireIndexStore,
   setCurrentVault,
   setFilesystem,
   setIndexStore,
@@ -31,9 +35,7 @@ export async function pickVaultFolder(args: {
   };
   if (args?.defaultPath) opts.defaultPath = args.defaultPath;
 
-  const result = win
-    ? await dialog.showOpenDialog(win, opts)
-    : await dialog.showOpenDialog(opts);
+  const result = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
 
   if (result.canceled || result.filePaths.length === 0) return null;
   return { root: result.filePaths[0]! };
@@ -72,15 +74,24 @@ async function teardown(): Promise<void> {
   setFilesystem(fs);
 }
 
-export async function openVault(
-  win: BrowserWindow,
-  args: { root: string },
-): Promise<VaultInfo> {
+export async function openVault(win: BrowserWindow, args: { root: string }): Promise<VaultInfo> {
   // Always start clean. If the renderer calls openVault while one is
   // already open, we treat that as "switch vault".
   await teardown();
 
   const root = path.resolve(args.root);
+
+  // Defence in depth: confirm the chosen path is a directory and not a
+  // filesystem root (`/`, `C:\`). The Electron dialog should already
+  // enforce both, but a malicious renderer could call openVault directly.
+  const stat = await fsp.stat(root).catch(() => null);
+  if (!stat || !stat.isDirectory()) {
+    throw new IpcError('NOT_FOUND', 'La cartella scelta non esiste o non è una directory.');
+  }
+  const parsed = path.parse(root);
+  if (parsed.dir === '' && parsed.base === '') {
+    throw new IpcError('INVALID_PATH', 'Non si può usare la radice del filesystem come vault.');
+  }
 
   const fs = getFilesystemAdapter();
   fs.setVaultRoot(root);
@@ -102,12 +113,20 @@ export async function openVault(
   });
 
   // Now spin up the watcher. We attach it AFTER the initial scan so we
-  // don't race with `indexVault` writing to the same DB.
+  // don't race with `indexVault` writing to the same DB. Watcher events
+  // for paths we just wrote ourselves are suppressed — chokidar's
+  // awaitWriteFinish re-stat fires *after* `saveNote` has already updated
+  // the editor's mtime, which would otherwise look like an external edit.
   const watcher = new ChokidarWatcher();
   await watcher.start(root, (event) => {
-    if (!win.isDestroyed()) {
-      win.webContents.send(IpcChannels.vaultEvent, event);
+    if (win.isDestroyed()) return;
+    if (
+      (event.type === 'add' || event.type === 'change' || event.type === 'unlink') &&
+      consumeIfSelfWrite(event.path)
+    ) {
+      return;
     }
+    win.webContents.send(IpcChannels.vaultEvent, event);
   });
   setWatcher(watcher);
 
@@ -132,9 +151,9 @@ export async function getCurrentVaultHandler(): Promise<VaultInfo | null> {
 
 export async function reindexVault(): Promise<{ count: number }> {
   const vault = getCurrentVault();
+  if (!vault) throw new IpcError('NO_VAULT', 'Nessun vault è aperto.');
+  const store = requireIndexStore();
   const fs = getFilesystemAdapter();
-  const store = getIndexStore();
-  if (!vault || !store) throw new Error('No vault is open');
 
   fs.setVaultRoot(vault.root);
   const result = await indexVault(fs, store, vault.root);

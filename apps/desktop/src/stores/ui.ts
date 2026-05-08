@@ -49,9 +49,7 @@ function loadPersisted(): Persisted {
           ? clamp(p.backlinksWidth, MIN_BACKLINKS, MAX_BACKLINKS)
           : DEFAULTS.backlinksWidth,
       backlinksOpen:
-        typeof p.backlinksOpen === 'boolean'
-          ? p.backlinksOpen
-          : DEFAULTS.backlinksOpen,
+        typeof p.backlinksOpen === 'boolean' ? p.backlinksOpen : DEFAULTS.backlinksOpen,
       expandedFolders:
         Array.isArray(p.expandedFolders) &&
         p.expandedFolders.every((s): s is string => typeof s === 'string')
@@ -85,8 +83,7 @@ export const useUiStore = create<UiState>((set, get) => {
   const initial = loadPersisted();
 
   const persist = (): void => {
-    const { sidebarWidth, backlinksWidth, backlinksOpen, expandedFolders } =
-      get();
+    const { sidebarWidth, backlinksWidth, backlinksOpen, expandedFolders } = get();
     savePersisted({
       sidebarWidth,
       backlinksWidth,
@@ -111,9 +108,7 @@ export const useUiStore = create<UiState>((set, get) => {
     },
     toggleFolder(path) {
       const cur = get().expandedFolders;
-      const next = cur.includes(path)
-        ? cur.filter((p) => p !== path)
-        : [...cur, path];
+      const next = cur.includes(path) ? cur.filter((p) => p !== path) : [...cur, path];
       set({ expandedFolders: next });
       persist();
     },

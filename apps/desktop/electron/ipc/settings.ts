@@ -32,8 +32,18 @@ export async function getRecentVaults(): Promise<VaultInfo[]> {
         typeof v.openedAt === 'number',
     );
   } catch (err) {
-    // Missing file is the normal first-run case.
+    // Missing file is the normal first-run case — silent.
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    if (err instanceof SyntaxError) {
+      // JSON parse error: file got corrupted somehow. Log and recover with
+      // an empty list rather than crashing the app — but the user should
+      // know via the main-process console (visible in dev / `--inspect`).
+      console.error('[settings] recent-vaults.json is corrupt, resetting:', err.message);
+      return [];
+    }
+    // Other I/O errors (EACCES, etc.): log so they're visible during
+    // troubleshooting, then return empty so the UI keeps working.
+    console.error('[settings] failed to read recent-vaults.json:', err);
     return [];
   }
 }

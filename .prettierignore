@@ -1,0 +1,9 @@
+node_modules
+dist
+out
+release
+build
+.turbo
+pnpm-lock.yaml
+*.md
+LICENSE

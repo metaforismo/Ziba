@@ -16,9 +16,7 @@ function api(): Window['synapsium'] {
   // mounts. If it hasn't, every IPC call would crash with a confusing
   // "cannot read properties of undefined" — fail fast and loudly instead.
   if (typeof window === 'undefined' || !window.synapsium) {
-    throw new Error(
-      'window.synapsium is not available. Preload script did not run.',
-    );
+    throw new Error('window.synapsium is not available. Preload script did not run.');
   }
   return window.synapsium;
 }

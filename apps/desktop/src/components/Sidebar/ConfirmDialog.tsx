@@ -64,16 +64,10 @@ export function ConfirmDialog({
         aria-labelledby="confirm-dialog-title"
         aria-describedby="confirm-dialog-message"
       >
-        <h2
-          id="confirm-dialog-title"
-          className="mb-2 text-sm font-semibold text-fg"
-        >
+        <h2 id="confirm-dialog-title" className="mb-2 text-sm font-semibold text-fg">
           {title}
         </h2>
-        <p
-          id="confirm-dialog-message"
-          className="mb-4 text-sm text-fg-subtle"
-        >
+        <p id="confirm-dialog-message" className="mb-4 text-sm text-fg-subtle">
           {message}
         </p>
         <div className="flex justify-end gap-2">

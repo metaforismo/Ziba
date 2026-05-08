@@ -20,10 +20,7 @@ export class ChokidarWatcher implements WatcherAdapter {
 
   // Per-path debounce timers. We keep the *latest* event so the emitted
   // event reflects the final state at the end of the burst.
-  private pending = new Map<
-    string,
-    { timer: NodeJS.Timeout; event: WatcherEvent }
-  >();
+  private pending = new Map<string, { timer: NodeJS.Timeout; event: WatcherEvent }>();
 
   async start(vaultRoot: string, onEvent: (e: WatcherEvent) => void): Promise<void> {
     if (this.watcher) {

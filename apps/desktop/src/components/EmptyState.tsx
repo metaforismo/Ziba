@@ -31,12 +31,10 @@ export function EmptyState({ onOpenVault }: EmptyStateProps): JSX.Element {
   return (
     <main className="flex h-full w-full items-center justify-center bg-bg p-6">
       <div className="w-full max-w-md rounded-lg border border-border bg-bg-subtle p-8 shadow-sm">
-        <h1 className="mb-2 text-2xl font-semibold text-fg">
-          Benvenuto su synapsium
-        </h1>
+        <h1 className="mb-2 text-2xl font-semibold text-fg">Benvenuto su synapsium</h1>
         <p className="mb-6 text-sm text-fg-subtle">
-          Un secondo cervello locale, basato su file Markdown. Inizia aprendo
-          una cartella che diventerà il tuo vault.
+          Un secondo cervello locale, basato su file Markdown. Inizia aprendo una cartella che
+          diventerà il tuo vault.
         </p>
 
         <button
@@ -54,10 +52,9 @@ export function EmptyState({ onOpenVault }: EmptyStateProps): JSX.Element {
             Cosa è un vault?
           </summary>
           <p className="mt-2 leading-relaxed">
-            Un vault è semplicemente una cartella sul tuo computer. synapsium
-            la indicizza per offrire collegamenti, ricerca e backlink, ma le
-            tue note rimangono file Markdown tuoi, modificabili da qualsiasi
-            altro editor.
+            Un vault è semplicemente una cartella sul tuo computer. synapsium la indicizza per
+            offrire collegamenti, ricerca e backlink, ma le tue note rimangono file Markdown tuoi,
+            modificabili da qualsiasi altro editor.
           </p>
         </details>
 
@@ -77,12 +74,8 @@ export function EmptyState({ onOpenVault }: EmptyStateProps): JSX.Element {
                     className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm hover:bg-bg-muted"
                   >
                     <span className="flex flex-col overflow-hidden">
-                      <span className="truncate font-medium text-fg">
-                        {v.name}
-                      </span>
-                      <span className="truncate text-xs text-fg-muted">
-                        {v.root}
-                      </span>
+                      <span className="truncate font-medium text-fg">{v.name}</span>
+                      <span className="truncate text-xs text-fg-muted">{v.root}</span>
                     </span>
                     <span className="ml-3 shrink-0 text-xs text-fg-muted">
                       {formatRelativeDate(v.openedAt)}

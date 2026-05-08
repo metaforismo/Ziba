@@ -1,0 +1,42 @@
+name: ✨ Feature request
+description: Proponi una nuova funzionalità
+title: 'feat: '
+labels: [enhancement, triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Per idee complesse o di design, considera prima una [Discussion](https://github.com/metaforismo/Synapsium/discussions). Le issue di feature sono adatte a richieste concrete e ben definite.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema o caso d'uso
+      description: Cosa stai cercando di fare? Quale problema risolverebbe la feature?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposta
+      description: Come dovrebbe funzionare? UI/UX, API, comportamento.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternative considerate
+
+  - type: dropdown
+    id: roadmap
+    attributes:
+      label: Su quale versione roadmap pensi vada questa feature?
+      options:
+        - v0.1 (foundation)
+        - v0.2 (power editing)
+        - v0.3 (database & graph)
+        - v1.0 (multi-piattaforma)
+        - v1.x (AI native)
+        - Non sono sicuro

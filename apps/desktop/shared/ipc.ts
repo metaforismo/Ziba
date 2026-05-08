@@ -38,7 +38,7 @@ export const IpcChannels = {
   indexProgress: 'index:progress',
 } as const;
 
-export type IpcChannel = typeof IpcChannels[keyof typeof IpcChannels];
+export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];
 
 // ---- Request / response payloads ----
 

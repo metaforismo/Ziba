@@ -14,8 +14,8 @@ files:
 # resolves the binary path at runtime and must also be unpacked.
 asar: true
 asarUnpack:
-  - "**/node_modules/better-sqlite3/**"
-  - "**/node_modules/bindings/**"
+  - '**/node_modules/better-sqlite3/**'
+  - '**/node_modules/bindings/**'
 
 # v0.1: no signing, no notarization. Builds will be unsigned for now.
 mac:

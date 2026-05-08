@@ -150,9 +150,7 @@ export const WikilinkSuggestion = Extension.create<WikilinkSuggestionOptions>({
           // suggestion-time creation hint matches Obsidian's UX.
           if (
             trimmed.length > 0 &&
-            !items.some(
-              (i) => i.title.toLowerCase() === trimmed.toLowerCase(),
-            )
+            !items.some((i) => i.title.toLowerCase() === trimmed.toLowerCase())
           ) {
             items.push({ path: null, title: trimmed, isCreate: true });
           }

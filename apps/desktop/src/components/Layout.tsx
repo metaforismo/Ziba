@@ -24,10 +24,7 @@ export function Layout(): JSX.Element {
       />
 
       <div className="flex min-h-0 flex-1">
-        <div
-          style={{ width: `${sidebarWidth}px` }}
-          className="shrink-0 border-r border-border"
-        >
+        <div style={{ width: `${sidebarWidth}px` }} className="shrink-0 border-r border-border">
           <Sidebar />
         </div>
         <Resizer

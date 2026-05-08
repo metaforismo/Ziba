@@ -92,8 +92,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       void get().openNote(path);
     } else {
       set({
-        lastSaveError:
-          'Il file è stato modificato esternamente. Salva o ricarica per risolvere.',
+        lastSaveError: 'Il file è stato modificato esternamente. Salva o ricarica per risolvere.',
       });
     }
   },
