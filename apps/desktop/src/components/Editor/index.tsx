@@ -9,10 +9,12 @@ import { debounce } from '../../lib/debounce';
 import { AUTOSAVE_DEBOUNCE_MS, PROPERTY_AUTOSAVE_DEBOUNCE_MS } from '../../lib/timings';
 import { PropertyEditor } from '../PropertyEditor';
 import { buildEditorExtensions } from './EditorExtensions';
+import { type SlashCommandRenderer, type SlashMenuItem } from './extensions/SlashCommand';
 import {
   type WikilinkSuggestionItem,
   type WikilinkSuggestionRenderer,
 } from './extensions/WikilinkSuggestion';
+import { SlashMenuPopup } from './SlashMenuPopup';
 import { useResolvedWikilinks } from './useResolvedWikilinks';
 import { WikilinkPopup } from './WikilinkPopup';
 
@@ -38,6 +40,20 @@ const INITIAL_SUGGESTION_STATE: SuggestionState = {
   open: false,
   items: [],
   query: '',
+  position: { top: 0, left: 0, bottom: 0 },
+  selectedIndex: 0,
+};
+
+type SlashState = {
+  open: boolean;
+  items: SlashMenuItem[];
+  position: { top: number; left: number; bottom: number };
+  selectedIndex: number;
+};
+
+const INITIAL_SLASH_STATE: SlashState = {
+  open: false,
+  items: [],
   position: { top: 0, left: 0, bottom: 0 },
   selectedIndex: 0,
 };
@@ -90,10 +106,21 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
     suggestionRef.current = suggestion;
   }, [suggestion]);
 
+  // Parallel slash-menu state. We deliberately keep it side-by-side
+  // with the wikilink state instead of unifying them — the items shape
+  // and key handling are different enough that abstraction would cost
+  // more than it saves at v0.2 scope.
+  const [slash, setSlash] = useState<SlashState>(INITIAL_SLASH_STATE);
+  const slashRef = useRef<SlashState>(INITIAL_SLASH_STATE);
+  useEffect(() => {
+    slashRef.current = slash;
+  }, [slash]);
+
   // The `command` callback baked into the suggestion plugin captures the
   // initial reference. We keep the latest one in a ref so item-selection
   // always uses the freshest editor / range.
   const suggestionCommandRef = useRef<((item: WikilinkSuggestionItem) => void) | null>(null);
+  const slashCommandRef = useRef<((item: SlashMenuItem) => void) | null>(null);
 
   const createSuggestionRenderer = useCallback((): WikilinkSuggestionRenderer => {
     return {
@@ -171,12 +198,86 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
     };
   }, []);
 
+  const createSlashRenderer = useCallback((): SlashCommandRenderer => {
+    return {
+      onStart: (props: SuggestionProps<SlashMenuItem>): void => {
+        slashCommandRef.current = (item): void => {
+          props.command(item);
+        };
+        const rect = props.clientRect?.();
+        setSlash({
+          open: true,
+          items: props.items,
+          position: rect
+            ? { top: rect.top, left: rect.left, bottom: rect.bottom }
+            : { top: 0, left: 0, bottom: 0 },
+          selectedIndex: 0,
+        });
+      },
+      onUpdate: (props: SuggestionProps<SlashMenuItem>): void => {
+        slashCommandRef.current = (item): void => {
+          props.command(item);
+        };
+        const rect = props.clientRect?.();
+        setSlash((prev) => ({
+          open: true,
+          items: props.items,
+          position: rect ? { top: rect.top, left: rect.left, bottom: rect.bottom } : prev.position,
+          // Clamp the selected index to the new list length so a
+          // shrinking filter doesn't leave us out of range.
+          selectedIndex:
+            props.items.length === 0 ? 0 : Math.min(prev.selectedIndex, props.items.length - 1),
+        }));
+      },
+      onKeyDown: (props: SuggestionKeyDownProps): boolean => {
+        const state = slashRef.current;
+        if (!state.open) return false;
+        if (props.event.key === 'Escape') {
+          setSlash(INITIAL_SLASH_STATE);
+          return true;
+        }
+        if (props.event.key === 'ArrowDown') {
+          setSlash((prev) => ({
+            ...prev,
+            selectedIndex:
+              prev.items.length === 0 ? 0 : (prev.selectedIndex + 1) % prev.items.length,
+          }));
+          return true;
+        }
+        if (props.event.key === 'ArrowUp') {
+          setSlash((prev) => ({
+            ...prev,
+            selectedIndex:
+              prev.items.length === 0
+                ? 0
+                : (prev.selectedIndex - 1 + prev.items.length) % prev.items.length,
+          }));
+          return true;
+        }
+        if (props.event.key === 'Enter' || props.event.key === 'Tab') {
+          const items = state.items;
+          if (items.length === 0) return false;
+          const item = items[state.selectedIndex] ?? items[0];
+          if (item === undefined) return false;
+          const cmd = slashCommandRef.current;
+          if (cmd !== null) cmd(item);
+          return true;
+        }
+        return false;
+      },
+      onExit: (): void => {
+        setSlash(INITIAL_SLASH_STATE);
+        slashCommandRef.current = null;
+      },
+    };
+  }, []);
+
   // Build extensions once. The closure captures `createSuggestionRenderer`
   // which is stable across renders (it's wrapped in useCallback with no
   // deps). Recomputing extensions would force a full editor remount.
   const extensions = useMemo(
-    () => buildEditorExtensions({ createSuggestionRenderer }),
-    [createSuggestionRenderer],
+    () => buildEditorExtensions({ createSuggestionRenderer, createSlashRenderer }),
+    [createSuggestionRenderer, createSlashRenderer],
   );
 
   const debouncedAutosave = useMemo(() => {
@@ -451,6 +552,21 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
           }}
           onHover={(idx): void => {
             setSuggestion((prev) => ({ ...prev, selectedIndex: idx }));
+          }}
+        />
+      )}
+
+      {slash.open && editor !== null && (
+        <SlashMenuPopup
+          items={slash.items}
+          selectedIndex={slash.selectedIndex}
+          position={slash.position}
+          onSelect={(item): void => {
+            const cmd = slashCommandRef.current;
+            if (cmd !== null) cmd(item);
+          }}
+          onHover={(idx): void => {
+            setSlash((prev) => ({ ...prev, selectedIndex: idx }));
           }}
         />
       )}

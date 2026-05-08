@@ -1,6 +1,7 @@
 import type { Extensions } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import { Markdown } from 'tiptap-markdown';
+import { SlashCommandExtension, type SlashCommandRenderer } from './extensions/SlashCommand';
 import { TagMarkExtension } from './extensions/TagMark';
 import { Wikilink } from './extensions/Wikilink';
 import {
@@ -10,11 +11,18 @@ import {
 
 export type BuildExtensionsOptions = {
   /**
-   * Renderer factory for the suggestion popup. The Editor component
-   * injects a React-backed implementation so the extensions stay
-   * decoupled from the framework.
+   * Renderer factory for the wikilink suggestion popup. The Editor
+   * component injects a React-backed implementation so the extensions
+   * stay decoupled from the framework.
    */
   createSuggestionRenderer(): WikilinkSuggestionRenderer;
+  /**
+   * Renderer factory for the slash-command popup. Optional: when
+   * omitted, the slash-command extension still loads but its popup
+   * never shows (the default no-op renderer is used). Useful for
+   * headless/test setups that don't need slash UI.
+   */
+  createSlashRenderer?: () => SlashCommandRenderer;
 };
 
 /**
@@ -46,6 +54,21 @@ export function buildEditorExtensions(options: BuildExtensionsOptions): Extensio
     // descend into text). Order vs Markdown is irrelevant — TagMark
     // doesn't touch serialization.
     TagMarkExtension,
+    // Slash-command menu. Order doesn't matter relative to the other
+    // extensions: the suggestion plugin manages its own decoration set
+    // and never collides with the wikilink trigger (`/` vs `[[`).
+    SlashCommandExtension.configure({
+      createRenderer:
+        options.createSlashRenderer ??
+        ((): SlashCommandRenderer => ({
+          onStart(): void {},
+          onUpdate(): void {},
+          onKeyDown(): boolean {
+            return false;
+          },
+          onExit(): void {},
+        })),
+    }),
     Markdown.configure({
       html: false,
       tightLists: true,

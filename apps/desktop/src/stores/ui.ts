@@ -2,6 +2,12 @@ import { create } from 'zustand';
 
 const STORAGE_KEY = 'synapsium.ui.v1';
 
+/**
+ * Active tab in the right-side panel. The panel hosts both the
+ * Backlinks list and the local-neighborhood mini-graph (v0.2 Wave 3).
+ */
+export type RightPaneTab = 'backlinks' | 'graph';
+
 type Persisted = {
   sidebarWidth: number;
   backlinksWidth: number;
@@ -16,6 +22,11 @@ type Persisted = {
    * user keeps their preferred layout across reloads.
    */
   tagsExpanded: boolean;
+  /**
+   * Active tab in the right-side panel. Persisted so users keep the same
+   * view across reloads.
+   */
+  rightPaneTab: RightPaneTab;
 };
 
 const DEFAULTS: Persisted = {
@@ -24,7 +35,12 @@ const DEFAULTS: Persisted = {
   backlinksOpen: true,
   expandedFolders: [],
   tagsExpanded: true,
+  rightPaneTab: 'backlinks',
 };
+
+function isRightPaneTab(v: unknown): v is RightPaneTab {
+  return v === 'backlinks' || v === 'graph';
+}
 
 const MIN_SIDEBAR = 160;
 const MAX_SIDEBAR = 480;
@@ -62,6 +78,7 @@ function loadPersisted(): Persisted {
           ? p.expandedFolders
           : DEFAULTS.expandedFolders,
       tagsExpanded: typeof p.tagsExpanded === 'boolean' ? p.tagsExpanded : DEFAULTS.tagsExpanded,
+      rightPaneTab: isRightPaneTab(p.rightPaneTab) ? p.rightPaneTab : DEFAULTS.rightPaneTab,
     };
   } catch {
     return DEFAULTS;
@@ -85,19 +102,28 @@ type UiState = Persisted & {
   toggleFolder(path: string): void;
   setExpandedFolders(paths: string[]): void;
   toggleTags(): void;
+  setRightPaneTab(tab: RightPaneTab): void;
 };
 
 export const useUiStore = create<UiState>((set, get) => {
   const initial = loadPersisted();
 
   const persist = (): void => {
-    const { sidebarWidth, backlinksWidth, backlinksOpen, expandedFolders, tagsExpanded } = get();
+    const {
+      sidebarWidth,
+      backlinksWidth,
+      backlinksOpen,
+      expandedFolders,
+      tagsExpanded,
+      rightPaneTab,
+    } = get();
     savePersisted({
       sidebarWidth,
       backlinksWidth,
       backlinksOpen,
       expandedFolders,
       tagsExpanded,
+      rightPaneTab,
     });
   };
 
@@ -136,6 +162,11 @@ export const useUiStore = create<UiState>((set, get) => {
     },
     toggleTags() {
       set({ tagsExpanded: !get().tagsExpanded });
+      persist();
+    },
+    setRightPaneTab(tab) {
+      if (get().rightPaneTab === tab) return;
+      set({ rightPaneTab: tab });
       persist();
     },
   };
