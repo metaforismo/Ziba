@@ -1,4 +1,4 @@
-import type { Note, NotePath } from '@synapsium/core';
+import type { Frontmatter, Note, NotePath } from '@synapsium/core';
 import { create } from 'zustand';
 import { ipc } from '../lib/ipc';
 
@@ -12,6 +12,13 @@ type EditorState = {
   openNote(path: NotePath): Promise<void>;
   closeNote(): void;
   setBody(body: string): void;
+  /**
+   * Replace the in-memory frontmatter with `fm` and mark the buffer dirty.
+   * The existing `save()` flow already serializes `currentNote.frontmatter`
+   * back through `ipc.saveNote`, so callers only need to debounce-and-save
+   * after invoking this setter — no separate IPC plumbing required.
+   */
+  setFrontmatter(fm: Frontmatter): void;
   save(): Promise<void>;
   /**
    * Called by the vault store when a watcher event reports that the
@@ -55,6 +62,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (note.content === body) return;
     set({
       currentNote: { ...note, content: body },
+      dirty: true,
+    });
+  },
+
+  setFrontmatter(fm) {
+    const note = get().currentNote;
+    if (note === null) return;
+    // The PropertyEditor always hands us a fresh object, so reference
+    // identity won't help us short-circuit. We always mark dirty here —
+    // the editor debounces upstream so spurious calls aren't a concern.
+    set({
+      currentNote: { ...note, frontmatter: fm },
       dirty: true,
     });
   },

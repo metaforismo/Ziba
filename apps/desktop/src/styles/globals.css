@@ -220,3 +220,17 @@ body {
   outline: 2px solid rgb(var(--accent));
   outline-offset: 1px;
 }
+
+/*
+ * Inline `#tag` highlight. Applied as a ProseMirror decoration (see
+ * `TagMark.ts`) so the underlying markdown stays plain text. Subtle pill
+ * background with the accent tint; click handler in the plugin filters
+ * the sidebar.
+ */
+.synapsium-tag {
+  background: rgb(var(--accent) / 0.12);
+  color: rgb(var(--accent));
+  border-radius: 0.25rem;
+  padding: 0 0.25rem;
+  cursor: pointer;
+}

@@ -11,6 +11,11 @@ type Persisted = {
    * tree. Stored as an array (not a Set) so it survives JSON serialization.
    */
   expandedFolders: string[];
+  /**
+   * Whether the "Tag" section of the sidebar is expanded. Persisted so the
+   * user keeps their preferred layout across reloads.
+   */
+  tagsExpanded: boolean;
 };
 
 const DEFAULTS: Persisted = {
@@ -18,6 +23,7 @@ const DEFAULTS: Persisted = {
   backlinksWidth: 280,
   backlinksOpen: true,
   expandedFolders: [],
+  tagsExpanded: true,
 };
 
 const MIN_SIDEBAR = 160;
@@ -55,6 +61,7 @@ function loadPersisted(): Persisted {
         p.expandedFolders.every((s): s is string => typeof s === 'string')
           ? p.expandedFolders
           : DEFAULTS.expandedFolders,
+      tagsExpanded: typeof p.tagsExpanded === 'boolean' ? p.tagsExpanded : DEFAULTS.tagsExpanded,
     };
   } catch {
     return DEFAULTS;
@@ -77,18 +84,20 @@ type UiState = Persisted & {
   toggleBacklinks(): void;
   toggleFolder(path: string): void;
   setExpandedFolders(paths: string[]): void;
+  toggleTags(): void;
 };
 
 export const useUiStore = create<UiState>((set, get) => {
   const initial = loadPersisted();
 
   const persist = (): void => {
-    const { sidebarWidth, backlinksWidth, backlinksOpen, expandedFolders } = get();
+    const { sidebarWidth, backlinksWidth, backlinksOpen, expandedFolders, tagsExpanded } = get();
     savePersisted({
       sidebarWidth,
       backlinksWidth,
       backlinksOpen,
       expandedFolders,
+      tagsExpanded,
     });
   };
 
@@ -123,6 +132,10 @@ export const useUiStore = create<UiState>((set, get) => {
         }
       }
       set({ expandedFolders: next });
+      persist();
+    },
+    toggleTags() {
+      set({ tagsExpanded: !get().tagsExpanded });
       persist();
     },
   };

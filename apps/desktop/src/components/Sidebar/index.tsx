@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ipc } from '../../lib/ipc';
 import { buildTree } from '../../lib/tree';
 import { useEditorStore } from '../../stores/editor';
+import { useTagsStore } from '../../stores/tags';
 import { useUiStore } from '../../stores/ui';
 import { useVaultStore } from '../../stores/vault';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -17,6 +18,7 @@ import {
   validateRelativeNotePath,
 } from './path-utils';
 import { PromptDialog } from './PromptDialog';
+import { TagsSection } from './TagsSection';
 import { TreeContextMenu } from './TreeContextMenu';
 
 export type SidebarProps = {
@@ -81,13 +83,26 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
   const closeNote = useEditorStore((s) => s.closeNote);
   const expandedFolders = useUiStore((s) => s.expandedFolders);
   const toggleFolder = useUiStore((s) => s.toggleFolder);
+  // When a tag is selected, the file tree filters to only the notes that
+  // contain it. We do the filter here (rather than passing a prop into
+  // FileTree) so the tree component stays a pure visualizer and the tag
+  // store stays the single source of truth for "which paths are visible".
+  const selectedTag = useTagsStore((s) => s.selectedTag);
+  const notesForSelectedTag = useTagsStore((s) => s.notesForSelectedTag);
+  const clearSelectedTag = useTagsStore((s) => s.selectTag);
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [dialog, setDialog] = useState<DialogState>({ kind: 'none' });
   const [refreshing, setRefreshing] = useState(false);
   const [focusedPath, setFocusedPath] = useState<string | null>(null);
 
-  const tree = useMemo(() => buildTree(notes), [notes]);
+  const visibleNotes = useMemo(() => {
+    if (selectedTag === null) return notes;
+    const allowed = new Set(notesForSelectedTag.map((n) => n.path));
+    return notes.filter((n) => allowed.has(n.path));
+  }, [notes, selectedTag, notesForSelectedTag]);
+
+  const tree = useMemo(() => buildTree(visibleNotes), [visibleNotes]);
   const expandedSet = useMemo(() => new Set(expandedFolders), [expandedFolders]);
 
   // Auto-expand the chain of folders that lead to the currently-open note,
@@ -400,10 +415,29 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
       onKeyDown={handleKeyDown}
       aria-label="Esplora vault"
     >
+      <TagsSection />
+
       <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2">
         <span className="text-xs font-semibold uppercase tracking-wide text-fg-muted">Note</span>
         <NewNoteButton />
       </div>
+
+      {selectedTag !== null && (
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border bg-bg-muted/40 px-3 py-1.5 text-xs text-fg-subtle">
+          <span className="truncate">
+            Filtrato per <span className="font-mono text-fg">#{selectedTag}</span>
+          </span>
+          <button
+            type="button"
+            onClick={(): void => {
+              void clearSelectedTag(null);
+            }}
+            className="shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium text-fg-subtle hover:bg-bg-muted hover:text-fg"
+          >
+            Mostra tutti i file
+          </button>
+        </div>
+      )}
 
       <div className="relative flex-1 overflow-y-auto">
         <FileTree

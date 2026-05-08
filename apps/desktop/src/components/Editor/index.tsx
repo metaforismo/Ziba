@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EditorContent, useEditor } from '@tiptap/react';
 import type { Editor as TiptapEditor } from '@tiptap/core';
 import type { SuggestionKeyDownProps, SuggestionProps } from '@tiptap/suggestion';
+import type { Frontmatter } from '@synapsium/core';
 import { useEditorStore } from '../../stores/editor';
 import { ipc } from '../../lib/ipc';
 import { debounce } from '../../lib/debounce';
-import { AUTOSAVE_DEBOUNCE_MS } from '../../lib/timings';
+import { AUTOSAVE_DEBOUNCE_MS, PROPERTY_AUTOSAVE_DEBOUNCE_MS } from '../../lib/timings';
+import { PropertyEditor } from '../PropertyEditor';
 import { buildEditorExtensions } from './EditorExtensions';
 import {
   type WikilinkSuggestionItem,
@@ -60,17 +62,20 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
   const dirty = useEditorStore((s) => s.dirty);
   const lastSaveError = useEditorStore((s) => s.lastSaveError);
   const setBody = useEditorStore((s) => s.setBody);
+  const setFrontmatter = useEditorStore((s) => s.setFrontmatter);
   const save = useEditorStore((s) => s.save);
   const openNote = useEditorStore((s) => s.openNote);
 
   // Refs let the editor extensions call into the latest store handlers
   // without re-binding extensions every render.
   const setBodyRef = useRef(setBody);
+  const setFrontmatterRef = useRef(setFrontmatter);
   const saveRef = useRef(save);
   const onSaveRef = useRef(onSave);
   const openNoteRef = useRef(openNote);
   useEffect(() => {
     setBodyRef.current = setBody;
+    setFrontmatterRef.current = setFrontmatter;
     saveRef.current = save;
     onSaveRef.current = onSave;
     openNoteRef.current = openNote;
@@ -197,6 +202,38 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
       debouncedAutosave.flush();
     };
   }, [debouncedAutosave]);
+
+  // Property edits get their own debounce because they're discrete
+  // (toggle a checkbox, add a chip) rather than continuous typing —
+  // 300ms is short enough to feel like the change "stuck" before the
+  // user moves on, long enough to coalesce e.g. a date being typed
+  // digit-by-digit into one disk write.
+  const debouncedPropertySave = useMemo(() => {
+    return debounce(() => {
+      Promise.resolve().then(() => {
+        const handler = onSaveRef.current;
+        if (handler !== undefined) {
+          void handler();
+        } else {
+          void saveRef.current();
+        }
+      });
+    }, PROPERTY_AUTOSAVE_DEBOUNCE_MS);
+  }, []);
+
+  useEffect(() => {
+    return (): void => {
+      debouncedPropertySave.flush();
+    };
+  }, [debouncedPropertySave]);
+
+  const handleFrontmatterChange = useCallback(
+    (next: Frontmatter): void => {
+      setFrontmatterRef.current(next);
+      debouncedPropertySave();
+    },
+    [debouncedPropertySave],
+  );
 
   const editor = useEditor({
     extensions,
@@ -396,6 +433,7 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
         // so we don't need a new CSS file. Tailwind utilities cover the
         // rest of the typography via `synapsium-prose`.
       >
+        <PropertyEditor frontmatter={currentNote.frontmatter} onChange={handleFrontmatterChange} />
         <div className="mx-auto max-w-[720px]">
           <EditorContent editor={editor} />
         </div>

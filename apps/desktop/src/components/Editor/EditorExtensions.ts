@@ -1,6 +1,7 @@
 import type { Extensions } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import { Markdown } from 'tiptap-markdown';
+import { TagMarkExtension } from './extensions/TagMark';
 import { Wikilink } from './extensions/Wikilink';
 import {
   WikilinkSuggestion,
@@ -40,6 +41,11 @@ export function buildEditorExtensions(options: BuildExtensionsOptions): Extensio
     WikilinkSuggestion.configure({
       createRenderer: options.createSuggestionRenderer,
     }),
+    // Pure-decoration plugin that paints `#tag` ranges. Sits AFTER Wikilink
+    // so ranges inside a wikilink atom node are skipped (atoms don't
+    // descend into text). Order vs Markdown is irrelevant — TagMark
+    // doesn't touch serialization.
+    TagMarkExtension,
     Markdown.configure({
       html: false,
       tightLists: true,

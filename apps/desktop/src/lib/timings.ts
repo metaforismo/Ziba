@@ -29,3 +29,21 @@ export const VAULT_EVENT_REFRESH_MS = 150;
  * round-trip plus a SQLite query per source note for context snippets).
  */
 export const BACKLINKS_REFETCH_MS = 250;
+
+/**
+ * Property editor autosave debounce. Property edits are discrete
+ * actions (toggle a checkbox, add a chip) rather than continuous
+ * typing, so we want them to flush faster than the body autosave —
+ * but still coalesce a handful of rapid changes (e.g. typing a
+ * date out digit-by-digit) into one disk write.
+ */
+export const PROPERTY_AUTOSAVE_DEBOUNCE_MS = 300;
+
+/**
+ * Search palette query debounce. Balances IPC round-trip cost against
+ * perceived responsiveness while typing — 150ms is below the ~200ms
+ * threshold where typing feels laggy and long enough to coalesce a
+ * fast typist's keystrokes (~80 WPM ≈ 130ms between chars) into one
+ * FTS5 query per intentional pause.
+ */
+export const SEARCH_DEBOUNCE_MS = 150;
