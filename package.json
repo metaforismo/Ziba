@@ -23,6 +23,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
     "clean": "turbo run clean && rm -rf node_modules .turbo"
   },
   "devDependencies": {

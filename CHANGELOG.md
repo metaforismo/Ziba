@@ -8,7 +8,7 @@ Il formato si basa su [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e
 
 ### Added
 
-- _Nulla finora — la v0.1 sarà la prima release taggata._
+- Test suite Vitest in `packages/core` con 85 unit test che coprono `markdown/wikilinks` (parser stato a stati con code-block awareness), `markdown/parse` e `serialize` (round-trip frontmatter/body via gray-matter), `types/frontmatter` (type guards) e `vault/note` (`deriveTitleFromPath`, `loadNote`, `saveNote` con `MockFilesystemAdapter` in-memory). Script `pnpm test` cablato in turbo e nel job CI dopo `Format check`.
 
 ## [0.1.0] - In sviluppo
 

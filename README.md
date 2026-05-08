@@ -150,6 +150,16 @@ pnpm --filter synapsium-desktop run dev
 
 L'app si apre. Al primo avvio: scegli una cartella vuota o piena di `.md` come vault e si parte.
 
+### Vault di esempio
+
+Per provare le funzionalità senza preparare un vault da zero:
+
+```bash
+node scripts/seed-vault.mjs ./sample-vault
+```
+
+Genera 6 note interconnesse via wikilink (idee, progetti, persone, libri, daily). Poi apri `./sample-vault` da synapsium e clicca tra le note per vedere il funzionamento di autocomplete, navigazione e backlink.
+
 ### Verifica
 
 ```bash

@@ -37,14 +37,19 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "clean": "rm -rf dist .turbo *.tsbuildinfo"
   },
   "dependencies": {
     "gray-matter": "^4.0.3"
   },
   "devDependencies": {
+    "@synapsium/tsconfig": "workspace:*",
+    "@vitest/coverage-v8": "^2.1.0",
     "typescript": "^5.5.0",
-    "@synapsium/tsconfig": "workspace:*"
+    "vitest": "^2.1.0"
   }
 }
