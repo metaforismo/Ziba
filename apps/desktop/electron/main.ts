@@ -23,10 +23,10 @@ const __dirname = path.dirname(__filename);
 let mainWindow: BrowserWindow | null = null;
 
 function createWindow(): BrowserWindow {
-  // Resolve preload relative to the compiled main.js. After Agent C's
-  // build configures it, `preload.js` will sit alongside `main.js` in the
-  // `dist-electron/` (or similar) output dir.
-  const preload = path.join(__dirname, 'preload.js');
+  // electron-vite outputs main to `out/main/main.js` and preload to
+  // `out/preload/preload.mjs`. From the running main.js, the preload
+  // sibling is one directory up, in `preload/preload.mjs`.
+  const preload = path.join(__dirname, '..', 'preload', 'preload.mjs');
 
   const win = new BrowserWindow({
     width: 1400,
@@ -52,6 +52,20 @@ function createWindow(): BrowserWindow {
   const devUrl = process.env['ELECTRON_RENDERER_URL'];
   if (devUrl) {
     void win.loadURL(devUrl);
+    // In dev, open DevTools and pipe renderer console + load failures to
+    // the main-process stdout so they surface in `pnpm dev` output. This
+    // is invaluable when iterating without a visible window (e.g. CI).
+    win.webContents.openDevTools({ mode: 'detach' });
+    win.webContents.on('console-message', (_event, level, message, line, source) => {
+      // Electron level: 0=debug 1=info 2=warning 3=error.
+      const formatted = `[renderer] ${source}:${line} — ${message}`;
+      if (level === 3) console.error(formatted);
+      else if (level === 2) console.warn(formatted);
+      else console.info(formatted);
+    });
+    win.webContents.on('did-fail-load', (_event, errorCode, errorDescription, url) => {
+      console.error(`[renderer] did-fail-load ${errorCode} ${url}: ${errorDescription}`);
+    });
   } else {
     void win.loadFile(path.join(__dirname, '../renderer/index.html'));
   }

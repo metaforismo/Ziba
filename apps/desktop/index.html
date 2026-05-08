@@ -10,10 +10,17 @@
         components inject inline <style> blocks at runtime; we explicitly do
         NOT enable 'unsafe-eval' on script-src.
       - img-src allows data: URIs (e.g. inline SVG icons).
+      - frame-ancestors omitted: ignored when delivered via <meta>; the
+        absence of a frame creation path makes it moot anyway.
+      - In dev, electron-vite injects React Refresh as inline scripts at the
+        top of the document, which a strict 'self'-only script-src would
+        block. The Vite plugin in `electron.vite.config.ts` rewrites this
+        meta to allow 'unsafe-inline' in dev only; production builds keep
+        the strict policy.
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none';"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self';"
     />
     <title>synapsium</title>
   </head>
