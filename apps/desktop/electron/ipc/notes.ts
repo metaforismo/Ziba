@@ -178,8 +178,7 @@ export async function renameNote(args: {
   markSelfWrite(args.to);
   await fs.rename(fromAbs, toAbs);
 
-  // Update the index. v0.1: we don't rewrite wikilinks in other files that
-  // pointed at the old path -- that's a v0.2 feature.
+  // Move the note's index entry from old → new path.
   const note = await coreLoadNote(fs, vault.root, args.to);
   await store.deleteNote(args.from);
   await store.upsertNote({
@@ -204,6 +203,16 @@ export async function renameNote(args: {
   // Carry typed properties over to the new path. The CASCADE delete on
   // `deleteNote(args.from)` already wiped the old rows.
   await store.replaceProperties(args.to, extractProperties(note.frontmatter));
+
+  // v0.3 fix: every inbound wikilink that resolved to the old path is now
+  // stale — the old path no longer exists in `notes`. Re-resolve them by
+  // title against the current index (which already reflects the new
+  // path). The result lands on the new path when the title is unchanged,
+  // on a different note when the title is now ambiguous, or on null
+  // (broken) when the title changed during the rename. Without this,
+  // backlinks and the global graph silently lose every inbound edge to
+  // the renamed note.
+  await store.reresolveStaleWikilinks(args.from);
 
   return { newPath: args.to };
 }

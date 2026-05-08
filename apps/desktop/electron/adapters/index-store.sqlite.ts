@@ -385,6 +385,36 @@ export class SqliteIndexStore implements IndexStoreAdapter {
     return Promise.resolve();
   }
 
+  async reresolveStaleWikilinks(formerlyResolvingTo: NotePath): Promise<void> {
+    if (!this.db) throw new Error('IndexStore not initialized');
+    // Find every wikilink whose stored target_path was the now-renamed
+    // (or now-deleted) note. We re-resolve each by its target_title so the
+    // link can land on whoever currently owns that title (possibly the
+    // renamed note at its new path, possibly a different note, possibly
+    // null if no match).
+    type StaleRow = { source_path: string; target_title: string };
+    const stale = this.db
+      .prepare(`SELECT source_path, target_title FROM wikilinks WHERE target_path = ?`)
+      .all(formerlyResolvingTo) as StaleRow[];
+    if (stale.length === 0) return;
+
+    // better-sqlite3 transactions are sync; resolve the new target paths
+    // up-front so the inner loop is a pure SQL batch.
+    const resolutions: Array<{ row: StaleRow; newPath: NotePath | null }> = [];
+    for (const r of stale) {
+      resolutions.push({ row: r, newPath: await this.resolveTitleToPath(r.target_title) });
+    }
+
+    const updateStmt = this.db.prepare(
+      `UPDATE wikilinks SET target_path = ? WHERE source_path = ? AND target_title = ?`,
+    );
+    this.db.transaction((items: typeof resolutions) => {
+      for (const { row, newPath } of items) {
+        updateStmt.run(newPath, row.source_path, row.target_title);
+      }
+    })(resolutions);
+  }
+
   async resolveTitleToPath(title: string): Promise<NotePath | null> {
     const s = this.require();
     // Strip heading/block refs -- `[[Foo#Heading]]` resolves to "Foo".

@@ -92,6 +92,16 @@ export interface IndexStoreAdapter {
   /** Atomically replace all wikilinks for a single source note. */
   replaceWikilinks(sourcePath: NotePath, links: OutgoingWikilink[]): Promise<void>;
 
+  /**
+   * After a note is renamed, every wikilink whose `target_path` was the
+   * old path is stale. This method finds those rows and re-resolves each
+   * by its `target_title` — the result may point at the new path (title
+   * unchanged), at a different note (title now ambiguous and another note
+   * matches first), or `null` (title now broken). Call after `rename` to
+   * keep `getBacklinks` / `getFullGraph` correct.
+   */
+  reresolveStaleWikilinks(formerlyResolvingTo: NotePath): Promise<void>;
+
   resolveTitleToPath(title: string): Promise<NotePath | null>;
 
   /**

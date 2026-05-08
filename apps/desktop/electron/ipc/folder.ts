@@ -78,6 +78,10 @@ export async function renameFolder(args: { from: NotePath; to: NotePath }): Prom
       links.push({ targetTitle: target, targetPath: resolved });
     }
     await store.replaceWikilinks(reloaded.path, links);
+    // Re-resolve INBOUND wikilinks that pointed at the old path. Same
+    // reasoning as renameNote: without this, backlinks + global graph
+    // would silently drop every edge into a folder-renamed note.
+    await store.reresolveStaleWikilinks(summary.path);
   }
 }
 

@@ -153,6 +153,13 @@ const SLASH_MENU_ITEMS: ReadonlyArray<SlashMenuItem> = [
     keywords: ['callout', 'success', 'successo', 'ok'],
     icon: '✅',
   },
+  {
+    id: 'callout-quote',
+    title: 'Callout: citazione',
+    description: 'Citazione formattata con stile distintivo',
+    keywords: ['callout', 'quote', 'citazione', 'cita'],
+    icon: '❝',
+  },
 ];
 
 /**
@@ -167,6 +174,7 @@ const CALLOUT_KIND_BY_ID: Record<string, CalloutKind> = {
   'callout-warning': 'warning',
   'callout-danger': 'danger',
   'callout-success': 'success',
+  'callout-quote': 'quote',
 };
 
 /**

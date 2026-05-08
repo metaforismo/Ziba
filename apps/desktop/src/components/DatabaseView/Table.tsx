@@ -330,7 +330,11 @@ export function Table({
                 const count = groupCounts.get(key) ?? bucketRows.length;
                 return (
                   <GroupSection
-                    key={key === null ? '__null__' : key}
+                    // Prefix the React key with `v:` so a literal `null`
+                    // sentinel can't collide with a user-supplied tag
+                    // value of `"null"`. The null bucket gets `n:` so it
+                    // can't collide with anything.
+                    key={key === null ? 'n:' : `v:${key}`}
                     label={headerLabel}
                     count={count}
                     columnsSpan={totalColumns}
@@ -399,7 +403,7 @@ function GroupSection({
           colSpan={columnsSpan}
           className="border-b border-border bg-bg-muted px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-fg-subtle"
         >
-          Group: {label} ({count})
+          Gruppo: {label} ({count})
         </td>
       </tr>
       {rows.map((row) => (

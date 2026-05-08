@@ -42,29 +42,34 @@ I tuoi dati restano file `.md` con frontmatter YAML sul tuo disco. Sincronizzabi
 
 ## Stato
 
-> **Alpha — v0.1 in costruzione.** Non è ancora installabile come app distribuita. Funziona solo in modalità sviluppo.
-
-Cosa funziona oggi:
-
-- Apertura e cambio di vault (cartella di file `.md` sul disco)
-- File tree laterale con cartelle annidate, CRUD via menu contestuale, navigazione tastiera
-- Editor a blocchi (Tiptap) con shortcut markdown live: `# ` → heading, `**testo**` → bold, `> ` → quote, ecc.
-- Wikilinks `[[Nota]]` con autocomplete su `[[`, click per navigare, link rotti evidenziati, creazione automatica
-- Pannello backlink che si aggiorna live al variare del vault
-- Watcher su disco che riconcilia modifiche esterne (vim, altro editor) con conflitto detection
-- Round-trip markdown completo (apri/modifica/salva → file `.md` sul disco invariato strutturalmente)
+> **Alpha — v0.3 in costruzione.** Non è ancora installabile come app distribuita. Funziona solo in modalità sviluppo, ma le funzionalità centrali (vault, editor, wikilink/backlink, search FTS5, database view, grafo globale, callout) sono cablate end-to-end.
 
 ## Funzionalità
 
-### Disponibili (v0.1)
+### v0.1 — Foundation (✅ shipped)
 
-- 📂 Vault locale: scegli una cartella, è il tuo workspace
-- 📝 Editor Tiptap con markdown shortcut nativi
-- 🔗 Wikilink `[[...]]` con autocomplete e backlink
-- 🌳 Sidebar con file tree annidato
-- ⌨️ Navigazione completa da tastiera nel file tree
+- 📂 **Vault locale** — scegli una cartella, è il tuo workspace. Source of truth = file `.md` sul disco.
+- 📝 **Editor Tiptap** con markdown shortcut nativi: `# ` → heading, `**testo**` → bold, `> ` → quote, `- ` → lista, ecc.
+- 🔗 **Wikilink `[[Nota]]`** con autocomplete su `[[`, click per navigare, link rotti evidenziati, creazione automatica della nota mancante
+- 🌳 **Sidebar** con file tree annidato, CRUD via context menu, navigazione completa da tastiera
+- 🔄 **Pannello backlink** che si aggiorna live al variare del vault
+- 👀 **Watcher su disco** con detection conflitti (vim, altri editor)
 - 💾 Autosave debounced
-- 👀 Watcher disco con detection conflitti
+
+### v0.2 — Power editing (✅ shipped)
+
+- 🔍 **Search palette `Cmd/Ctrl+K`** — full-text search via SQLite FTS5 con sintassi booleana (`foo OR bar`, `"frase esatta"`, `-escludi`)
+- 🏷️ **Tag system** — `#tag` nel body o `tags: []` in frontmatter. Sidebar mostra Tag section con count, click filtra il file tree
+- 📊 **Property editor** — frontmatter come property tipizzate (text/number/date/boolean/url/multi-select) sopra l'editor
+- ⚡ **Slash menu `/`** — popup blocchi inseribili (heading, list, quote, code, hr, callout)
+- 🕸️ **Mini-graph** locale alla nota corrente (1-hop) nel right pane (tab "Grafo")
+
+### v0.3 — Database & graph (✅ shipped)
+
+- 🗄️ **Database view** — vista tabellare di tutto il vault con FilterBar tipizzata (eq/contains/has/lacks/lt/gt/lte/gte), sort multi-key, group-by su qualsiasi property, ColumnPicker. Triggered dal pulsante "Database" in TopBar.
+- 🌐 **Grafo globale** — vista force-directed dell'intero vault con pan/zoom (anchora sul cursore), search, click highlight 1-hop neighbors, double-click apre. Triggered dal pulsante "Grafo" in TopBar.
+- 💡 **Callout block** — Tiptap node con 6 kinds (note, info, tip, warning, danger, success). Markdown roundtrip Obsidian-compatible (`> [!kind]`).
+- 🔢 **Typed property index** — ogni frontmatter property estratta in colonne SQLite tipizzate per query veloci
 
 ### In arrivo
 
@@ -181,9 +186,10 @@ pnpm --filter synapsium-desktop run dist:linux   # AppImage + .deb
 
 | Versione | Tema | Funzionalità chiave |
 |---|---|---|
-| **v0.1** ✨ in costruzione | Foundation desktop | Vault + editor + wikilink + backlink + watcher |
-| v0.2 | Power editing | Slash menu `/`, drag handles blocchi, frontmatter UI, full-text search, mini-graph locale alla nota, tag system, theme support |
-| v0.3 | Database & graph | Database views (table/board/kanban/calendar), grafo globale interattivo, blocchi avanzati (callout, embed, table, equation) |
+| ✅ v0.1 | Foundation desktop | Vault + editor + wikilink + backlink + watcher |
+| ✅ v0.2 | Power editing | Search FTS5 (Cmd+K), property editor, tag system, slash menu, mini-graph |
+| ✅ v0.3 | Database & graph (table view + global graph + callout) | Database table view, grafo globale interattivo, callout block proper |
+| v0.4 (next) | DB views complete + blocchi | Kanban view, calendar view, embed `![[...]]`, equation `$$...$$` (KaTeX) |
 | v1.0 | Multi-piattaforma | Web app, plugin system base, sync via filesystem-cloud (Dropbox/iCloud/Drive) |
 | v1.x | AI native | Embeddings locali, semantic search, auto-link suggestions, Q&A sul vault, agent organizzativi |
 | v1.5+ | Mobile | Expo app (iOS/Android), sync server custom |

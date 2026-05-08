@@ -258,24 +258,22 @@ export const CalloutExtension = Node.create({
                 tokens[i] = calloutOpen;
                 tokens[close] = calloutClose;
 
-                // Trim or drop the marker paragraph (which originally
-                // sat at i+1..i+3 inside the blockquote).
-                if (rest.length === 0) {
-                  // Remove the empty marker paragraph entirely. Splice
-                  // 3 tokens (paragraph_open, inline, paragraph_close)
-                  // starting at i+1.
-                  tokens.splice(i + 1, 3);
-                } else {
-                  // Keep the paragraph but strip the marker line from
-                  // its content + children, then re-tokenize the inline
-                  // body so emphasis / links / wikilinks inside it are
-                  // still parsed.
-                  inline.content = rest;
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  const childTokens: any[] = [];
+                // Trim or empty the marker paragraph (sits at i+1..i+3
+                // inside the blockquote). When `rest.length === 0` we
+                // KEEP the paragraph but strip its content — splicing
+                // out the entire `paragraph_open / inline / paragraph_close`
+                // triplet would leave the callout with no inner blocks,
+                // violating the `content: 'block+'` schema rule and
+                // producing console errors at parse time.
+                inline.content = rest;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const childTokens: any[] = [];
+                if (rest.length > 0) {
+                  // Re-tokenize the inline body so emphasis / links /
+                  // wikilinks inside it are still parsed.
                   state.md.inline.parse(rest, state.md, state.env, childTokens);
-                  inline.children = childTokens;
                 }
+                inline.children = childTokens;
 
                 // Continue scanning. The for-loop's `i++` advances past
                 // our rewritten open token; nested blockquotes inside

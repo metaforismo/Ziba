@@ -218,6 +218,10 @@ export function GlobalGraph(): JSX.Element {
 
   // Compute fit-to-screen view. Called once when the layout is ready
   // and again whenever the user clicks the "fit" button.
+  // Note: fitToScreen also serves as the "user wants to reset the camera"
+  // affordance via the toolbar button, so we clear userInteractedRef here.
+  // The auto-fit useEffect below distinguishes initial settle (interacted=
+  // false → fit) from refetch settles (interacted=true → preserve view).
   const fitToScreen = useCallback((): void => {
     if (canvasNodes.length === 0) return;
     const bounds = computeBounds(canvasNodes);
@@ -237,19 +241,28 @@ export function GlobalGraph(): JSX.Element {
     };
     setView(next);
     canvasRef.current?.setView(next);
+    // Explicit fit-to-screen press → re-arm the auto-fit on next layout
+    // change too, so the camera tracks new layouts until the user gestures.
+    userInteractedRef.current = false;
   }, [canvasNodes]);
 
-  // Auto-fit once the layout is ready. We only fit on the *initial*
-  // settle (not on every refetch) — re-fitting after a watcher event
-  // would yank the camera away from wherever the user just panned to,
-  // which is jarring. The `layout` reference identity makes this Just
-  // Work: it changes on the first ready settle, then again only if the
-  // node set actually shifts (rare in practice — refetches usually
-  // produce the same node set with a different edge here or there).
+  // Auto-fit once the layout is ready. We fit on the FIRST settle and
+  // only re-fit on subsequent layouts if the user hasn't yet panned or
+  // zoomed — otherwise a watcher refetch yanks the camera away from
+  // wherever the user is looking (visible bug with wheel zoom, since
+  // wheel doesn't sync to React state). The "Adatta" button explicitly
+  // resets `userInteractedRef` so users can return to fit-to-screen.
   const lastFitRef = useRef<unknown>(null);
+  const userInteractedRef = useRef(false);
   useEffect(() => {
     if (layout === null) return;
     if (lastFitRef.current === layout) return;
+    if (userInteractedRef.current) {
+      // Layout changed but the user has the camera where they want it —
+      // mark this layout as "seen" so we don't re-fit later either.
+      lastFitRef.current = layout;
+      return;
+    }
     lastFitRef.current = layout;
     fitToScreen();
   }, [layout, fitToScreen]);
@@ -296,6 +309,9 @@ export function GlobalGraph(): JSX.Element {
       startView: canvasRef.current.getView(),
     };
     setPanning(true);
+    // Same reasoning as wheel zoom: once the user has moved the camera,
+    // don't let a subsequent layout refetch fit-to-screen back over them.
+    userInteractedRef.current = true;
   }, []);
 
   // Window-level listeners for the move + up phases of the gesture so
@@ -370,10 +386,13 @@ export function GlobalGraph(): JSX.Element {
       scale: nextScale,
     };
     canvasRef.current.setView(next);
+    userInteractedRef.current = true;
     // We do NOT setView() here on every frame — that would trigger a
     // React render per wheel tick. Instead we sync at the next
     // selection / refetch boundary. (View state is also re-synced via
-    // the imperative handle's setView path when needed.)
+    // the imperative handle's setView path when needed.) The
+    // userInteractedRef flip prevents the next layout-changed effect
+    // from yanking the camera back.
   }, []);
 
   const handleNodeClick = useCallback((id: NotePath): void => {

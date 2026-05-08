@@ -13,6 +13,20 @@ import { requireIndexStore } from '../state.js';
 const LIMIT_DEFAULT = 1000;
 const LIMIT_MAX = 5000;
 
+const ALLOWED_FILTER_KINDS = new Set<ScalarFilter['kind']>([
+  'eq',
+  'in',
+  'has',
+  'lacks',
+  'lt',
+  'gt',
+  'lte',
+  'gte',
+  'contains',
+]);
+
+const ALLOWED_SORT_DIRECTIONS = new Set(['asc', 'desc']);
+
 function assertNonEmptyKey(key: unknown, where: string): asserts key is string {
   if (typeof key !== 'string' || key.length === 0) {
     throw new IpcError('INVALID_QUERY', `Chiave di proprietà non valida in ${where}.`);
@@ -21,6 +35,11 @@ function assertNonEmptyKey(key: unknown, where: string): asserts key is string {
 
 function validateFilter(f: ScalarFilter, idx: number): void {
   const where = `filter #${idx}`;
+  // Whitelist `kind` so prototype-pollution shapes like `{kind:'__proto__'}`
+  // can never reach the SQL builder's switch statement.
+  if (!ALLOWED_FILTER_KINDS.has(f.kind)) {
+    throw new IpcError('INVALID_QUERY', `Filtro non riconosciuto in ${where}.`);
+  }
   assertNonEmptyKey(f.key, where);
   if (f.kind === 'in' && !Array.isArray(f.values)) {
     throw new IpcError('INVALID_QUERY', `Il filtro "in" richiede un array di valori (${where}).`);
@@ -45,7 +64,12 @@ export async function runDatabaseQuery(args: { query: DatabaseQuery }): Promise<
     if (!Array.isArray(q.sort)) {
       throw new IpcError('INVALID_QUERY', "L'ordinamento deve essere un array.");
     }
-    q.sort.forEach((s, i) => assertNonEmptyKey(s.key, `sort #${i}`));
+    q.sort.forEach((s, i) => {
+      assertNonEmptyKey(s.key, `sort #${i}`);
+      if (!ALLOWED_SORT_DIRECTIONS.has(s.direction)) {
+        throw new IpcError('INVALID_QUERY', `Direzione sort non valida in sort #${i}.`);
+      }
+    });
   }
 
   if (q.groupBy !== undefined) {

@@ -108,9 +108,16 @@ export function simulateLayout(
     }
 
     // Edge springs: pull each edge endpoint toward the natural rest length.
+    // Critical perf path on large graphs: build the id→node lookup once
+    // per iteration (nodes don't move between linear-scan iterations of
+    // this inner loop) instead of doing a `find` per edge — that turned
+    // an O(edges) step into O(edges·nodes) and froze the global graph
+    // view for ~10s on real-world vaults.
+    const nodeById = new Map<string, LayoutNode>();
+    for (const n of nodes) nodeById.set(n.id, n);
     for (const e of edges) {
-      const a = nodes.find((n) => n.id === e.source);
-      const b = nodes.find((n) => n.id === e.target);
+      const a = nodeById.get(e.source);
+      const b = nodeById.get(e.target);
       if (a === undefined || b === undefined) continue;
       const dx = b.x - a.x;
       const dy = b.y - a.y;
