@@ -1,6 +1,6 @@
 import { Extension } from '@tiptap/core';
 import type { Editor, Range } from '@tiptap/core';
-import { PluginKey } from '@tiptap/pm/state';
+import { PluginKey, type EditorState } from '@tiptap/pm/state';
 import Suggestion from '@tiptap/suggestion';
 import type { SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion';
 
@@ -117,6 +117,26 @@ const SLASH_MENU_ITEMS: ReadonlyArray<SlashMenuItem> = [
 ];
 
 /**
+ * Returns true if the cursor is inside a code block or has the inline
+ * code mark active. We use this to suppress the slash menu in contexts
+ * where `/` is real syntax (e.g. paths in a code block: `path/to/file`).
+ *
+ * Without this guard, `startOfLine: true` would still trigger the popup
+ * on the first column of any code-block line, which is jarring.
+ */
+function isInCodeContext(state: EditorState, fromPos: number): boolean {
+  const $from = state.doc.resolve(fromPos);
+  for (let depth = $from.depth; depth >= 0; depth--) {
+    const nodeName = $from.node(depth).type.name;
+    if (nodeName === 'codeBlock') return true;
+  }
+  const codeMark = state.schema.marks['code'];
+  if (codeMark === undefined) return false;
+  const $pos = state.doc.resolve(fromPos);
+  return codeMark.isInSet($pos.marks()) !== undefined;
+}
+
+/**
  * Returns items whose title or any keyword contains `query` (case
  * insensitive). An empty/whitespace-only query returns everything in
  * declaration order so the user sees the full menu the moment they
@@ -228,6 +248,12 @@ export const SlashCommandExtension = Extension.create<SlashCommandOptions>({
         // line start. This is what prevents the popup from triggering
         // inside prose like `path/to/file`.
         startOfLine: true,
+
+        // Suppress the popup inside code blocks and inline code spans.
+        // `startOfLine` alone would still trigger inside a code block
+        // because the suggestion plugin's positional check is
+        // node-type-agnostic.
+        allow: ({ state, range }) => !isInCodeContext(state, range.from),
 
         items: ({ query }: { query: string; editor: Editor }): SlashMenuItem[] => {
           return filterItems(query);
