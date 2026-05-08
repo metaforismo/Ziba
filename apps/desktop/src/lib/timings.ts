@@ -47,3 +47,23 @@ export const PROPERTY_AUTOSAVE_DEBOUNCE_MS = 300;
  * FTS5 query per intentional pause.
  */
 export const SEARCH_DEBOUNCE_MS = 150;
+
+/**
+ * Database view query debounce. Triggered when the user mutates filters,
+ * sort, group-by or folder scope, and when the vault index changes
+ * underneath us. 200ms is long enough to coalesce a burst of filter edits
+ * (clicking through a select, typing a value into a text input) into a
+ * single SQLite query, and short enough that the table feels live as the
+ * user tweaks predicates.
+ */
+export const DATABASE_QUERY_DEBOUNCE_MS = 200;
+
+/**
+ * Global graph refetch after vault events. The full-graph IPC walks the
+ * entire link table and re-runs a (potentially) several-hundred-node
+ * force simulation on the renderer side, so we coalesce more
+ * aggressively than the backlinks panel — the user is already looking at
+ * a static settled layout, and a small burst of filesystem events
+ * shouldn't make the whole network re-jiggle three times in a row.
+ */
+export const GLOBAL_GRAPH_REFETCH_MS = 500;

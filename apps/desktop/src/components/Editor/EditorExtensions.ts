@@ -1,6 +1,7 @@
 import type { Extensions } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import { Markdown } from 'tiptap-markdown';
+import { CalloutExtension } from './extensions/Callout';
 import { SlashCommandExtension, type SlashCommandRenderer } from './extensions/SlashCommand';
 import { TagMarkExtension } from './extensions/TagMark';
 import { Wikilink } from './extensions/Wikilink';
@@ -54,6 +55,13 @@ export function buildEditorExtensions(options: BuildExtensionsOptions): Extensio
     // descend into text). Order vs Markdown is irrelevant — TagMark
     // doesn't touch serialization.
     TagMarkExtension,
+    // Block-level callout node. Order matters relative to Markdown
+    // (must come before, like every other custom node) so that
+    // tiptap-markdown picks up its `addStorage().markdown` hooks. Order
+    // vs StarterKit's blockquote is irrelevant: parseHTML for callouts
+    // is a `div[data-callout]` selector, which doesn't overlap with
+    // blockquote's tag matcher.
+    CalloutExtension,
     // Slash-command menu. Order doesn't matter relative to the other
     // extensions: the suggestion plugin manages its own decoration set
     // and never collides with the wikilink trigger (`/` vs `[[`).

@@ -1,5 +1,7 @@
 import { BacklinksPanel } from './BacklinksPanel';
+import { DatabaseView } from './DatabaseView';
 import { Editor } from './Editor';
+import { GlobalGraph } from './GlobalGraph';
 import { Resizer } from './Resizer';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
@@ -12,6 +14,7 @@ export function Layout(): JSX.Element {
   const backlinksOpen = useUiStore((s) => s.backlinksOpen);
   const setSidebarWidth = useUiStore((s) => s.setSidebarWidth);
   const setBacklinksWidth = useUiStore((s) => s.setBacklinksWidth);
+  const mainView = useUiStore((s) => s.mainView);
 
   const pickAndOpenVault = useVaultStore((s) => s.pickAndOpenVault);
 
@@ -34,25 +37,41 @@ export function Layout(): JSX.Element {
           ariaLabel="Ridimensiona barra laterale"
         />
 
-        <div className="flex min-w-0 flex-1">
-          <Editor />
-        </div>
-
-        {backlinksOpen && (
+        {mainView === 'editor' && (
           <>
-            <Resizer
-              width={backlinksWidth}
-              onWidthChange={setBacklinksWidth}
-              side="right"
-              ariaLabel="Ridimensiona pannello backlink"
-            />
-            <div
-              style={{ width: `${backlinksWidth}px` }}
-              className="shrink-0 border-l border-border"
-            >
-              <BacklinksPanel />
+            <div className="flex min-w-0 flex-1">
+              <Editor />
             </div>
+
+            {backlinksOpen && (
+              <>
+                <Resizer
+                  width={backlinksWidth}
+                  onWidthChange={setBacklinksWidth}
+                  side="right"
+                  ariaLabel="Ridimensiona pannello backlink"
+                />
+                <div
+                  style={{ width: `${backlinksWidth}px` }}
+                  className="shrink-0 border-l border-border"
+                >
+                  <BacklinksPanel />
+                </div>
+              </>
+            )}
           </>
+        )}
+
+        {mainView === 'database' && (
+          <div className="flex min-w-0 flex-1">
+            <DatabaseView />
+          </div>
+        )}
+
+        {mainView === 'graph' && (
+          <div className="flex min-w-0 flex-1">
+            <GlobalGraph />
+          </div>
         )}
       </div>
     </div>

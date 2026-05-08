@@ -8,6 +8,14 @@ const STORAGE_KEY = 'synapsium.ui.v1';
  */
 export type RightPaneTab = 'backlinks' | 'graph';
 
+/**
+ * Top-level view that occupies the editor + right-pane area. The sidebar
+ * stays visible across all modes so the user can navigate notes / tags
+ * regardless. `editor` is the default note-editing experience; `database`
+ * shows the v0.3 typed query view; `graph` shows the v0.3 full vault graph.
+ */
+export type MainView = 'editor' | 'database' | 'graph';
+
 type Persisted = {
   sidebarWidth: number;
   backlinksWidth: number;
@@ -27,6 +35,8 @@ type Persisted = {
    * view across reloads.
    */
   rightPaneTab: RightPaneTab;
+  /** Top-level view (editor / database / graph). Persisted across reloads. */
+  mainView: MainView;
 };
 
 const DEFAULTS: Persisted = {
@@ -36,10 +46,15 @@ const DEFAULTS: Persisted = {
   expandedFolders: [],
   tagsExpanded: true,
   rightPaneTab: 'backlinks',
+  mainView: 'editor',
 };
 
 function isRightPaneTab(v: unknown): v is RightPaneTab {
   return v === 'backlinks' || v === 'graph';
+}
+
+function isMainView(v: unknown): v is MainView {
+  return v === 'editor' || v === 'database' || v === 'graph';
 }
 
 const MIN_SIDEBAR = 160;
@@ -79,6 +94,7 @@ function loadPersisted(): Persisted {
           : DEFAULTS.expandedFolders,
       tagsExpanded: typeof p.tagsExpanded === 'boolean' ? p.tagsExpanded : DEFAULTS.tagsExpanded,
       rightPaneTab: isRightPaneTab(p.rightPaneTab) ? p.rightPaneTab : DEFAULTS.rightPaneTab,
+      mainView: isMainView(p.mainView) ? p.mainView : DEFAULTS.mainView,
     };
   } catch {
     return DEFAULTS;
@@ -103,6 +119,7 @@ type UiState = Persisted & {
   setExpandedFolders(paths: string[]): void;
   toggleTags(): void;
   setRightPaneTab(tab: RightPaneTab): void;
+  setMainView(view: MainView): void;
 };
 
 export const useUiStore = create<UiState>((set, get) => {
@@ -116,6 +133,7 @@ export const useUiStore = create<UiState>((set, get) => {
       expandedFolders,
       tagsExpanded,
       rightPaneTab,
+      mainView,
     } = get();
     savePersisted({
       sidebarWidth,
@@ -124,6 +142,7 @@ export const useUiStore = create<UiState>((set, get) => {
       expandedFolders,
       tagsExpanded,
       rightPaneTab,
+      mainView,
     });
   };
 
@@ -167,6 +186,11 @@ export const useUiStore = create<UiState>((set, get) => {
     setRightPaneTab(tab) {
       if (get().rightPaneTab === tab) return;
       set({ rightPaneTab: tab });
+      persist();
+    },
+    setMainView(view) {
+      if (get().mainView === view) return;
+      set({ mainView: view });
       persist();
     },
   };

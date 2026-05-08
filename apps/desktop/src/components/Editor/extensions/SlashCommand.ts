@@ -3,6 +3,7 @@ import type { Editor, Range } from '@tiptap/core';
 import { PluginKey, type EditorState } from '@tiptap/pm/state';
 import Suggestion from '@tiptap/suggestion';
 import type { SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion';
+import type { CalloutKind } from './Callout';
 
 /**
  * A single entry in the slash menu. The Tiptap extension passes this
@@ -107,14 +108,66 @@ const SLASH_MENU_ITEMS: ReadonlyArray<SlashMenuItem> = [
     keywords: ['hr', 'line', 'separator', 'divisore'],
     icon: '—',
   },
+  // Callout kinds. Each kind gets its own slash entry so the user picks
+  // the variant directly without a follow-up click. The shared keyword
+  // `callout` keeps the whole group reachable by typing `/callout`.
   {
-    id: 'callout',
-    title: 'Callout',
-    description: 'Avviso evidenziato (v0.2 minimale)',
-    keywords: ['callout', 'warning', 'info', 'avviso'],
+    id: 'callout-note',
+    title: 'Callout: nota',
+    description: 'Blocco di nota generica',
+    keywords: ['callout', 'note', 'nota'],
+    icon: '🗒️',
+  },
+  {
+    id: 'callout-info',
+    title: 'Callout: info',
+    description: 'Blocco informativo',
+    keywords: ['callout', 'info', 'informazione'],
+    icon: 'ℹ️',
+  },
+  {
+    id: 'callout-tip',
+    title: 'Callout: suggerimento',
+    description: 'Suggerimento o consiglio',
+    keywords: ['callout', 'tip', 'suggerimento', 'consiglio'],
     icon: '💡',
   },
+  {
+    id: 'callout-warning',
+    title: 'Callout: avvertimento',
+    description: 'Avviso da leggere con attenzione',
+    keywords: ['callout', 'warning', 'avvertimento', 'avviso'],
+    icon: '⚠️',
+  },
+  {
+    id: 'callout-danger',
+    title: 'Callout: pericolo',
+    description: 'Avviso critico o errore',
+    keywords: ['callout', 'danger', 'pericolo', 'errore'],
+    icon: '🚨',
+  },
+  {
+    id: 'callout-success',
+    title: 'Callout: successo',
+    description: 'Conferma di un esito positivo',
+    keywords: ['callout', 'success', 'successo', 'ok'],
+    icon: '✅',
+  },
 ];
+
+/**
+ * Map slash menu ids of the form `callout-<kind>` to the corresponding
+ * `CalloutKind`. Centralized so `runSlashCommand` stays readable and so
+ * a typo in the id is a TS-level mismatch (the union enforces it).
+ */
+const CALLOUT_KIND_BY_ID: Record<string, CalloutKind> = {
+  'callout-note': 'note',
+  'callout-info': 'info',
+  'callout-tip': 'tip',
+  'callout-warning': 'warning',
+  'callout-danger': 'danger',
+  'callout-success': 'success',
+};
 
 /**
  * Returns true if the cursor is inside a code block or has the inline
@@ -187,16 +240,19 @@ function runSlashCommand(editor: Editor, id: string): void {
     case 'horizontal-rule':
       editor.chain().focus().setHorizontalRule().run();
       return;
-    case 'callout':
-      // v0.3 will add a proper callout node. For now we approximate it
-      // with a blockquote whose first line is `> ⚠️ ` so the user has a
-      // visual placeholder to type into.
-      editor.chain().focus().setBlockquote().insertContent('⚠️ ').run();
-      return;
-    default:
+    default: {
+      // Callout entries share the `callout-<kind>` id pattern. We map
+      // them through `CALLOUT_KIND_BY_ID` instead of enumerating each
+      // case so adding a new kind only touches the catalog + the map.
+      const kind = CALLOUT_KIND_BY_ID[id];
+      if (kind !== undefined) {
+        editor.commands.insertCallout({ kind });
+        return;
+      }
       // Unknown id — no-op. We could throw in dev, but a silent skip
       // keeps the editor from crashing on a stale build.
       return;
+    }
   }
 }
 
