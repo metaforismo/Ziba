@@ -6,6 +6,31 @@ Il formato si basa su [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e
 
 ## [Unreleased]
 
+### v0.5.1 Fixed (post-review hardening)
+
+After v0.5 a parallel review (4 specialised agents on diff 37e22d1) surfaced a handful of real issues. This commit closes them:
+
+- **EmbedNodeView race recovery — null branch** (`EmbedNodeView.tsx`): when the post-ALREADY_EXISTS re-resolve returns `null` (a parallel gesture deleted the just-created note), state now falls back to `not-found` instead of surfacing the stale ALREADY_EXISTS message. When the recovery itself throws, the recovery error is shown — the original is no longer the actionable signal. Logic extracted to pure `attemptCreateNoteForEmbed(target, ipc)` (six new tests).
+- **Sidebar mutations — narrowly-scoped catches** (`useSidebarMutations.ts`): each mutation is now a two-stage flow. Stage 1 (the IPC call) is the one whose failure the user sees as `Impossibile <verb>`. Stage 2 (refresh + follow-up open/close) runs through `runFollowUp(verb, fn)`, which logs and shows a non-blocking "operazione riuscita ma vista non aggiornata" alert on failure. Previously a stuck file watcher would mis-report a successful delete as "Impossibile eliminare la nota".
+- **`clampQueryLimit` against NaN / Infinity** (`index-store-query.ts`): `Number.isFinite` guard prevents `LIMIT NaN` reaching SQLite and silently returning zero rows.
+- **Whitespace-only folder filter** (`index-store-query.ts`): `query.folder = "   "` now treated as "no folder filter" instead of producing an unmatchable `"   /%"` LIKE.
+- **`ipcErrorMessage` / `extractIpcErrorCode` accept plain `{ code, message }` objects**: a future serialization path (e.g. web build over service worker) won't silently degrade to "Errore sconosciuto" because the payload isn't an `Error` instance.
+- **Defensive try/catch around `katex.renderToString`** (`MathRenderer.tsx`): with `throwOnError: false` + `strict: 'ignore'` KaTeX shouldn't throw, but a future major version could. Without the catch a throw escapes `useMemo` and unmounts every formula on the page. Caches an error sentinel so a hot-loop re-throw doesn't peg the renderer. Asserts `KATEX_CACHE_LIMIT > 0` at module load.
+
+### v0.5.1 Changed (post-review hardening)
+
+- **`KNOWN_CODES` derived from the `IpcErrorCode` union** via a const-as-keys table (`shared/ipc.ts` exports both `IpcErrorCode` and `IPC_ERROR_CODES: ReadonlySet<IpcErrorCode>` from one source). Eliminates the lockstep hazard where adding a code to the type but forgetting the set would silently treat the new code as "no code".
+- **`BoardColumn` made `readonly`** with a private `MutableBoardColumn` for the build phase. Aligns with the v0.5 readonly propagation across the database views; the only mutation site (`distributeRows`) keeps its push semantics internally.
+
+### v0.5.1 Tests
+
+- `MathRenderer.test.ts` (5 cases): cache hit / displayMode-keyed / eviction at the 256 boundary / LRU touch reordering.
+- `EmbedNodeView.test.ts` (+6 cases for `attemptCreateNoteForEmbed`): happy path, ALREADY_EXISTS+resolve-hits, ALREADY_EXISTS+resolve-null (race resolved differently), ALREADY_EXISTS+recovery-throws, non-recoverable error, ALREADY_EXISTS+loadNote-throws.
+- `index-store-query.test.ts` (+4 cases): `clampQueryLimit` NaN / Infinity guards, folder whitespace handling.
+- `ipc-error.test.ts` (+3 cases): plain-object inputs for both `extractIpcErrorCode` and `ipcErrorMessage`.
+
+Total tests: **312** (140 core + 172 desktop). Was 294 at v0.5.
+
 ### v0.5 Fixed
 
 - **Inline-math currency false positives** (`MathInline.ts`): the parser previously rejected `$5+$10$` only on the close side (`afterClose !== digit`), letting strings like `Pago $5+$10 totale` open a math span when the closer landed before whitespace. Added the symmetric Pandoc guard (`prev !== ASCII digit`) and extracted the scanner into a pure exported function `scanInlineMath(src, start)` for direct unit testing.

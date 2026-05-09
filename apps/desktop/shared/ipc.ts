@@ -85,17 +85,33 @@ export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];
  * IPC boundary. Defined here (not in `electron/security.ts`) because
  * the renderer needs the type to branch on `extractIpcErrorCode(err)`.
  *
- * Adding a new code? Update `toSerializedError` in the security module
- * and the `KNOWN_CODES` set in `lib/ipc-error.ts` together.
+ * The const-as-keys table is the single source of truth: both
+ * `IpcErrorCode` (the type) and `IPC_ERROR_CODES` (the runtime set
+ * the renderer uses to validate inbound codes) are derived from it,
+ * so adding a new code is a one-line change. Without this trick the
+ * type and the validation set drift independently — adding a code
+ * to the union but forgetting to update the set silently treats the
+ * new code as "no code" in the renderer.
+ *
+ * When you add a code here, also update `toSerializedError` in
+ * `electron/security.ts` (translates Node.js errno-style codes into
+ * the canonical names) so the wrapper actually emits it.
  */
-export type IpcErrorCode =
-  | 'NO_VAULT'
-  | 'NOT_FOUND'
-  | 'ALREADY_EXISTS'
-  | 'INVALID_PATH'
-  | 'INVALID_QUERY'
-  | 'PERMISSION_DENIED'
-  | 'INTERNAL';
+const IPC_ERROR_CODE_TABLE = {
+  NO_VAULT: true,
+  NOT_FOUND: true,
+  ALREADY_EXISTS: true,
+  INVALID_PATH: true,
+  INVALID_QUERY: true,
+  PERMISSION_DENIED: true,
+  INTERNAL: true,
+} as const;
+
+export type IpcErrorCode = keyof typeof IPC_ERROR_CODE_TABLE;
+
+export const IPC_ERROR_CODES: ReadonlySet<IpcErrorCode> = new Set(
+  Object.keys(IPC_ERROR_CODE_TABLE) as IpcErrorCode[],
+);
 
 // ---- Request / response payloads ----
 

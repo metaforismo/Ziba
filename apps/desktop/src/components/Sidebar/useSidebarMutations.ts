@@ -11,12 +11,22 @@ import { buildFolderPath, buildNotePath, replaceLastSegment } from './path-utils
  * CRUD wiring for the sidebar — extracted from `index.tsx` so the
  * orchestrator stays focused on layout + dialog routing.
  *
- * Each action:
- *   1. computes the target path,
- *   2. invokes the matching IPC channel,
- *   3. refreshes the vault listing (so the tree reflects the change
- *      immediately, ahead of the file watcher's debounced refresh),
- *   4. follows the open note when it has been moved/renamed.
+ * Each action is a two-stage flow:
+ *   1. **IPC stage** — the actual mutation (createNote / renameFolder /
+ *      deleteFile / …). A failure here is what the user is asking
+ *      about: we surface "Impossibile <verb>" and stop.
+ *   2. **Follow-up stage** — refresh the vault listing and (when
+ *      relevant) re-open or close the active note. These can fail
+ *      independently of the IPC; if they do, the IPC has already
+ *      succeeded so we *must not* tell the user the operation failed.
+ *      We log + show a non-blocking "Aggiornamento incompleto" alert
+ *      so the user knows to refresh manually if needed.
+ *
+ * This split matters: a previous shape with a single try/catch around
+ * both stages would mis-report a stuck file watcher (refresh failure)
+ * as "Impossibile eliminare la nota" — but the file *was* deleted, the
+ * user just sees a stale tree. The narrow scope keeps the message
+ * truthful.
  *
  * Errors surface through `window.alert` for v0.5 — same as before. A
  * future iteration can replace that with a toast surface; concentrating
@@ -32,6 +42,29 @@ export type SidebarMutations = {
   deleteFile: (path: NotePath) => Promise<void>;
   deleteFolder: (path: string) => Promise<void>;
 };
+
+/**
+ * Run a vault-state synchronisation step (refresh + optional follow-up
+ * action like re-opening a renamed note) without letting its failure
+ * masquerade as the parent IPC operation having failed.
+ *
+ * The IPC operation has already succeeded by the time this is called;
+ * an exception here means "the on-disk state changed but the in-app
+ * view didn't catch up". The user needs to know but mustn't be told
+ * the original action failed.
+ */
+async function runFollowUp(verb: string, fn: () => Promise<void>): Promise<void> {
+  try {
+    await fn();
+  } catch (err: unknown) {
+    console.error(`[sidebar] follow-up after ${verb} failed:`, err);
+    window.alert(
+      `${verb} riuscito ma l'aggiornamento della vista è fallito (${ipcErrorMessage(
+        err,
+      )}). Premi F5 per ricaricare.`,
+    );
+  }
+}
 
 export function useSidebarMutations(): SidebarMutations {
   const refreshNotes = useVaultStore((s) => s.refreshNotes);
@@ -54,65 +87,79 @@ export function useSidebarMutations(): SidebarMutations {
 
   const createNoteIn = useCallback(
     async (rawName: string, parentFolder: string): Promise<void> => {
+      const path = buildNotePath(rawName, parentFolder);
       try {
-        const path = buildNotePath(rawName, parentFolder);
         await ipc.createNote({ path });
-        await doRefresh();
-        await openNote(path);
       } catch (err: unknown) {
         window.alert(`Impossibile creare la nota: ${ipcErrorMessage(err)}`);
+        return;
       }
+      await runFollowUp('Creazione nota', async () => {
+        await doRefresh();
+        await openNote(path);
+      });
     },
     [doRefresh, openNote],
   );
 
   const createFolderIn = useCallback(
     async (rawName: string, parentFolder: string): Promise<void> => {
+      const path = buildFolderPath(rawName, parentFolder);
       try {
-        const path = buildFolderPath(rawName, parentFolder);
         await ipc.createFolder({ path });
+      } catch (err: unknown) {
+        window.alert(`Impossibile creare la cartella: ${ipcErrorMessage(err)}`);
+        return;
+      }
+      await runFollowUp('Creazione cartella', async () => {
         await doRefresh();
         // Auto-expand the newly created folder so the user sees it.
         if (!expandedFolders.includes(path)) toggleFolder(path);
-      } catch (err: unknown) {
-        window.alert(`Impossibile creare la cartella: ${ipcErrorMessage(err)}`);
-      }
+      });
     },
     [doRefresh, expandedFolders, toggleFolder],
   );
 
   const renameFile = useCallback(
     async (oldPath: NotePath, newName: string): Promise<void> => {
+      const newPath = replaceLastSegment(oldPath, newName, true);
+      if (newPath === oldPath) return;
+      let resultNewPath: NotePath;
       try {
-        const newPath = replaceLastSegment(oldPath, newName, true);
-        if (newPath === oldPath) return;
         const result = await ipc.renameNote({ from: oldPath, to: newPath });
-        await doRefresh();
-        if (currentPath === oldPath) {
-          await openNote(result.newPath);
-        }
+        resultNewPath = result.newPath;
       } catch (err: unknown) {
         window.alert(`Impossibile rinominare la nota: ${ipcErrorMessage(err)}`);
+        return;
       }
+      await runFollowUp('Rinomina nota', async () => {
+        await doRefresh();
+        if (currentPath === oldPath) {
+          await openNote(resultNewPath);
+        }
+      });
     },
     [currentPath, doRefresh, openNote],
   );
 
   const renameFolder = useCallback(
     async (oldPath: string, newName: string): Promise<void> => {
+      const newPath = replaceLastSegment(oldPath, newName, false);
+      if (newPath === oldPath) return;
       try {
-        const newPath = replaceLastSegment(oldPath, newName, false);
-        if (newPath === oldPath) return;
         await ipc.renameFolder({ from: oldPath, to: newPath });
+      } catch (err: unknown) {
+        window.alert(`Impossibile rinominare la cartella: ${ipcErrorMessage(err)}`);
+        return;
+      }
+      await runFollowUp('Rinomina cartella', async () => {
         await doRefresh();
         // Re-resolve the open note when it lived inside the renamed folder.
         if (currentPath !== null && currentPath.startsWith(`${oldPath}/`)) {
           const remapped = newPath + currentPath.slice(oldPath.length);
           await openNote(remapped);
         }
-      } catch (err: unknown) {
-        window.alert(`Impossibile rinominare la cartella: ${ipcErrorMessage(err)}`);
-      }
+      });
     },
     [currentPath, doRefresh, openNote],
   );
@@ -121,11 +168,14 @@ export function useSidebarMutations(): SidebarMutations {
     async (path: NotePath): Promise<void> => {
       try {
         await ipc.deleteNote({ path });
-        if (currentPath === path) closeNote();
-        await doRefresh();
       } catch (err: unknown) {
         window.alert(`Impossibile eliminare la nota: ${ipcErrorMessage(err)}`);
+        return;
       }
+      await runFollowUp('Eliminazione nota', async () => {
+        if (currentPath === path) closeNote();
+        await doRefresh();
+      });
     },
     [closeNote, currentPath, doRefresh],
   );
@@ -134,13 +184,16 @@ export function useSidebarMutations(): SidebarMutations {
     async (path: string): Promise<void> => {
       try {
         await ipc.deleteFolder({ path });
+      } catch (err: unknown) {
+        window.alert(`Impossibile eliminare la cartella: ${ipcErrorMessage(err)}`);
+        return;
+      }
+      await runFollowUp('Eliminazione cartella', async () => {
         if (currentPath !== null && currentPath.startsWith(`${path}/`)) {
           closeNote();
         }
         await doRefresh();
-      } catch (err: unknown) {
-        window.alert(`Impossibile eliminare la cartella: ${ipcErrorMessage(err)}`);
-      }
+      });
     },
     [closeNote, currentPath, doRefresh],
   );

@@ -25,12 +25,32 @@ export const NULL_COLUMN_LABEL = '(senza valore)';
  * `value === null` is reserved for the catch-all bucket — i.e. notes
  * whose `properties[groupBy]` is missing.
  */
-export type BoardColumn = {
+/**
+ * Mutable shape used internally during column construction. The only
+ * mutation site is `distributeRows`, which pushes into `rows`. We
+ * widen this to the public `BoardColumn` (frozen-shape `readonly`)
+ * when handing the array back from `buildColumns`, so consumers can't
+ * mutate after the build phase.
+ */
+type MutableBoardColumn = {
   id: string;
   label: string;
   value: string | number | boolean | null;
-  /** Mutable during construction (`distributeRows` pushes into it). */
   rows: DatabaseRow[];
+};
+
+/**
+ * One column in the rendered kanban board. Public, immutable view of
+ * the build phase's `MutableBoardColumn`. Aligns with the v0.5
+ * readonly propagation across the database views — once a column has
+ * been built, neither its identity, label, group value, nor row list
+ * is meant to change without a fresh re-query.
+ */
+export type BoardColumn = {
+  readonly id: string;
+  readonly label: string;
+  readonly value: string | number | boolean | null;
+  readonly rows: readonly DatabaseRow[];
 };
 
 /**
@@ -139,7 +159,7 @@ export function buildColumns(
     }
     const sorted = Array.from(valueOrder.keys()).sort((a, b) => a.localeCompare(b));
 
-    const columns: BoardColumn[] = sorted.map((v) => ({
+    const columns: MutableBoardColumn[] = sorted.map((v) => ({
       id: valueToColumnId(v),
       label: formatColumnLabel(v),
       value: v,
@@ -164,8 +184,8 @@ export function buildColumns(
   // (shouldn't happen, but defensively) are bucketed into a fresh column
   // so they don't disappear.
   const seenIds = new Set<string>();
-  const columns: BoardColumn[] = [];
-  let nullColumn: BoardColumn | null = null;
+  const columns: MutableBoardColumn[] = [];
+  let nullColumn: MutableBoardColumn | null = null;
 
   for (const g of groups) {
     if (g.value === null) {
@@ -214,9 +234,9 @@ export function buildColumns(
 function distributeRows(
   rows: readonly DatabaseRow[],
   groupBy: string,
-  columns: BoardColumn[],
+  columns: MutableBoardColumn[],
 ): void {
-  const byId = new Map<string, BoardColumn>();
+  const byId = new Map<string, MutableBoardColumn>();
   for (const c of columns) byId.set(c.id, c);
 
   for (const row of rows) {

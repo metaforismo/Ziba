@@ -7,6 +7,75 @@ import { extractIpcErrorCode, ipcErrorMessage } from '../../../lib/ipc-error';
 import { navigateToNote } from '../../../lib/navigate';
 
 /**
+ * Outcome of `attemptCreateNoteForEmbed`. Modelled as a discriminated
+ * union so the caller dispatches one `setState` per branch — the
+ * function itself stays free of React state.
+ */
+export type AttemptCreateOutcome =
+  | { kind: 'loaded'; path: NotePath; note: Note }
+  | { kind: 'not-found' }
+  | { kind: 'error'; message: string };
+
+/**
+ * IPC surface that the create-with-recovery flow needs. Pulled out as
+ * a parameter so unit tests can pass mocks without going through
+ * `window.synapsium`.
+ */
+export type EmbedCreateIpc = {
+  createNote: (args: { path: NotePath }) => Promise<Note>;
+  resolveTitle: (args: { title: string }) => Promise<NotePath | null>;
+  loadNote: (args: { path: NotePath }) => Promise<Note>;
+};
+
+/**
+ * "Create note for an unresolved embed", with the race-window recovery
+ * baked in. Pure function: no React state, no global access — the
+ * caller threads `ipc` and turns the outcome into a `setState`.
+ *
+ * Behaviour:
+ *   - Happy path: createNote succeeds → `{ kind: 'loaded', ... }`.
+ *   - createNote throws ALREADY_EXISTS → re-resolve + loadNote. If
+ *     the re-resolve finds the path, return `loaded`. If it returns
+ *     `null` (a parallel gesture deleted the just-created note),
+ *     return `not-found`. If the recovery itself throws, return
+ *     `error` with *that* message — the original ALREADY_EXISTS is
+ *     no longer the actionable signal.
+ *   - createNote throws anything else → `{ kind: 'error', message }`
+ *     with the original error.
+ *
+ * The contract intentionally never re-throws: the React layer can
+ * dispatch one branch per outcome without a try/catch.
+ */
+export async function attemptCreateNoteForEmbed(
+  target: string,
+  ipcOverride: EmbedCreateIpc = ipc,
+): Promise<AttemptCreateOutcome> {
+  try {
+    // Use `${target}.md` as the path. v0.4 doesn't infer folders
+    // from the title — the new note lands at the vault root. Users
+    // who want a folder can move it via the file tree.
+    const note = await ipcOverride.createNote({ path: `${target}.md` });
+    return { kind: 'loaded', path: note.path, note };
+  } catch (err: unknown) {
+    if (extractIpcErrorCode(err) !== 'ALREADY_EXISTS') {
+      return { kind: 'error', message: ipcErrorMessage(err) };
+    }
+    try {
+      const path = await ipcOverride.resolveTitle({ title: target });
+      if (path === null) {
+        // Race resolved differently: another gesture deleted the
+        // note that ALREADY_EXISTS pointed at.
+        return { kind: 'not-found' };
+      }
+      const note = await ipcOverride.loadNote({ path });
+      return { kind: 'loaded', path, note };
+    } catch (recoveryErr: unknown) {
+      return { kind: 'error', message: ipcErrorMessage(recoveryErr) };
+    }
+  }
+}
+
+/**
  * React node view for the `embed` Tiptap node.
  *
  * Lifecycle:
@@ -121,37 +190,14 @@ export function EmbedNodeView(props: NodeViewProps): JSX.Element {
   const handleCreate = useCallback((): void => {
     if (target.length === 0) return;
     setState({ kind: 'creating' });
-    (async (): Promise<void> => {
-      try {
-        // Use `${target}.md` as the path. v0.4 doesn't infer folders
-        // from the title — the new note lands at the vault root. Users
-        // who want a folder can move it via the file tree.
-        const newNote = await ipc.createNote({ path: `${target}.md` });
-        if (latestTargetRef.current !== target) return;
-        setState({ kind: 'loaded', path: newNote.path, note: newNote });
-      } catch (err: unknown) {
-        if (latestTargetRef.current !== target) return;
-        // Race-window recovery: between our `resolveTitle` returning
-        // null and our `createNote` call, an external watcher event
-        // (or a parallel "Crea nota" gesture) may have created the
-        // note. Re-resolve and load it instead of surfacing the error.
-        if (extractIpcErrorCode(err) === 'ALREADY_EXISTS') {
-          try {
-            const path = await ipc.resolveTitle({ title: target });
-            if (latestTargetRef.current !== target) return;
-            if (path !== null) {
-              const note = await ipc.loadNote({ path });
-              if (latestTargetRef.current !== target) return;
-              setState({ kind: 'loaded', path, note });
-              return;
-            }
-          } catch {
-            // Fall through to the generic error path.
-          }
-        }
-        setState({ kind: 'error', message: ipcErrorMessage(err) });
-      }
-    })();
+    void attemptCreateNoteForEmbed(target).then((outcome) => {
+      // Stale-target guard: by the time the IPC chain settled the
+      // user may have edited the embed target, in which case the
+      // useEffect above has already re-fired and we must not clobber
+      // its state.
+      if (latestTargetRef.current !== target) return;
+      setState(outcome);
+    });
   }, [target]);
 
   const handleHeaderButton = useCallback(

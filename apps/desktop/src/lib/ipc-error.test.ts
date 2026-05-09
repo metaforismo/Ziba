@@ -61,4 +61,21 @@ describe('ipcErrorMessage', () => {
     expect(ipcErrorMessage(undefined)).toBe('Errore sconosciuto');
     expect(ipcErrorMessage({ random: true })).toBe('Errore sconosciuto');
   });
+
+  it('reads `message` from plain objects (non-Error)', () => {
+    // A future serialization path may produce { code, message } plain
+    // objects instead of Error instances.
+    expect(ipcErrorMessage({ code: 'NOT_FOUND', message: 'no such file' })).toBe('no such file');
+    expect(ipcErrorMessage({ message: '[ALREADY_EXISTS] esiste già' })).toBe('esiste già');
+  });
+});
+
+describe('extractIpcErrorCode — plain object inputs', () => {
+  it('reads `code` from a plain object that is not an Error', () => {
+    expect(extractIpcErrorCode({ code: 'NOT_FOUND', message: 'gone' })).toBe('NOT_FOUND');
+  });
+
+  it('reads the prefix from a plain object message when `code` is absent', () => {
+    expect(extractIpcErrorCode({ message: '[ALREADY_EXISTS] dup' })).toBe('ALREADY_EXISTS');
+  });
 });

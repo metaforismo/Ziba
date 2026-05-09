@@ -179,6 +179,17 @@ describe('clampQueryLimit', () => {
     expect(clampQueryLimit(undefined)).toBe(DEFAULT_QUERY_LIMIT);
   });
 
+  it('returns the default for NaN', () => {
+    // NaN slipping through Math.max would yield NaN, then SQLite either
+    // errors on `LIMIT NaN` or silently coerces to 0.
+    expect(clampQueryLimit(Number.NaN)).toBe(DEFAULT_QUERY_LIMIT);
+  });
+
+  it('returns the default for Infinity / -Infinity', () => {
+    expect(clampQueryLimit(Number.POSITIVE_INFINITY)).toBe(DEFAULT_QUERY_LIMIT);
+    expect(clampQueryLimit(Number.NEGATIVE_INFINITY)).toBe(DEFAULT_QUERY_LIMIT);
+  });
+
   it('clamps below 1 to 1', () => {
     expect(clampQueryLimit(0)).toBe(1);
     expect(clampQueryLimit(-100)).toBe(1);
@@ -193,5 +204,23 @@ describe('clampQueryLimit', () => {
     expect(clampQueryLimit(250)).toBe(250);
     expect(clampQueryLimit(1)).toBe(1);
     expect(clampQueryLimit(MAX_QUERY_LIMIT)).toBe(MAX_QUERY_LIMIT);
+  });
+});
+
+describe('buildWhereFragments — folder edge cases', () => {
+  it('treats whitespace-only folder as "no folder filter"', () => {
+    const out = buildWhereFragments({ folder: '   ' });
+    expect(out.fragments).toEqual([]);
+    expect(out.params).toEqual([]);
+  });
+
+  it('trims surrounding whitespace before building the LIKE', () => {
+    const out = buildWhereFragments({ folder: '  projects  ' });
+    expect(out.params[0]).toBe('projects/%');
+  });
+
+  it('treats an empty-string folder as "no folder filter"', () => {
+    const out = buildWhereFragments({ folder: '' });
+    expect(out.fragments).toEqual([]);
   });
 });

@@ -74,10 +74,6 @@ describe('scanInlineMath — positive cases', () => {
     expect(scanInlineMath('($x$)', 1)).toBe(3);
   });
 
-  it('matches with start-of-string opener', () => {
-    expect(scanInlineMath('$x$', 0)).toBe(2);
-  });
-
   it('treats `\\$` inside as part of the formula and continues scanning', () => {
     // `$a \$ b$` — the inner `\$` is escaped and consumed as two
     // characters; the real closer is at the end.

@@ -173,7 +173,12 @@ export const MathInlineExtension = Node.create({
  * at that position.
  *
  * The recognition uses a Pandoc-style heuristic to avoid currency
- * false positives like `Pago $5+$10 totale`:
+ * false positives. Two cases motivate the symmetry:
+ *   - `Pago $5+$10 totale` — caught by the close-side rule (closer
+ *     followed by ` ` + then digit context, etc.).
+ *   - `5$x$` — caught only by the open-side prev-digit guard;
+ *     without it the closer rule would let this open as math because
+ *     the closer in isolation looks fine.
  *
  *   1. opener: char before `$` must not be a backslash (escape) or
  *      ASCII digit (mirror of the close-side guard);

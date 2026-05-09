@@ -158,14 +158,21 @@ export function buildWhereFragments(query: DatabaseQuery): {
   const fragments: string[] = [];
   const params: Array<string | number> = [];
 
-  if (query.folder !== undefined && query.folder.length > 0) {
-    // Match notes whose path begins with `<folder>/`. Escape LIKE
-    // metacharacters so a literal underscore in a folder name doesn't
-    // act as a wildcard.
-    const trimmed = query.folder.replace(/\/+$/, '');
-    const escaped = trimmed.replace(/[\\%_]/g, (c) => '\\' + c);
-    fragments.push(`n.path LIKE ? ESCAPE '\\'`);
-    params.push(escaped + '/%');
+  if (query.folder !== undefined) {
+    // Whitespace-only / empty folder = "no folder filter" (vault root).
+    // Trim leading/trailing whitespace before checking — otherwise a
+    // value like `"   "` falls through and produces an unmatchable LIKE
+    // pattern, silently returning zero rows when the user meant
+    // "everything".
+    const folderClean = query.folder.trim().replace(/\/+$/, '');
+    if (folderClean.length > 0) {
+      // Match notes whose path begins with `<folder>/`. Escape LIKE
+      // metacharacters so a literal underscore in a folder name doesn't
+      // act as a wildcard.
+      const escaped = folderClean.replace(/[\\%_]/g, (c) => '\\' + c);
+      fragments.push(`n.path LIKE ? ESCAPE '\\'`);
+      params.push(escaped + '/%');
+    }
   }
 
   if (query.filters !== undefined && query.filters.length > 0) {
@@ -212,12 +219,20 @@ export function buildSortClause(query: DatabaseQuery): SortClause {
 }
 
 /**
- * Clamp a caller-supplied `limit` to the supported window. `undefined`
- * resolves to `DEFAULT_QUERY_LIMIT`. Out-of-range values are pulled
- * back into `[1, MAX_QUERY_LIMIT]` rather than rejected, mirroring the
- * IPC layer's defensive validation.
+ * Clamp a caller-supplied `limit` to the supported window. `undefined`,
+ * `NaN`, `Infinity`, and any non-finite value resolve to
+ * `DEFAULT_QUERY_LIMIT`. Out-of-range finite values are pulled back
+ * into `[1, MAX_QUERY_LIMIT]` rather than rejected, mirroring the IPC
+ * layer's defensive validation.
+ *
+ * Why the `Number.isFinite` guard: a `NaN` slipping through `Math.max`
+ * yields `NaN`, which SQLite either errors on or silently coerces to 0
+ * — neither outcome is what the caller asked for, but both look like
+ * "the query mysteriously returned nothing" from the UI side.
  */
 export function clampQueryLimit(requested: number | undefined): number {
-  const v = requested ?? DEFAULT_QUERY_LIMIT;
-  return Math.max(1, Math.min(v, MAX_QUERY_LIMIT));
+  if (requested === undefined || !Number.isFinite(requested)) {
+    return DEFAULT_QUERY_LIMIT;
+  }
+  return Math.max(1, Math.min(requested, MAX_QUERY_LIMIT));
 }
