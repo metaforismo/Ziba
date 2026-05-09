@@ -1,8 +1,8 @@
 // Small helpers shared across Sidebar dialogs. Kept local to the Sidebar
 // folder so the rest of the app doesn't accumulate stringly-typed path
-// helpers — the canonical NotePath shape is owned by @synapsium/core.
+// helpers — the canonical NotePath shape is owned by @ziba/core.
 
-import type { NotePath } from '@synapsium/core';
+import type { NotePath } from '@ziba/core';
 
 /** Characters that are illegal in Windows file names (and confusing on macOS/Linux). */
 const ILLEGAL_NAME_RE = /[\\:*?"<>|]/;

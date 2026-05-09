@@ -1,6 +1,6 @@
-# Contribuire a synapsium
+# Contribuire a Ziba
 
-Grazie per l'interesse. synapsium è un progetto open-source in fase **alpha** — ogni contributo conta, dalle correzioni di typo nel README alle implementazioni di feature della roadmap.
+Grazie per l'interesse. Ziba è un progetto open-source in fase **alpha** — ogni contributo conta, dalle correzioni di typo nel README alle implementazioni di feature della roadmap.
 
 ## Indice
 
@@ -22,7 +22,7 @@ Sii rispettoso, costruttivo e paziente. Critica il codice, non le persone. Le PR
 | Tipo | Come |
 |---|---|
 | 🐛 Bug fix | Apri una issue prima per i fix non triviali, una PR diretta è ok per typo o piccoli bug ovvi |
-| ✨ Nuova funzionalità | Apri una [Discussion](https://github.com/metaforismo/Synapsium/discussions) per discutere il design prima di codare |
+| ✨ Nuova funzionalità | Apri una [Discussion](https://github.com/metaforismo/Ziba/discussions) per discutere il design prima di codare |
 | 📝 Documentazione | PR diretta benvenuta |
 | 🎨 Design / UX | Mockup in una Discussion per feedback prima di codare |
 | 🧪 Test | Sempre benvenuti, soprattutto per `packages/core` |
@@ -39,21 +39,21 @@ Sii rispettoso, costruttivo e paziente. Critica il codice, non le persone. Le PR
 ### Clone e installazione
 
 ```bash
-git clone https://github.com/metaforismo/Synapsium.git synapsium
-cd synapsium
+git clone https://github.com/metaforismo/Ziba.git ziba
+cd ziba
 pnpm install
 ```
 
 `pnpm install` compila il modulo nativo `better-sqlite3` contro l'ABI di Electron tramite `electron-builder` (postinstall hook). Su macOS arm64 o se hai più versioni di Node installate, può essere necessario rieseguire:
 
 ```bash
-pnpm --filter synapsium-desktop exec electron-builder install-app-deps
+pnpm --filter ziba-desktop exec electron-builder install-app-deps
 ```
 
 ### Avvio in dev
 
 ```bash
-pnpm --filter synapsium-desktop run dev
+pnpm --filter ziba-desktop run dev
 ```
 
 HMR sul renderer è attivo. Modifiche al main process richiedono un reload (electron-vite riavvia l'app automaticamente).
@@ -112,7 +112,7 @@ Per `packages/core`, scrivi test (Vitest, in arrivo). Per ora siamo prevalenteme
 
 - **Strict mode obbligatorio.** No `any` esplicito senza `// eslint-disable` con commento giustificativo.
 - **Niente default exports.** Solo named exports — più facili da renominare e fare grep.
-- **Imports relativi** dentro lo stesso package. **Imports `@synapsium/core`** per attraversare i package.
+- **Imports relativi** dentro lo stesso package. **Imports `@ziba/core`** per attraversare i package.
 - **Type-only imports** quando applicabili: `import type { Note } from '...';`.
 
 ### React
@@ -130,7 +130,7 @@ Per `packages/core`, scrivi test (Vitest, in arrivo). Per ora siamo prevalenteme
 
 ### IPC (Electron)
 
-- Ogni nuovo channel deve passare per `apps/desktop/shared/ipc.ts`. Aggiungi al `IpcChannels`, ai tipi `IpcRequests`/`IpcResponses`, all'API `SynapsiumApi`.
+- Ogni nuovo channel deve passare per `apps/desktop/shared/ipc.ts`. Aggiungi al `IpcChannels`, ai tipi `IpcRequests`/`IpcResponses`, all'API `ZibaApi`.
 - Handler in `apps/desktop/electron/ipc/<dominio>.ts`. Validano gli input prima di toccare il filesystem.
 - Errori loggati nel main, propagati al renderer come messaggi descritti (italiano per ora).
 
@@ -178,7 +178,7 @@ Tempi di risposta: facciamo del nostro meglio per rispondere entro 7 giorni. Se 
 
 ## Decisioni architetturali
 
-Le decisioni di alto livello (es. cambio framework, cambio storage layer) vanno prima discusse in [Discussion](https://github.com/metaforismo/Synapsium/discussions). Possiamo introdurre un formato ADR (Architecture Decision Record) in `docs/adr/` quando il progetto cresce.
+Le decisioni di alto livello (es. cambio framework, cambio storage layer) vanno prima discusse in [Discussion](https://github.com/metaforismo/Ziba/discussions). Possiamo introdurre un formato ADR (Architecture Decision Record) in `docs/adr/` quando il progetto cresce.
 
 ### Principi di design
 
@@ -190,4 +190,4 @@ Le decisioni di alto livello (es. cambio framework, cambio storage layer) vanno 
 
 ---
 
-Domande? Apri una [Discussion](https://github.com/metaforismo/Synapsium/discussions) o pinga in una issue esistente. Grazie per voler contribuire 💚
+Domande? Apri una [Discussion](https://github.com/metaforismo/Ziba/discussions) o pinga in una issue esistente. Grazie per voler contribuire 💚

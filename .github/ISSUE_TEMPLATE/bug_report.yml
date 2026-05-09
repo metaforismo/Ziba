@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Grazie per il bug report. Prima di aprire la issue, controlla che non ce ne sia già una simile nelle [issue esistenti](https://github.com/metaforismo/Synapsium/issues).
+        Grazie per il bug report. Prima di aprire la issue, controlla che non ce ne sia già una simile nelle [issue esistenti](https://github.com/metaforismo/Ziba/issues).
 
   - type: textarea
     id: description
@@ -23,7 +23,7 @@ body:
       label: Passi per riprodurre
       description: Lista numerata, il più precisa possibile
       placeholder: |
-        1. Avvia synapsium con `pnpm --filter synapsium-desktop dev`
+        1. Avvia Ziba con `pnpm --filter ziba-desktop dev`
         2. Apri vault `~/Desktop/test-vault`
         3. Click su `nota.md`
         4. Bug: ...
@@ -59,7 +59,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: Versione synapsium
+      label: Versione Ziba
       description: Commit SHA o tag, es. `abc123` o `v0.1.0`
     validations:
       required: true

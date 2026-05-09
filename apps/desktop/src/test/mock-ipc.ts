@@ -4,12 +4,12 @@ import type {
   IpcChannel,
   IpcRequests,
   IpcResponses,
-  SynapsiumApi,
+  ZibaApi,
   VaultEventPayload,
 } from '../../shared/ipc';
 import { IpcChannels } from '../../shared/ipc';
 
-// In-test fake of `window.synapsium`.
+// In-test fake of `window.ziba`.
 //
 // The renderer talks to Electron through a single `invoke(channel, args)`
 // function plus two listener registrations for push events. We mirror
@@ -126,7 +126,7 @@ function buildDefaultHandlers(): Required<MockHandlers> {
 }
 
 /**
- * Build and install a fake `window.synapsium`. Returns a controller
+ * Build and install a fake `window.ziba`. Returns a controller
  * tests use to drive behaviour. Calling this is idempotent — each call
  * fully replaces the previous mock (and any previously-attached
  * listeners) so tests don't leak state across `it` blocks.
@@ -158,19 +158,19 @@ export function installMockIpc(overrides: MockHandlers = {}): MockController {
     };
   });
 
-  const api: SynapsiumApi = {
+  const api: ZibaApi = {
     invoke: ((channel: IpcChannel, args?: unknown) => {
       const spy = spies.get(channel);
       if (!spy) {
         return Promise.reject(new Error(`No handler for channel '${channel}'`));
       }
       return spy(args);
-    }) as SynapsiumApi['invoke'],
-    onVaultEvent: onVaultEventSpy as unknown as SynapsiumApi['onVaultEvent'],
-    onIndexProgress: onIndexProgressSpy as unknown as SynapsiumApi['onIndexProgress'],
+    }) as ZibaApi['invoke'],
+    onVaultEvent: onVaultEventSpy as unknown as ZibaApi['onVaultEvent'],
+    onIndexProgress: onIndexProgressSpy as unknown as ZibaApi['onIndexProgress'],
   };
 
-  window.synapsium = api;
+  window.ziba = api;
 
   return {
     setHandler<C extends IpcChannel>(channel: C, fn: ChannelHandler<C>) {

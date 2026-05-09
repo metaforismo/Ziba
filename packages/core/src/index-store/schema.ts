@@ -1,15 +1,15 @@
 /**
- * Filename of the SQLite cache inside `<vaultRoot>/.synapsium/`.
+ * Filename of the SQLite cache inside `<vaultRoot>/.ziba/`.
  * Adapters concatenate this with `INDEX_DIR_NAME` to build the full path.
  */
 export const INDEX_DB_FILENAME = 'index.db';
 
 /**
- * Hidden subdirectory inside the vault that holds synapsium-managed files
+ * Hidden subdirectory inside the vault that holds ziba-managed files
  * (currently just the SQLite index; future: cached embeddings, settings).
  * Anything under this folder is skipped during vault scans.
  */
-export const INDEX_DIR_NAME = '.synapsium';
+export const INDEX_DIR_NAME = '.ziba';
 
 /**
  * Pragmas applied at connection time. WAL journaling lets the renderer
@@ -50,7 +50,7 @@ CREATE INDEX IF NOT EXISTS idx_wikilinks_target_path  ON wikilinks(target_path);
 CREATE INDEX IF NOT EXISTS idx_notes_title            ON notes(title);
 
 -- Full-text search via FTS5 virtual table. Mirrors \`notes.path\`/\`title\`/\`body\`
--- so wildcards like \`synapsium\` or \`architecture OR design\` work.
+-- so wildcards like \`ziba\` or \`architecture OR design\` work.
 CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
   path UNINDEXED,
   title,

@@ -5,7 +5,7 @@ import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 /**
  * Supported callout kinds. Mirrors Obsidian's standard `> [!type]` set
  * plus a `quote` variant for stylistic emphasis. Keep this list in sync
- * with the CSS classes in `globals.css` (`.synapsium-callout-<kind>`)
+ * with the CSS classes in `globals.css` (`.ziba-callout-<kind>`)
  * and with the slash-menu items in `SlashCommand.ts`.
  *
  * Unknown kinds parsed from foreign vaults (e.g. `[!abstract]`) fall
@@ -70,7 +70,7 @@ declare module '@tiptap/core' {
  * (`> [!kind] body`). Replaces the v0.2 blockquote+emoji approximation.
  *
  * Rendering: a single `<div data-callout data-kind="...">` whose
- * `class` includes `synapsium-callout` plus a per-kind modifier. The
+ * `class` includes `ziba-callout` plus a per-kind modifier. The
  * icon is supplied by a CSS `::before` pseudo-element (no node-view
  * needed for v0.3 — keeps the schema simple and the editor instantly
  * portable to other surfaces like the markdown preview pane).
@@ -119,7 +119,7 @@ export const CalloutExtension = Node.create({
       mergeAttributes(HTMLAttributes, {
         'data-callout': '',
         'data-kind': kind,
-        class: `synapsium-callout synapsium-callout-${kind}`,
+        class: `ziba-callout ziba-callout-${kind}`,
       }),
       0,
     ];
@@ -186,16 +186,16 @@ export const CalloutExtension = Node.create({
            * Hooks a markdown-it `core` ruler that rewrites blockquote
            * tokens carrying a `[!kind]` marker on their first inline
            * line into HTML callout tokens. Runs once per parser
-           * instance (idempotent via the `synapsiumCalloutRegistered`
+           * instance (idempotent via the `zibaCalloutRegistered`
            * flag — see Wikilink for the same pattern).
            */
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           setup(md: any): void {
-            if (md.synapsiumCalloutRegistered === true) return;
-            md.synapsiumCalloutRegistered = true;
+            if (md.zibaCalloutRegistered === true) return;
+            md.zibaCalloutRegistered = true;
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            md.core.ruler.after('block', 'synapsium_callout', (state: any): boolean => {
+            md.core.ruler.after('block', 'ziba_callout', (state: any): boolean => {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const tokens: any[] = state.tokens;
 

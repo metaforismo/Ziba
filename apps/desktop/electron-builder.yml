@@ -1,5 +1,5 @@
-appId: com.metaforismo.synapsium
-productName: synapsium
+appId: com.metaforismo.ziba
+productName: Ziba
 
 directories:
   output: release

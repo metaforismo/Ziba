@@ -18,7 +18,7 @@ import { useTagsStore } from '../../../stores/tags';
  */
 const TAG_NAME_RE = /[A-Za-z0-9_/-]+/y;
 
-const PLUGIN_KEY = new PluginKey('synapsium-tag-decorations');
+const PLUGIN_KEY = new PluginKey('ziba-tag-decorations');
 
 /** Returns true if the char at `i-1` is a valid left boundary for `#`. */
 function isValidLeftBoundary(text: string, i: number): boolean {
@@ -71,8 +71,8 @@ function buildTagDecorations(doc: ProseMirrorNode): DecorationSet {
       const to = from + 1 + raw.length; // include the `#`
       decorations.push(
         Decoration.inline(from, to, {
-          class: 'synapsium-tag',
-          'data-synapsium-tag': raw,
+          class: 'ziba-tag',
+          'data-ziba-tag': raw,
         }),
       );
       i = i + raw.length; // skip past the consumed token
@@ -97,7 +97,7 @@ function buildTagDecorations(doc: ProseMirrorNode): DecorationSet {
 
 /**
  * Tiptap extension that adds a ProseMirror decoration plugin highlighting
- * `#tag` tokens in the doc with the `.synapsium-tag` class.
+ * `#tag` tokens in the doc with the `.ziba-tag` class.
  *
  * Implementation choice (option A): a Decoration plugin rather than a real
  * Mark node, so the markdown round-trip stays untouched. Tags remain plain
@@ -105,7 +105,7 @@ function buildTagDecorations(doc: ProseMirrorNode): DecorationSet {
  * wikilink chip's separation between navigation primitives (real nodes)
  * and visual highlights (decorations).
  *
- * Click handling: a click on a `[data-synapsium-tag]` element inside the
+ * Click handling: a click on a `[data-ziba-tag]` element inside the
  * editor DOM selects the corresponding tag in the sidebar. The handler
  * lives in the plugin's `handleClick` prop so it detaches automatically on
  * editor destroy.
@@ -134,9 +134,9 @@ export const TagMarkExtension = Extension.create({
             // Modifier-clicks are reserved for future gestures (e.g.
             // open-in-split). Plain click is the only one that filters.
             if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return false;
-            const el = target.closest<HTMLElement>('[data-synapsium-tag]');
+            const el = target.closest<HTMLElement>('[data-ziba-tag]');
             if (el === null) return false;
-            const raw = el.getAttribute('data-synapsium-tag') ?? '';
+            const raw = el.getAttribute('data-ziba-tag') ?? '';
             if (raw.length === 0) return false;
             const canonical = raw.toLowerCase();
             // The click handler runs outside React; `getState()` is the

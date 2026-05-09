@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EditorContent, useEditor } from '@tiptap/react';
 import type { Editor as TiptapEditor } from '@tiptap/core';
 import type { SuggestionKeyDownProps, SuggestionProps } from '@tiptap/suggestion';
-import type { Frontmatter } from '@synapsium/core';
+import type { Frontmatter } from '@ziba/core';
 import { useEditorStore } from '../../stores/editor';
 import { ipc } from '../../lib/ipc';
 import { ipcErrorMessage } from '../../lib/ipc-error';
@@ -342,7 +342,7 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
     content: '',
     editorProps: {
       attributes: {
-        class: 'synapsium-prose prose prose-sm max-w-none focus:outline-none px-8 py-6',
+        class: 'ziba-prose prose prose-sm max-w-none focus:outline-none px-8 py-6',
         spellcheck: 'false',
       },
     },
@@ -530,10 +530,10 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
       )}
 
       <div
-        className="synapsium-editor-scroll flex-1 overflow-y-auto"
+        className="ziba-editor-scroll flex-1 overflow-y-auto"
         // The wikilink chip styles are inlined here (small surface area)
         // so we don't need a new CSS file. Tailwind utilities cover the
-        // rest of the typography via `synapsium-prose`.
+        // rest of the typography via `ziba-prose`.
       >
         <PropertyEditor frontmatter={currentNote.frontmatter} onChange={handleFrontmatterChange} />
         <div className="mx-auto max-w-[720px]">

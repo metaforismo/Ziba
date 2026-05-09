@@ -1,4 +1,4 @@
-import type { NotePath } from '@synapsium/core';
+import type { NotePath } from '@ziba/core';
 import { useMemo } from 'react';
 import type { TreeNode } from '../../lib/tree';
 

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const STORAGE_KEY = 'synapsium.ui.v1';
+const STORAGE_KEY = 'ziba.ui.v1';
 
 // `useUiStore` reads localStorage at module load. We `vi.resetModules()`
 // before every test so each can preload its own localStorage state and

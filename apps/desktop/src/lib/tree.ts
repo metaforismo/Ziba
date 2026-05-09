@@ -1,4 +1,4 @@
-import type { NotePath, NoteSummary } from '@synapsium/core';
+import type { NotePath, NoteSummary } from '@ziba/core';
 
 /**
  * Hierarchical view of a flat NoteSummary list. Folders are derived purely
@@ -10,7 +10,7 @@ import type { NotePath, NoteSummary } from '@synapsium/core';
 export type TreeNode =
   | {
       kind: 'folder';
-      /** Vault-relative path of the folder, e.g. "projects/synapsium". */
+      /** Vault-relative path of the folder, e.g. "projects/ziba". */
       path: string;
       /** Last segment of the path, used as display name. */
       name: string;

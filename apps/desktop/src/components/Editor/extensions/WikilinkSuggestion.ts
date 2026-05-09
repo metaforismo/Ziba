@@ -4,7 +4,7 @@ import type { ResolvedPos } from '@tiptap/pm/model';
 import { PluginKey } from '@tiptap/pm/state';
 import Suggestion from '@tiptap/suggestion';
 import type { SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion';
-import type { NoteSummary } from '@synapsium/core';
+import type { NoteSummary } from '@ziba/core';
 import { ipc } from '../../../lib/ipc';
 
 export type WikilinkSuggestionItem = {

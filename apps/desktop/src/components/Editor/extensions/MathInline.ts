@@ -76,7 +76,7 @@ export const MathInlineExtension = Node.create({
       mergeAttributes(HTMLAttributes, {
         'data-math-inline': '',
         'data-formula': formula,
-        class: 'synapsium-math-inline',
+        class: 'ziba-math-inline',
       }),
       formula,
     ];
@@ -122,22 +122,22 @@ export const MathInlineExtension = Node.create({
         parse: {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           setup(md: any): void {
-            if (md.synapsiumMathInlineRegistered === true) return;
-            md.synapsiumMathInlineRegistered = true;
+            if (md.zibaMathInlineRegistered === true) return;
+            md.zibaMathInlineRegistered = true;
 
             // Insert before `escape` so a literal `\$` later in the
             // string still defers to the escape rule, but a normal `$`
             // delimiter is recognised first.
             md.inline.ruler.before(
               'escape',
-              'synapsium_math_inline',
+              'ziba_math_inline',
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               (state: any, silent: boolean): boolean => {
                 const closePos = scanInlineMath(state.src, state.pos);
                 if (closePos === -1) return false;
                 const formula = state.src.slice(state.pos + 1, closePos);
                 if (!silent) {
-                  const token = state.push('synapsium_math_inline', 'span', 0);
+                  const token = state.push('ziba_math_inline', 'span', 0);
                   token.markup = '$';
                   token.content = formula;
                   token.meta = { formula };
@@ -152,7 +152,7 @@ export const MathInlineExtension = Node.create({
             // both as a `data-formula` attribute (canonical) and as the
             // visible text content (fallback if styling fails to apply).
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            md.renderer.rules.synapsium_math_inline = (tokens: any[], idx: number): string => {
+            md.renderer.rules.ziba_math_inline = (tokens: any[], idx: number): string => {
               const meta: { formula: string } = tokens[idx].meta ?? { formula: '' };
               const formula = meta.formula;
               return (

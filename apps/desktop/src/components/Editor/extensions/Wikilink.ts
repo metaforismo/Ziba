@@ -103,8 +103,8 @@ export const Wikilink = Node.create<WikilinkOptions>({
     const resolvedMap = this.storage?.resolved as WikilinkResolutionMap | undefined;
     const isResolved = resolvedMap === undefined ? true : resolvedMap.get(target) !== false;
 
-    const baseClass = 'synapsium-wikilink';
-    const stateClass = isResolved ? 'synapsium-wikilink--resolved' : 'synapsium-wikilink--broken';
+    const baseClass = 'ziba-wikilink';
+    const stateClass = isResolved ? 'ziba-wikilink--resolved' : 'ziba-wikilink--broken';
 
     return [
       'span',
@@ -155,8 +155,8 @@ export const Wikilink = Node.create<WikilinkOptions>({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           setup(md: any): void {
             // Avoid re-registering on each parse() call.
-            if (md.synapsiumWikilinkRegistered === true) return;
-            md.synapsiumWikilinkRegistered = true;
+            if (md.zibaWikilinkRegistered === true) return;
+            md.zibaWikilinkRegistered = true;
 
             md.inline.ruler.before(
               'emphasis',

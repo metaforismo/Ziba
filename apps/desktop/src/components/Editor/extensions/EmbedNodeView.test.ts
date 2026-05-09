@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { Note, NotePath } from '@synapsium/core';
+import type { Note, NotePath } from '@ziba/core';
 import { attemptCreateNoteForEmbed, renderPreview, type EmbedCreateIpc } from './EmbedNodeView';
 
 // renderPreview is the in-house markdown→React renderer used by the
@@ -59,7 +59,7 @@ describe('renderPreview — frontmatter stripping', () => {
 describe('renderPreview — nested embeds and wikilinks', () => {
   it('renders `![[Other]]` as a styled embed pill, not raw text', () => {
     const out = html('Vedi ![[Altra Nota]] per dettagli.');
-    expect(out).toContain('synapsium-embed-nested');
+    expect(out).toContain('ziba-embed-nested');
     expect(out).toContain('Altra Nota');
     // No bare `!` should leak through next to the pill.
     expect(out).not.toMatch(/>!</);
@@ -67,8 +67,8 @@ describe('renderPreview — nested embeds and wikilinks', () => {
 
   it('renders bare `[[Target]]` as a wikilink (not as embed)', () => {
     const out = html('Linked to [[Note A]].');
-    expect(out).toContain('synapsium-embed-wikilink');
-    expect(out).not.toContain('synapsium-embed-nested');
+    expect(out).toContain('ziba-embed-wikilink');
+    expect(out).not.toContain('ziba-embed-nested');
   });
 
   it('uses the alias side of a piped embed `![[Path|Alias]]`', () => {

@@ -1,5 +1,5 @@
 {
-  "name": "synapsium-desktop",
+  "name": "ziba-desktop",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -18,7 +18,7 @@
     "clean": "rimraf out dist .turbo"
   },
   "dependencies": {
-    "@synapsium/core": "workspace:*",
+    "@ziba/core": "workspace:*",
     "@tiptap/core": "^2.10.3",
     "@tiptap/pm": "^2.10.3",
     "@tiptap/react": "^2.10.3",
@@ -34,7 +34,7 @@
     "zustand": "^4.5.5"
   },
   "devDependencies": {
-    "@synapsium/tsconfig": "workspace:*",
+    "@ziba/tsconfig": "workspace:*",
     "@types/better-sqlite3": "^7.6.11",
     "@types/katex": "^0.16.7",
     "@types/node": "^20.16.13",

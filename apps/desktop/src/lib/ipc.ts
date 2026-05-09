@@ -1,8 +1,8 @@
-// Thin typed wrapper over `window.synapsium.invoke`. The raw API uses
+// Thin typed wrapper over `window.ziba.invoke`. The raw API uses
 // channel-string tuples; these named methods make call-sites readable and
 // keep the IPC contract enforced by the shared types.
 
-import type { Frontmatter, Note, NotePath, NoteSummary } from '@synapsium/core';
+import type { Frontmatter, Note, NotePath, NoteSummary } from '@ziba/core';
 import type {
   Backlink,
   DatabaseQuery,
@@ -16,14 +16,14 @@ import type {
 } from '../../shared/ipc';
 import { IpcChannels } from '../../shared/ipc';
 
-function api(): Window['synapsium'] {
+function api(): Window['ziba'] {
   // The preload script must have populated this before the React tree
   // mounts. If it hasn't, every IPC call would crash with a confusing
   // "cannot read properties of undefined" — fail fast and loudly instead.
-  if (typeof window === 'undefined' || !window.synapsium) {
-    throw new Error('window.synapsium is not available. Preload script did not run.');
+  if (typeof window === 'undefined' || !window.ziba) {
+    throw new Error('window.ziba is not available. Preload script did not run.');
   }
-  return window.synapsium;
+  return window.ziba;
 }
 
 export const ipc = {

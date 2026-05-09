@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { NotePath } from '@synapsium/core';
+import type { NotePath } from '@ziba/core';
 import type { Backlink } from '../../../shared/ipc';
 import { ipc } from '../../lib/ipc';
 import { debounce } from '../../lib/debounce';

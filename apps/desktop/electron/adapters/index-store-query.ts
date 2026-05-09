@@ -14,10 +14,10 @@
 //   - SQL fragments reference `notes n` (the alias used by the adapter).
 //   - Parameter arrays are positional; callers concatenate them in the
 //     same order they concatenate the SQL fragments.
-//   - Filter / sort logic mirrors `DatabaseQuery` in `@synapsium/core`;
+//   - Filter / sort logic mirrors `DatabaseQuery` in `@ziba/core`;
 //     keep the two in lock-step when adding new filter kinds.
 
-import type { DatabaseQuery, ScalarFilter } from '@synapsium/core';
+import type { DatabaseQuery, ScalarFilter } from '@ziba/core';
 
 /** Default LIMIT applied when the caller didn't pass one. */
 export const DEFAULT_QUERY_LIMIT = 1000;

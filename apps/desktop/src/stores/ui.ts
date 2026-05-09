@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-const STORAGE_KEY = 'synapsium.ui.v1';
+const STORAGE_KEY = 'ziba.ui.v1';
 
 /**
  * Active tab in the right-side panel. The panel hosts both the

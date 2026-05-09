@@ -11,7 +11,7 @@ import { resolve } from 'node:path';
 //   - the React plugin so JSX/TSX gets transformed
 //   - the same path aliases the renderer ships with (`@/*`, `@shared/*`)
 //   - jsdom so `window`, `localStorage`, and timers work natively
-//   - a setup file that installs a default `window.synapsium` before
+//   - a setup file that installs a default `window.ziba` before
 //     each test (per-test mocks are layered via `installMockIpc`)
 //
 // Globals are off to mirror `packages/core` — every test imports

@@ -1,4 +1,4 @@
-import type { NotePath } from '@synapsium/core';
+import type { NotePath } from '@ziba/core';
 import { useCallback, useState } from 'react';
 import { ipc } from '../../lib/ipc';
 import { ipcErrorMessage } from '../../lib/ipc-error';

@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Per idee complesse o di design, considera prima una [Discussion](https://github.com/metaforismo/Synapsium/discussions). Le issue di feature sono adatte a richieste concrete e ben definite.
+        Per idee complesse o di design, considera prima una [Discussion](https://github.com/metaforismo/Ziba/discussions). Le issue di feature sono adatte a richieste concrete e ben definite.
 
   - type: textarea
     id: problem

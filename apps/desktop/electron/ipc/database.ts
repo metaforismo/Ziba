@@ -6,7 +6,7 @@
 // absurd limit, or `groupBy` pointing at nothing — we catch those here so
 // the SQLite layer stays strict and trusting.
 
-import type { DatabaseQuery, DatabaseResult, ScalarFilter } from '@synapsium/core';
+import type { DatabaseQuery, DatabaseResult, ScalarFilter } from '@ziba/core';
 import { IpcError } from '../security.js';
 import { requireIndexStore } from '../state.js';
 

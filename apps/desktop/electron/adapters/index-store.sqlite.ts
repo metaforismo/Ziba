@@ -28,7 +28,7 @@ import {
   type TagSummaryRow,
   type UpsertNoteInput,
   type WikilinkRow,
-} from '@synapsium/core';
+} from '@ziba/core';
 import { buildSortClause, buildWhereFragments, clampQueryLimit } from './index-store-query.js';
 
 /**

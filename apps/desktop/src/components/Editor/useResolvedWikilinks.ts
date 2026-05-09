@@ -79,7 +79,7 @@ export function useResolvedWikilinks(editor: Editor | null, noteKey: string | nu
         const tr = editor.state.tr;
         // Mark the transaction as not modifying the doc; Tiptap still
         // re-runs the view's `updateState`, which re-renders nodes.
-        tr.setMeta('synapsiumWikilinkResolved', true);
+        tr.setMeta('zibaWikilinkResolved', true);
         editor.view.dispatch(tr);
       }
     };

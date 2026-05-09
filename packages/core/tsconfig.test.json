@@ -1,5 +1,5 @@
 {
-  "extends": "@synapsium/tsconfig/base.json",
+  "extends": "@ziba/tsconfig/base.json",
   "compilerOptions": {
     "noEmit": true,
     "rootDir": "./src",

@@ -79,7 +79,7 @@ describe('deriveTitleFromPath', () => {
   });
 
   it('uses only the basename for a nested path', () => {
-    expect(deriveTitleFromPath('projects/synapsium.md')).toBe('synapsium');
+    expect(deriveTitleFromPath('projects/ziba.md')).toBe('ziba');
   });
 
   it('preserves spaces in the basename', () => {
@@ -126,9 +126,9 @@ describe('loadNote — title precedence', () => {
   });
 
   it('uses the filename for nested paths when no other title source exists', async () => {
-    fs.putFile(`${VAULT}/projects/synapsium.md`, 'body');
-    const note = await loadNote(fs, VAULT, 'projects/synapsium.md');
-    expect(note.title).toBe('synapsium');
+    fs.putFile(`${VAULT}/projects/ziba.md`, 'body');
+    const note = await loadNote(fs, VAULT, 'projects/ziba.md');
+    expect(note.title).toBe('ziba');
   });
 
   it('ignores non-string frontmatter.title and falls back to heading', async () => {

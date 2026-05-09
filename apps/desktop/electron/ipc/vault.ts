@@ -7,7 +7,7 @@
 import { dialog, BrowserWindow } from 'electron';
 import { promises as fsp } from 'node:fs';
 import path from 'node:path';
-import { indexVault } from '@synapsium/core';
+import { indexVault } from '@ziba/core';
 import { IpcChannels, type VaultInfo } from '../../shared/ipc.js';
 import { getFilesystemAdapter } from '../adapters/filesystem.electron.js';
 import { SqliteIndexStore } from '../adapters/index-store.sqlite.js';

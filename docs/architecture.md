@@ -1,4 +1,4 @@
-# Architettura di synapsium
+# Architettura di Ziba
 
 Documento ad alto livello per chi vuole contribuire o capire come è strutturato il progetto. Per il setup pratico vedi [CONTRIBUTING.md](../CONTRIBUTING.md). Per la roadmap vedi [README.md](../README.md).
 
@@ -13,7 +13,7 @@ Documento ad alto livello per chi vuole contribuire o capire come è strutturato
 │   │ Zustand stores     │  ◄── invoke ──►   │ ├─ vault              │       │
 │   │ lib/ipc (typed)    │   contextBridge   │ ├─ notes              │       │
 │   │                    │                   │ ├─ folder             │       │
-│   │ window.synapsium   │  ──►  preload  ◄──│ ├─ links              │       │
+│   │ window.ziba   │  ──►  preload  ◄──│ ├─ links              │       │
 │   └────────────────────┘                   │ ├─ search / tags      │       │
 │                                            │ ├─ database / graph   │       │
 │                                            │ └─ settings           │       │
@@ -35,7 +35,7 @@ Documento ad alto livello per chi vuole contribuire o capire come è strutturato
             │                              │ Filesystem (vault/)           │
             │                              │  ├─ note1.md                  │
             │                              │  ├─ folder/note2.md           │
-            │                              │  └─ .synapsium/index.db       │
+            │                              │  └─ .ziba/index.db       │
             │                              │     (SQLite cache, ricostr.)  │
             │                              └───────────────────────────────┘
             │
@@ -55,7 +55,7 @@ Documento ad alto livello per chi vuole contribuire o capire come è strutturato
 
 ### 1. Source of truth = filesystem
 
-I file `.md` sono *sempre* l'autorità. La cache SQLite (`<vault>/.synapsium/index.db`) è solo un acceleratore di query (resolveTitle, backlinks, list). Cancellabile senza perdere niente — viene ricostruita all'apertura del vault.
+I file `.md` sono *sempre* l'autorità. La cache SQLite (`<vault>/.ziba/index.db`) è solo un acceleratore di query (resolveTitle, backlinks, list). Cancellabile senza perdere niente — viene ricostruita all'apertura del vault.
 
 Conseguenze:
 - Le mutazioni vanno *prima* a disco, *poi* aggiornano l'index. Mai il contrario.
@@ -232,7 +232,7 @@ Su save: tiptap-markdown chiama Callout.storage.markdown.serialize:
         > body content
    ▼
 Su load di un .md con `> [!kind]\n> body`:
-   markdown-it core ruler synapsium_callout intercetta blockquote_open,
+   markdown-it core ruler ziba_callout intercetta blockquote_open,
    converte in callout_open con attrs.kind, strip della marker line
 ```
 
@@ -320,7 +320,7 @@ Sei store Zustand, ognuno con una sola responsabilità:
 |---|---|---|
 | `useVaultStore` | `stores/vault.ts` | Vault corrente, lista note, recent vaults, progresso indicizzazione. Coalesce gli eventi watcher in refresh debouncing (`VAULT_EVENT_REFRESH_MS`). |
 | `useEditorStore` | `stores/editor.ts` | Path/Note correnti aperti, dirty flag, errore di save. Gestisce l'apply degli external change. |
-| `useUiStore` | `stores/ui.ts` | Larghezza pannelli, backlinks aperto/chiuso, cartelle espanse, `mainView` (editor/database/graph), `rightPaneTab`, `tagsExpanded`. Persistito in localStorage chiave `synapsium.ui.v1`. |
+| `useUiStore` | `stores/ui.ts` | Larghezza pannelli, backlinks aperto/chiuso, cartelle espanse, `mainView` (editor/database/graph), `rightPaneTab`, `tagsExpanded`. Persistito in localStorage chiave `ziba.ui.v1`. |
 | `useSearchStore` | `stores/search.ts` | Cmd+K palette: open/query/results/selectedIndex/loading. Debounce 150ms (`SEARCH_DEBOUNCE_MS`), sequence-number guard. |
 | `useTagsStore` | `stores/tags.ts` | Lista tag + count, tag selezionato, note del tag. Module-level subscribe a `useVaultStore` per refresh on vault switch e watcher events. |
 | `useDatabaseStore` | `stores/database.ts` | DatabaseView: query state (filters/sort/groupBy/folder), `result`, `loading`, `error`, `availableProperties`. Auto-debounced run su ogni mutation (`DATABASE_QUERY_DEBOUNCE_MS=200`). |
@@ -351,12 +351,12 @@ Le decisioni grosse vissute durante v0.1-v0.3, riassunte:
 
 **v0.2**
 - **FTS5, non FTS3/4 o ricerca custom.** SQLite FTS5 ha snippet() built-in con highlight, scoring rank decente, sintassi booleana familiare. Il query escaping richiede un piccolo helper.
-- **Tag come Decoration, non Mark.** Markdown sul disco resta `#tag` plain — niente custom serialize nel markdown roundtrip. Solo un decoration plugin che applica `.synapsium-tag` ai pattern matchati.
+- **Tag come Decoration, non Mark.** Markdown sul disco resta `#tag` plain — niente custom serialize nel markdown roundtrip. Solo un decoration plugin che applica `.ziba-tag` ai pattern matchati.
 - **Property editor con detection lazy.** Il tipo è derivato dal valore (boolean → number → date → URL → string-array → text) con override manuale per row. Salvataggio su disco resta YAML standard — nessun lock-in al nostro modello.
 
 **v0.3**
 - **Property index in colonne tipizzate, non JSON.** `note_properties` ha `text_value`/`number_value`/`boolean_value`/`date_value`/`array_value` separate. Permette query veloci tramite indici dedicati per tipo. JSON sarebbe più flessibile ma forzerebbe scan O(n) su query range.
-- **Database view come overlay sul mainView, non come "view file".** Niente file `.synapsium/views/*.json` — la query è in-memory nel renderer. Più semplice per v0.3; salvabili come "saved queries" in v0.4 se serve.
+- **Database view come overlay sul mainView, non come "view file".** Niente file `.ziba/views/*.json` — la query è in-memory nel renderer. Più semplice per v0.3; salvabili come "saved queries" in v0.4 se serve.
 - **Global graph riusa MiniGraph layout, non Barnes-Hut.** Il simulatore O(n²) basta fino a ~1000 nodi. Sopra emette `console.warn`. Quando un vault reale lo richiede, sostituiamo con BH dietro la stessa interfaccia `simulateLayout`.
 - **Callout markdown roundtrip via markdown-it core ruler.** Convertiamo `> [!kind]\n> body` ↔ Tiptap node senza modificare il body markdown stesso. Compatibilità completa con Obsidian e GitHub (entrambi rendono `> [!tip]`).
 

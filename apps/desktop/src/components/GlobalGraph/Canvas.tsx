@@ -1,5 +1,5 @@
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef } from 'react';
-import type { NotePath } from '@synapsium/core';
+import type { NotePath } from '@ziba/core';
 import {
   GRAPH_DIM_OPACITY as DIM_OPACITY,
   GRAPH_LABEL_TOP_DEGREE_QUANTILE as LABEL_TOP_DEGREE_QUANTILE,

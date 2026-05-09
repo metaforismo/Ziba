@@ -31,7 +31,7 @@ export function EmptyState({ onOpenVault }: EmptyStateProps): JSX.Element {
   return (
     <main className="flex h-full w-full items-center justify-center bg-bg p-6">
       <div className="w-full max-w-md rounded-lg border border-border bg-bg-subtle p-8 shadow-sm">
-        <h1 className="mb-2 text-2xl font-semibold text-fg">Benvenuto su synapsium</h1>
+        <h1 className="mb-2 text-2xl font-semibold text-fg">Benvenuto su ziba</h1>
         <p className="mb-6 text-sm text-fg-subtle">
           Un secondo cervello locale, basato su file Markdown. Inizia aprendo una cartella che
           diventerà il tuo vault.
@@ -52,8 +52,8 @@ export function EmptyState({ onOpenVault }: EmptyStateProps): JSX.Element {
             Cosa è un vault?
           </summary>
           <p className="mt-2 leading-relaxed">
-            Un vault è semplicemente una cartella sul tuo computer. synapsium la indicizza per
-            offrire collegamenti, ricerca e backlink, ma le tue note rimangono file Markdown tuoi,
+            Un vault è semplicemente una cartella sul tuo computer. ziba la indicizza per offrire
+            collegamenti, ricerca e backlink, ma le tue note rimangono file Markdown tuoi,
             modificabili da qualsiasi altro editor.
           </p>
         </details>

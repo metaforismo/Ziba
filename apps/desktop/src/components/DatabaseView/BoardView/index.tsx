@@ -20,7 +20,7 @@
 //     A failure shows an inline banner above the board.
 
 import { useCallback, useEffect, useMemo, useState, type JSX } from 'react';
-import type { Frontmatter } from '@synapsium/core';
+import type { Frontmatter } from '@ziba/core';
 import type { DatabaseGroup, DatabaseRow } from '../../../../shared/ipc';
 import { ipc } from '../../../lib/ipc';
 import { ipcErrorMessage } from '../../../lib/ipc-error';

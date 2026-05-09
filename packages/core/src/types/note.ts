@@ -1,6 +1,6 @@
 /**
  * A vault-relative path using forward slashes (POSIX-style), e.g.
- * "projects/synapsium.md". Always relative to the vault root, never absolute.
+ * "projects/ziba.md". Always relative to the vault root, never absolute.
  * Adapters are responsible for converting to/from platform-specific paths.
  */
 export type NotePath = string;

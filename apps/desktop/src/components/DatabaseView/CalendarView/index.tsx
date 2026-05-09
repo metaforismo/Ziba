@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { JSX } from 'react';
-import type { NotePath } from '@synapsium/core';
+import type { NotePath } from '@ziba/core';
 import type { DatabaseRow, PropertyType } from '../../../../shared/ipc';
 import { navigateToNote } from '../../../lib/navigate';
 import { useDatabaseStore } from '../../../stores/database';

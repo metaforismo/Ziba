@@ -17,7 +17,7 @@ import type {
   NoteSummary,
   PropertyType,
   ScalarFilter,
-} from '@synapsium/core';
+} from '@ziba/core';
 
 // Re-export the v0.3 query / graph types so renderers can keep a single
 // import surface (`'@shared/ipc'`) for everything they touch via IPC.
@@ -217,9 +217,9 @@ export type VaultEventPayload =
 
 export type IndexProgressPayload = { processed: number; total: number | null };
 
-// ---- API surface exposed via contextBridge to window.synapsium ----
+// ---- API surface exposed via contextBridge to window.ziba ----
 
-export interface SynapsiumApi {
+export interface ZibaApi {
   invoke<C extends keyof IpcRequests>(
     channel: C,
     ...args: IpcRequests[C] extends void ? [] : [IpcRequests[C]]
@@ -231,6 +231,6 @@ export interface SynapsiumApi {
 
 declare global {
   interface Window {
-    synapsium: SynapsiumApi;
+    ziba: ZibaApi;
   }
 }

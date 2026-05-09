@@ -3,7 +3,7 @@
 // Tags are matched case-insensitively. The handler lowercases the input
 // before passing to the adapter so callers don't have to.
 
-import type { NoteSummary } from '@synapsium/core';
+import type { NoteSummary } from '@ziba/core';
 import type { TagSummary } from '../../shared/ipc.js';
 import { IpcError } from '../security.js';
 import { requireIndexStore } from '../state.js';

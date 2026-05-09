@@ -1,4 +1,4 @@
-import type { NoteSummary } from '@synapsium/core';
+import type { NoteSummary } from '@ziba/core';
 import { create } from 'zustand';
 import type { IndexProgressPayload, VaultEventPayload, VaultInfo } from '../../shared/ipc';
 import { debounce } from '../lib/debounce';

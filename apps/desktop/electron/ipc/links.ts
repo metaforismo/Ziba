@@ -4,7 +4,7 @@
 // a short context snippet around the wikilink occurrence -- the renderer
 // uses this to give users a preview of where their note is referenced.
 
-import { loadNote as coreLoadNote, type NotePath } from '@synapsium/core';
+import { loadNote as coreLoadNote, type NotePath } from '@ziba/core';
 import type { Backlink } from '../../shared/ipc.js';
 import { getFilesystemAdapter } from '../adapters/filesystem.electron.js';
 import { SqliteIndexStore } from '../adapters/index-store.sqlite.js';

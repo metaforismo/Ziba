@@ -5,7 +5,7 @@
 // v0.1 we just walk the index and patch rows; we don't rewrite wikilinks
 // in other files that referenced the moved notes.
 
-import { loadNote as coreLoadNote, type NotePath, type OutgoingWikilink } from '@synapsium/core';
+import { loadNote as coreLoadNote, type NotePath, type OutgoingWikilink } from '@ziba/core';
 import { getFilesystemAdapter } from '../adapters/filesystem.electron.js';
 import { assertResolvedWithinVault, assertVaultRelative, IpcError } from '../security.js';
 import { markSelfWrite, requireIndexStore, requireVault } from '../state.js';

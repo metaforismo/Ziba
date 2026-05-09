@@ -95,7 +95,7 @@ export const MathBlockExtension = Node.create({
       mergeAttributes(HTMLAttributes, {
         'data-math-block': '',
         'data-formula': formula,
-        class: 'synapsium-math-block',
+        class: 'ziba-math-block',
       }),
       formula,
     ];
@@ -150,14 +150,14 @@ export const MathBlockExtension = Node.create({
         parse: {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           setup(md: any): void {
-            if (md.synapsiumMathBlockRegistered === true) return;
-            md.synapsiumMathBlockRegistered = true;
+            if (md.zibaMathBlockRegistered === true) return;
+            md.zibaMathBlockRegistered = true;
 
             // Register before `fence` so a `$$` opening at the very
             // start of a line wins over any other block rule.
             md.block.ruler.before(
               'fence',
-              'synapsium_math_block',
+              'ziba_math_block',
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               (state: any, startLine: number, endLine: number, silent: boolean): boolean => {
                 // Guard: bail if the line doesn't start with `$$` (the

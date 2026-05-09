@@ -1,10 +1,10 @@
 import { afterEach, vi } from 'vitest';
-import type { SynapsiumApi } from '../../shared/ipc';
+import type { ZibaApi } from '../../shared/ipc';
 
 // Vitest setup file — runs once per worker before any test in `src/**`.
 //
 // Three responsibilities:
-//   1. Install a default `window.synapsium` so any module that imports
+//   1. Install a default `window.ziba` so any module that imports
 //      `lib/ipc.ts` doesn't crash on load. The default API throws
 //      "not mocked" for every channel — tests must opt-in to behaviour
 //      via `installMockIpc()` from `./mock-ipc.ts`. This makes accidental
@@ -19,12 +19,12 @@ import type { SynapsiumApi } from '../../shared/ipc';
 //      with our own shim — same shape as DOM Storage, fully in-memory.
 //   3. Reset shared global state between tests so order doesn't matter.
 
-function makeFailingApi(): SynapsiumApi {
+function makeFailingApi(): ZibaApi {
   const fail = (channel: string): never => {
-    throw new Error(`window.synapsium.${channel} not mocked. Call installMockIpc() in your test.`);
+    throw new Error(`window.ziba.${channel} not mocked. Call installMockIpc() in your test.`);
   };
   return {
-    invoke: ((channel: string) => fail(`invoke('${channel}')`)) as SynapsiumApi['invoke'],
+    invoke: ((channel: string) => fail(`invoke('${channel}')`)) as ZibaApi['invoke'],
     onVaultEvent: () => fail('onVaultEvent'),
     onIndexProgress: () => fail('onIndexProgress'),
   };
@@ -79,7 +79,7 @@ function installLocalStorage(): void {
 
 // Install the default API. Tests replace it via `installMockIpc()`,
 // but if a test forgets, calls fail loudly instead of cryptically.
-window.synapsium = makeFailingApi();
+window.ziba = makeFailingApi();
 installLocalStorage();
 
 afterEach(() => {
@@ -88,7 +88,7 @@ afterEach(() => {
   window.localStorage.clear();
   // Restore the failing default so a later test can't accidentally
   // observe behaviour from an earlier test's mock controller.
-  window.synapsium = makeFailingApi();
+  window.ziba = makeFailingApi();
   // Reset all vi.fn / vi.spyOn instances so call counts don't leak.
   vi.restoreAllMocks();
   // Switch back to real timers — fake timers leak between tests

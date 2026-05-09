@@ -77,7 +77,7 @@ body {
  * the chip flows with surrounding text; cursor switches to pointer to
  * signal the click affordance.
  */
-.synapsium-wikilink {
+.ziba-wikilink {
   display: inline;
   padding: 0 0.25rem;
   border-radius: 0.25rem;
@@ -86,24 +86,24 @@ body {
   white-space: nowrap;
 }
 
-.synapsium-wikilink--resolved {
+.ziba-wikilink--resolved {
   background-color: rgb(var(--accent) / 0.12);
   color: rgb(var(--accent));
 }
 
-.synapsium-wikilink--resolved:hover {
+.ziba-wikilink--resolved:hover {
   background-color: rgb(var(--accent) / 0.2);
   text-decoration: underline;
 }
 
-.synapsium-wikilink--broken {
+.ziba-wikilink--broken {
   background-color: rgb(239 68 68 / 0.1); /* red-500/10 */
   color: rgb(220 38 38); /* red-600 */
   text-decoration: underline dashed;
   text-underline-offset: 0.2em;
 }
 
-.synapsium-wikilink--broken:hover {
+.ziba-wikilink--broken:hover {
   background-color: rgb(239 68 68 / 0.18);
 }
 
@@ -111,77 +111,77 @@ body {
  * Prose styling for the Tiptap doc. We don't depend on
  * @tailwindcss/typography to avoid pulling in another package; instead
  * we hand-roll the small subset we need. ProseMirror inserts content
- * inside `.ProseMirror`; the editor adds `.synapsium-prose` for our
+ * inside `.ProseMirror`; the editor adds `.ziba-prose` for our
  * scoping.
  */
-.synapsium-prose .ProseMirror,
-.synapsium-prose.ProseMirror {
+.ziba-prose .ProseMirror,
+.ziba-prose.ProseMirror {
   outline: none;
   min-height: 100%;
   line-height: 1.65;
   font-size: 0.95rem;
 }
 
-.synapsium-prose h1,
-.synapsium-prose h2,
-.synapsium-prose h3,
-.synapsium-prose h4,
-.synapsium-prose h5,
-.synapsium-prose h6 {
+.ziba-prose h1,
+.ziba-prose h2,
+.ziba-prose h3,
+.ziba-prose h4,
+.ziba-prose h5,
+.ziba-prose h6 {
   font-weight: 600;
   line-height: 1.25;
   margin-top: 1.5em;
   margin-bottom: 0.5em;
 }
 
-.synapsium-prose h1 {
+.ziba-prose h1 {
   font-size: 1.875rem;
 }
-.synapsium-prose h2 {
+.ziba-prose h2 {
   font-size: 1.5rem;
 }
-.synapsium-prose h3 {
+.ziba-prose h3 {
   font-size: 1.25rem;
 }
-.synapsium-prose h4 {
+.ziba-prose h4 {
   font-size: 1.1rem;
 }
-.synapsium-prose h5,
-.synapsium-prose h6 {
+.ziba-prose h5,
+.ziba-prose h6 {
   font-size: 1rem;
   color: rgb(var(--fg-subtle));
 }
 
-.synapsium-prose p {
+.ziba-prose p {
   margin: 0.75em 0;
 }
 
-.synapsium-prose blockquote {
+.ziba-prose blockquote {
   border-left: 3px solid rgb(var(--border));
   padding-left: 1em;
   color: rgb(var(--fg-subtle));
   margin: 1em 0;
 }
 
-.synapsium-prose ul,
-.synapsium-prose ol {
+.ziba-prose ul,
+.ziba-prose ol {
   padding-left: 1.5em;
   margin: 0.75em 0;
 }
 
-.synapsium-prose ul {
+.ziba-prose ul {
   list-style: disc;
 }
 
-.synapsium-prose ol {
+.ziba-prose ol {
   list-style: decimal;
 }
 
-.synapsium-prose li > p {
+.ziba-prose li > p {
   margin: 0.25em 0;
 }
 
-.synapsium-prose code {
+.ziba-prose code {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.85em;
   background-color: rgb(var(--bg-muted));
@@ -189,7 +189,7 @@ body {
   border-radius: 0.25rem;
 }
 
-.synapsium-prose pre {
+.ziba-prose pre {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   background-color: rgb(var(--bg-subtle));
   border: 1px solid rgb(var(--border));
@@ -199,27 +199,27 @@ body {
   margin: 1em 0;
 }
 
-.synapsium-prose pre code {
+.ziba-prose pre code {
   background: transparent;
   padding: 0;
   font-size: 0.85em;
 }
 
-.synapsium-prose hr {
+.ziba-prose hr {
   border: 0;
   border-top: 1px solid rgb(var(--border));
   margin: 1.5em 0;
 }
 
-.synapsium-prose strong {
+.ziba-prose strong {
   font-weight: 600;
 }
 
-.synapsium-prose em {
+.ziba-prose em {
   font-style: italic;
 }
 
-.synapsium-prose a {
+.ziba-prose a {
   color: rgb(var(--accent));
   text-decoration: underline;
 }
@@ -229,7 +229,7 @@ body {
  * of an atom node looks blocky; the `ProseMirror-selectednode` class
  * is added to our wikilink span when the user arrow-selects it.
  */
-.ProseMirror-selectednode.synapsium-wikilink {
+.ProseMirror-selectednode.ziba-wikilink {
   outline: 2px solid rgb(var(--accent));
   outline-offset: 1px;
 }
@@ -240,7 +240,7 @@ body {
  * background with the accent tint; click handler in the plugin filters
  * the sidebar.
  */
-.synapsium-tag {
+.ziba-tag {
   background: rgb(var(--accent) / 0.12);
   color: rgb(var(--accent));
   border-radius: 0.25rem;
@@ -251,16 +251,16 @@ body {
 /*
  * Callout block (v0.3). Rendered by `extensions/Callout.ts` as
  * `<div data-callout data-kind="...">` with two classes:
- * `synapsium-callout` (shared frame) and `synapsium-callout-<kind>`
+ * `ziba-callout` (shared frame) and `ziba-callout-<kind>`
  * (color + icon). The icon comes from a `::before` pseudo-element so
  * the schema stays free of an icon attribute and copy/paste of the
  * inner text doesn't drag the emoji along.
  *
  * Inner blocks (paragraphs, lists, headings) inherit the prose styles
- * from `.synapsium-prose` — we only override the top/bottom margin on
+ * from `.ziba-prose` — we only override the top/bottom margin on
  * the first/last paragraph so the body sits flush with the padding.
  */
-.synapsium-callout {
+.ziba-callout {
   position: relative;
   border-left: 4px solid;
   border-radius: 0.25rem;
@@ -268,7 +268,7 @@ body {
   padding: 0.75rem 0.75rem 0.75rem 2.25rem;
 }
 
-.synapsium-callout::before {
+.ziba-callout::before {
   position: absolute;
   left: 0.5rem;
   top: 0.6rem;
@@ -276,67 +276,67 @@ body {
   line-height: 1;
 }
 
-.synapsium-callout > :first-child {
+.ziba-callout > :first-child {
   margin-top: 0;
 }
 
-.synapsium-callout > :last-child {
+.ziba-callout > :last-child {
   margin-bottom: 0;
 }
 
-.synapsium-callout-note {
+.ziba-callout-note {
   background: rgb(var(--bg-muted) / 0.5);
   border-color: rgb(var(--fg-muted));
 }
-.synapsium-callout-note::before {
+.ziba-callout-note::before {
   content: '🗒️';
 }
 
-.synapsium-callout-info {
+.ziba-callout-info {
   background: rgb(99 102 241 / 0.08);
   border-color: rgb(99 102 241 / 0.7);
 }
-.synapsium-callout-info::before {
+.ziba-callout-info::before {
   content: 'ℹ️';
 }
 
-.synapsium-callout-tip {
+.ziba-callout-tip {
   background: rgb(34 197 94 / 0.08);
   border-color: rgb(34 197 94 / 0.7);
 }
-.synapsium-callout-tip::before {
+.ziba-callout-tip::before {
   content: '💡';
 }
 
-.synapsium-callout-warning {
+.ziba-callout-warning {
   background: rgb(234 179 8 / 0.08);
   border-color: rgb(234 179 8 / 0.7);
 }
-.synapsium-callout-warning::before {
+.ziba-callout-warning::before {
   content: '⚠️';
 }
 
-.synapsium-callout-danger {
+.ziba-callout-danger {
   background: rgb(239 68 68 / 0.08);
   border-color: rgb(239 68 68 / 0.7);
 }
-.synapsium-callout-danger::before {
+.ziba-callout-danger::before {
   content: '🚨';
 }
 
-.synapsium-callout-success {
+.ziba-callout-success {
   background: rgb(34 197 94 / 0.08);
   border-color: rgb(34 197 94 / 0.7);
 }
-.synapsium-callout-success::before {
+.ziba-callout-success::before {
   content: '✅';
 }
 
-.synapsium-callout-quote {
+.ziba-callout-quote {
   background: rgb(var(--bg-muted) / 0.4);
   border-color: rgb(var(--fg-muted));
 }
-.synapsium-callout-quote::before {
+.ziba-callout-quote::before {
   content: '❝';
 }
 
@@ -349,37 +349,37 @@ body {
  *
  * Errors come from KaTeX's `throwOnError: false` mode — the library
  * emits a `<span class="katex-error">` colored via the `errorColor`
- * option we pass in. We add `.synapsium-math-error` for any future
+ * option we pass in. We add `.ziba-math-error` for any future
  * post-processing (currently unused but kept as the documented hook
  * for tweaking error styling outside of KaTeX defaults).
  */
-.synapsium-math-block {
+.ziba-math-block {
   text-align: center;
   margin: 0.75rem 0;
   padding: 0.5rem;
   border-radius: 0.25rem;
   cursor: text;
 }
-.synapsium-math-block:hover {
+.ziba-math-block:hover {
   background: rgb(var(--bg-muted) / 0.5);
 }
 
-.synapsium-math-inline {
+.ziba-math-inline {
   cursor: text;
 }
-.synapsium-math-inline:hover {
+.ziba-math-inline:hover {
   background: rgb(var(--bg-muted) / 0.5);
   border-radius: 0.125rem;
 }
 
 /* Editing mode container — overrides hover background so the textarea
    stays readable. */
-.synapsium-math--editing {
+.ziba-math--editing {
   background: rgb(var(--bg-subtle));
   outline: 1px solid rgb(var(--accent) / 0.4);
 }
 
-.synapsium-math-editor--block {
+.ziba-math-editor--block {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -390,19 +390,19 @@ body {
  * doesn't collapse. We use inline-flex with a small gap so the live
  * preview sits next to the input field on the same baseline.
  */
-.synapsium-math-editor--inline {
+.ziba-math-editor--inline {
   display: inline-flex;
   align-items: baseline;
   gap: 0.25rem;
   vertical-align: baseline;
 }
 
-.synapsium-math-preview {
+.ziba-math-preview {
   min-height: 1.2em;
 }
 
-.synapsium-math-textarea,
-.synapsium-math-input {
+.ziba-math-textarea,
+.ziba-math-input {
   width: 100%;
   padding: 0.4rem 0.5rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -414,29 +414,29 @@ body {
   border-radius: 0.25rem;
   outline: none;
 }
-.synapsium-math-textarea {
+.ziba-math-textarea {
   resize: vertical;
 }
-.synapsium-math-input {
+.ziba-math-input {
   width: auto;
   min-width: 12rem;
   padding: 0.2rem 0.4rem;
 }
-.synapsium-math-textarea:focus,
-.synapsium-math-input:focus {
+.ziba-math-textarea:focus,
+.ziba-math-input:focus {
   border-color: rgb(var(--accent));
   box-shadow: 0 0 0 2px rgb(var(--accent) / 0.2);
 }
 
-.synapsium-math-placeholder {
+.ziba-math-placeholder {
   color: rgb(var(--fg-muted));
   font-style: italic;
   font-size: 0.9em;
 }
 
-.synapsium-math-error,
-.synapsium-math-block .katex-error,
-.synapsium-math-inline .katex-error {
+.ziba-math-error,
+.ziba-math-block .katex-error,
+.ziba-math-inline .katex-error {
   color: rgb(239 68 68);
   font-family: ui-monospace, monospace;
   font-size: 0.85em;
@@ -452,7 +452,7 @@ body {
  * states) so the embed reads as a "card" without competing for
  * attention with the surrounding prose.
  */
-.synapsium-embed {
+.ziba-embed {
   border: 1px solid rgb(var(--border));
   border-radius: 0.375rem;
   margin: 0.75rem 0;
@@ -460,10 +460,10 @@ body {
   cursor: pointer;
   overflow: hidden;
 }
-.synapsium-embed:hover {
+.ziba-embed:hover {
   border-color: rgb(var(--accent) / 0.6);
 }
-.synapsium-embed-header {
+.ziba-embed-header {
   padding: 0.4rem 0.75rem;
   border-bottom: 1px solid rgb(var(--border));
   font-size: 0.75rem;
@@ -472,15 +472,15 @@ body {
   align-items: center;
   justify-content: space-between;
 }
-.synapsium-embed-header-title {
+.ziba-embed-header-title {
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.synapsium-embed-open,
-.synapsium-embed-retry,
-.synapsium-embed-create {
+.ziba-embed-open,
+.ziba-embed-retry,
+.ziba-embed-create {
   font-size: 0.75rem;
   padding: 0.15rem 0.5rem;
   border-radius: 0.25rem;
@@ -489,21 +489,21 @@ body {
   color: rgb(var(--fg-subtle));
   cursor: pointer;
 }
-.synapsium-embed-open:hover,
-.synapsium-embed-retry:hover,
-.synapsium-embed-create:hover {
+.ziba-embed-open:hover,
+.ziba-embed-retry:hover,
+.ziba-embed-create:hover {
   background: rgb(var(--accent) / 0.12);
   color: rgb(var(--accent));
   border-color: rgb(var(--accent) / 0.6);
 }
-.synapsium-embed-body {
+.ziba-embed-body {
   padding: 0.75rem;
   font-size: 0.875rem;
   color: rgb(var(--fg-subtle));
   max-height: 320px;
   overflow-y: auto;
 }
-.synapsium-embed-status {
+.ziba-embed-status {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -511,53 +511,53 @@ body {
   color: rgb(var(--fg-muted));
   font-style: italic;
 }
-.synapsium-embed-status--error {
+.ziba-embed-status--error {
   color: rgb(239 68 68);
   font-style: normal;
 }
-.synapsium-embed-status--missing {
+.ziba-embed-status--missing {
   color: rgb(var(--fg-muted));
   font-style: normal;
 }
-.synapsium-embed-preview {
+.ziba-embed-preview {
   /* Inner preview content. We tone down headings so a level-1 inside
    * the embed doesn't dominate over the host page's headings, and
    * collapse default top/bottom margins so the preview hugs the
    * embed body padding. */
   line-height: 1.5;
 }
-.synapsium-embed-preview > *:first-child {
+.ziba-embed-preview > *:first-child {
   margin-top: 0;
 }
-.synapsium-embed-preview > *:last-child {
+.ziba-embed-preview > *:last-child {
   margin-bottom: 0;
 }
-.synapsium-embed-preview h1,
-.synapsium-embed-preview h2,
-.synapsium-embed-preview h3,
-.synapsium-embed-preview h4,
-.synapsium-embed-preview h5,
-.synapsium-embed-preview h6 {
+.ziba-embed-preview h1,
+.ziba-embed-preview h2,
+.ziba-embed-preview h3,
+.ziba-embed-preview h4,
+.ziba-embed-preview h5,
+.ziba-embed-preview h6 {
   font-size: 1rem;
   font-weight: 600;
   margin: 0.5rem 0 0.25rem 0;
   color: rgb(var(--fg));
 }
-.synapsium-embed-preview p {
+.ziba-embed-preview p {
   margin: 0.25rem 0;
 }
-.synapsium-embed-preview ul,
-.synapsium-embed-preview ol {
+.ziba-embed-preview ul,
+.ziba-embed-preview ol {
   margin: 0.25rem 0;
   padding-left: 1.25rem;
 }
-.synapsium-embed-preview blockquote {
+.ziba-embed-preview blockquote {
   margin: 0.25rem 0;
   padding-left: 0.75rem;
   border-left: 2px solid rgb(var(--border));
   color: rgb(var(--fg-muted));
 }
-.synapsium-embed-preview pre {
+.ziba-embed-preview pre {
   margin: 0.25rem 0;
   padding: 0.4rem 0.6rem;
   background: rgb(var(--bg-muted));
@@ -565,11 +565,11 @@ body {
   font-size: 0.8rem;
   overflow-x: auto;
 }
-.synapsium-embed-preview code {
+.ziba-embed-preview code {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.85em;
 }
-.synapsium-embed-wikilink {
+.ziba-embed-wikilink {
   color: rgb(var(--accent));
   font-weight: 500;
 }
@@ -579,7 +579,7 @@ body {
  * without recursing into a second preview (would blow up render and
  * memory if the chain is long).
  */
-.synapsium-embed-nested {
+.ziba-embed-nested {
   display: inline-block;
   padding: 0 0.35rem;
   border-radius: 0.2rem;

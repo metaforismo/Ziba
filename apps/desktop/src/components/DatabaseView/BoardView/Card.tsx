@@ -141,10 +141,7 @@ export function Card({
     // future drop into a non-board target sees the schema. We also
     // notify the parent for in-renderer state.
     e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData(
-      'application/x-synapsium-card',
-      JSON.stringify({ path: row.path, columnId }),
-    );
+    e.dataTransfer.setData('application/x-ziba-card', JSON.stringify({ path: row.path, columnId }));
     // Plain text fallback — never read by us, but lets a curious user
     // drop the card into a text field and see the path.
     e.dataTransfer.setData('text/plain', row.path);

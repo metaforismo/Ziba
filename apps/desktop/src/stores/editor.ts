@@ -1,4 +1,4 @@
-import type { Frontmatter, Note, NotePath } from '@synapsium/core';
+import type { Frontmatter, Note, NotePath } from '@ziba/core';
 import { create } from 'zustand';
 import { ipc } from '../lib/ipc';
 import { ipcErrorMessage } from '../lib/ipc-error';

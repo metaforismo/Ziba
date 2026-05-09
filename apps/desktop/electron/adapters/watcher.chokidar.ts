@@ -6,7 +6,7 @@
 import chokidar, { type FSWatcher } from 'chokidar';
 import path from 'node:path';
 import { promises as fsp } from 'node:fs';
-import type { WatcherAdapter, WatcherEvent } from '@synapsium/core';
+import type { WatcherAdapter, WatcherEvent } from '@ziba/core';
 
 const DEBOUNCE_MS = 200;
 
@@ -31,7 +31,7 @@ export class ChokidarWatcher implements WatcherAdapter {
     const watcher = chokidar.watch(vaultRoot, {
       ignored: [
         // Anything inside our own metadata folder.
-        /(^|[\\/])\.synapsium($|[\\/])/,
+        /(^|[\\/])\.ziba($|[\\/])/,
         /(^|[\\/])node_modules($|[\\/])/,
         /(^|[\\/])\.git($|[\\/])/,
         /(^|[\\/])\.DS_Store$/,

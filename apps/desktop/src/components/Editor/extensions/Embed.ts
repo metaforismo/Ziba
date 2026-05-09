@@ -97,7 +97,7 @@ export const EmbedExtension = Node.create({
       mergeAttributes(HTMLAttributes, {
         'data-embed': '',
         'data-target': target,
-        class: 'synapsium-embed',
+        class: 'ziba-embed',
       }),
     ];
   },
@@ -149,7 +149,7 @@ export const EmbedExtension = Node.create({
    *      (`addStorage().markdown.parse.setup`) - they all run in the
    *      same `md.core.ruler` chain after `block`, in registration
    *      order; mutual independence is enforced by their distinct
-   *      `synapsium*Registered` guards.
+   *      `ziba*Registered` guards.
    */
   addStorage() {
     return {
@@ -162,11 +162,11 @@ export const EmbedExtension = Node.create({
         parse: {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           setup(md: any): void {
-            if (md.synapsiumEmbedRegistered === true) return;
-            md.synapsiumEmbedRegistered = true;
+            if (md.zibaEmbedRegistered === true) return;
+            md.zibaEmbedRegistered = true;
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            md.core.ruler.after('block', 'synapsium_embed', (state: any): boolean => {
+            md.core.ruler.after('block', 'ziba_embed', (state: any): boolean => {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const tokens: any[] = state.tokens;
 

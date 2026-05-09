@@ -30,7 +30,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
     // pipe to stdout in dev) — useful when the user reports "blank window".
     // In production we don't have a logging backend yet.
     if (typeof console !== 'undefined') {
-      console.error('[synapsium] React error boundary caught:', error, info.componentStack);
+      console.error('[ziba] React error boundary caught:', error, info.componentStack);
     }
   }
 
@@ -53,9 +53,9 @@ export class ErrorBoundary extends React.Component<Props, State> {
         <div className="w-full max-w-xl rounded-md border border-border bg-bg-subtle p-6">
           <h1 className="mb-2 text-xl font-semibold text-fg">Qualcosa è andato storto</h1>
           <p className="mb-4 text-sm text-fg-muted">
-            Synapsium ha incontrato un errore inatteso durante il rendering. Puoi riprovare a
-            caricare la finestra; se il problema persiste, riavvia l’app o apri una issue su GitHub
-            con il messaggio qui sotto.
+            Ziba ha incontrato un errore inatteso durante il rendering. Puoi riprovare a caricare la
+            finestra; se il problema persiste, riavvia l’app o apri una issue su GitHub con il
+            messaggio qui sotto.
           </p>
           <pre className="mb-4 max-h-48 overflow-auto rounded bg-bg p-3 font-mono text-xs text-fg-subtle">
             {error.name}: {error.message}

@@ -1,4 +1,4 @@
-import type { Frontmatter } from '@synapsium/core';
+import type { Frontmatter } from '@ziba/core';
 
 /**
  * The set of property "types" the v0.2 editor knows how to render.

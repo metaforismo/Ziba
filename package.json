@@ -1,13 +1,13 @@
 {
-  "name": "synapsium",
+  "name": "ziba",
   "private": true,
   "version": "0.1.0",
   "type": "module",
   "description": "Open-source second brain: Notion DB + Obsidian local-first markdown + graph + AI-native",
-  "homepage": "https://github.com/metaforismo/Synapsium",
+  "homepage": "https://github.com/metaforismo/Ziba",
   "repository": {
     "type": "git",
-    "url": "https://github.com/metaforismo/Synapsium.git"
+    "url": "https://github.com/metaforismo/Ziba.git"
   },
   "license": "MIT",
   "author": "Francesco Giannicola",

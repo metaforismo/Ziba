@@ -9,7 +9,7 @@ import { extractProperties } from '../query/index.js';
 /**
  * Directory names always skipped during a vault scan.
  *
- * - `.synapsium/` is our own metadata folder (SQLite cache, future settings)
+ * - `.ziba/` is our own metadata folder (SQLite cache, future settings)
  * - `node_modules/` is a frequent foot-gun if the user ever points the
  *   vault at a code project
  * - any dotfile dir is skipped on principle (`.git`, `.obsidian`, …)

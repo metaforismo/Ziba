@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import type { JSX } from 'react';
-import type { NotePath } from '@synapsium/core';
+import type { NotePath } from '@ziba/core';
 import type { DatabaseRow } from '../../../../shared/ipc';
 import type { DayCell as DayCellModel } from './helpers';
 

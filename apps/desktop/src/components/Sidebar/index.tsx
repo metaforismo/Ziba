@@ -1,4 +1,4 @@
-import type { NotePath } from '@synapsium/core';
+import type { NotePath } from '@ziba/core';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { buildTree } from '../../lib/tree';

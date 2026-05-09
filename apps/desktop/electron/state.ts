@@ -5,12 +5,7 @@
 // pull whatever state they need via these getters. If we ever support
 // multiple windows / multiple vaults, swap this for a Map keyed by window.
 
-import type {
-  FilesystemAdapter,
-  IndexStoreAdapter,
-  NotePath,
-  WatcherAdapter,
-} from '@synapsium/core';
+import type { FilesystemAdapter, IndexStoreAdapter, NotePath, WatcherAdapter } from '@ziba/core';
 import type { VaultInfo } from '../shared/ipc.js';
 import { IpcError } from './security.js';
 

@@ -7,7 +7,7 @@
  * Tag syntax supported:
  *   #foo                  → "foo"
  *   #multi-word           → "multi-word"
- *   #projects/synapsium   → "projects/synapsium"   (nested tags via `/`)
+ *   #projects/ziba   → "projects/ziba"   (nested tags via `/`)
  *
  * Rejected:
  *   - pure-numeric tags like `#1`, `#123`         (avoid markdown anchors,

@@ -1,5 +1,5 @@
 import type { JSX } from 'react';
-import type { NotePath } from '@synapsium/core';
+import type { NotePath } from '@ziba/core';
 import { DayCell } from './DayCell';
 import type { DayCell as DayCellModel } from './helpers';
 

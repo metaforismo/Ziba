@@ -1,6 +1,6 @@
 <div align="center">
 
-# synapsium
+# Ziba
 
 **Un second brain open-source che fonde Notion e Obsidian.**
 
@@ -10,7 +10,7 @@ Markdown locale come fonte unica di verità, database strutturati come Notion, g
 [![Status](https://img.shields.io/badge/status-alpha%20%E2%80%94%20v0.1-orange)](#stato)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-[Filosofia](#filosofia--perché-synapsium) ·
+[Filosofia](#filosofia--perché-Ziba) ·
 [Funzionalità](#funzionalità) ·
 [Architettura](#architettura) ·
 [Quick start](#quick-start) ·
@@ -21,11 +21,11 @@ Markdown locale come fonte unica di verità, database strutturati come Notion, g
 
 ---
 
-## Filosofia — Perché synapsium
+## Filosofia — Perché Ziba
 
 Notion e Obsidian sono entrambi strumenti eccellenti, ma costringono a scegliere:
 
-|  | **Notion** | **Obsidian** | **synapsium** |
+|  | **Notion** | **Obsidian** | **Ziba** |
 |---|---|---|---|
 | Storage | Cloud proprietario | File markdown locali | File markdown locali |
 | Block editor con `/` menu | ✅ | ❌ | ✅ (in roadmap) |
@@ -85,7 +85,7 @@ Vedi la [roadmap](#roadmap).
 ## Architettura
 
 ```
-synapsium/
+ziba/
 ├── apps/
 │   └── desktop/              # App Electron (l'unica nell'MVP v0.1)
 │       ├── electron/         # Main process: IPC, fs, SQLite, watcher
@@ -132,7 +132,7 @@ Aggiungere una nuova piattaforma significa scrivere solo gli adapter, non riscri
 
 ```ts
 type Note = {
-  path: string;                    // relativo al vault, "projects/synapsium.md"
+  path: string;                    // relativo al vault, "projects/ziba.md"
   title: string;                   // frontmatter.title > primo H1 > basename
   frontmatter: Record<string, unknown>;
   content: string;                 // body markdown senza frontmatter
@@ -141,7 +141,7 @@ type Note = {
 };
 ```
 
-Il file `.md` sul disco è la fonte unica di verità. La cache SQLite (in `<vault>/.synapsium/index.db`) accelera query come "trova tutti i backlink di X" e "autocomplete per `[[`". Cancellabile in qualsiasi momento — viene ricostruita all'apertura del vault.
+Il file `.md` sul disco è la fonte unica di verità. La cache SQLite (in `<vault>/.ziba/index.db`) accelera query come "trova tutti i backlink di X" e "autocomplete per `[[`". Cancellabile in qualsiasi momento — viene ricostruita all'apertura del vault.
 
 ## Quick start
 
@@ -154,10 +154,10 @@ Il file `.md` sul disco è la fonte unica di verità. La cache SQLite (in `<vaul
 ### Installazione e dev
 
 ```bash
-git clone https://github.com/metaforismo/Synapsium.git synapsium
-cd synapsium
+git clone https://github.com/metaforismo/Ziba.git ziba
+cd ziba
 pnpm install
-pnpm --filter synapsium-desktop run dev
+pnpm --filter ziba-desktop run dev
 ```
 
 L'app si apre. Al primo avvio: scegli una cartella vuota o piena di `.md` come vault e si parte.
@@ -170,7 +170,7 @@ Per provare le funzionalità senza preparare un vault da zero:
 node scripts/seed-vault.mjs ./sample-vault
 ```
 
-Genera 6 note interconnesse via wikilink (idee, progetti, persone, libri, daily). Poi apri `./sample-vault` da synapsium e clicca tra le note per vedere il funzionamento di autocomplete, navigazione e backlink.
+Genera 6 note interconnesse via wikilink (idee, progetti, persone, libri, daily). Poi apri `./sample-vault` da Ziba e clicca tra le note per vedere il funzionamento di autocomplete, navigazione e backlink.
 
 ### Verifica
 
@@ -182,9 +182,9 @@ pnpm build       # produce dist/ per packages e out/ per app
 ### Build distributable
 
 ```bash
-pnpm --filter synapsium-desktop run dist:mac     # .dmg + .zip per macOS (x64+arm64)
-pnpm --filter synapsium-desktop run dist:win     # NSIS installer
-pnpm --filter synapsium-desktop run dist:linux   # AppImage + .deb
+pnpm --filter ziba-desktop run dist:mac     # .dmg + .zip per macOS (x64+arm64)
+pnpm --filter ziba-desktop run dist:win     # NSIS installer
+pnpm --filter ziba-desktop run dist:linux   # AppImage + .deb
 ```
 
 > ⚠️ Non c'è ancora code signing. Su macOS l'app non firmata richiede "Apri" dal menu contestuale del Finder la prima volta.
@@ -208,7 +208,7 @@ Le issue del repository taggano la versione obiettivo. La roadmap è indicativa,
 
 Le contribuzioni sono benvenute. Vedi [CONTRIBUTING.md](CONTRIBUTING.md) per linee guida, setup ambiente, e processo di PR.
 
-Per discussioni più aperte (idee di feature, design, dubbi di architettura), apri una [Discussion](https://github.com/metaforismo/Synapsium/discussions). Per bug riproducibili, una [Issue](https://github.com/metaforismo/Synapsium/issues).
+Per discussioni più aperte (idee di feature, design, dubbi di architettura), apri una [Discussion](https://github.com/metaforismo/Ziba/discussions). Per bug riproducibili, una [Issue](https://github.com/metaforismo/Ziba/issues).
 
 ## License
 

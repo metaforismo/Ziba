@@ -23,7 +23,7 @@ import {
   type NotePath,
   type NoteSummary,
   type OutgoingWikilink,
-} from '@synapsium/core';
+} from '@ziba/core';
 import { getFilesystemAdapter } from '../adapters/filesystem.electron.js';
 import { assertResolvedWithinVault, assertVaultRelative, IpcError } from '../security.js';
 import { markSelfWrite, requireIndexStore, requireVault } from '../state.js';

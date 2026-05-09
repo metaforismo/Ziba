@@ -2,7 +2,7 @@
 // of Node and exposes a typed bridge to the renderer.
 //
 // The renderer never touches `ipcRenderer` directly -- it goes through
-// `window.synapsium`, whose surface is the `SynapsiumApi` interface in
+// `window.ziba`, whose surface is the `ZibaApi` interface in
 // `shared/ipc.ts`. That keeps the IPC contract explicit and makes it
 // straightforward to swap the transport layer later (e.g. for a web
 // build that talks to a service worker instead of the main process).
@@ -13,11 +13,11 @@ import {
   type IndexProgressPayload,
   type IpcRequests,
   type IpcResponses,
-  type SynapsiumApi,
+  type ZibaApi,
   type VaultEventPayload,
 } from '../shared/ipc.js';
 
-const api: SynapsiumApi = {
+const api: ZibaApi = {
   invoke<C extends keyof IpcRequests>(
     channel: C,
     ...args: IpcRequests[C] extends void ? [] : [IpcRequests[C]]
@@ -49,4 +49,4 @@ const api: SynapsiumApi = {
   },
 };
 
-contextBridge.exposeInMainWorld('synapsium', api);
+contextBridge.exposeInMainWorld('ziba', api);

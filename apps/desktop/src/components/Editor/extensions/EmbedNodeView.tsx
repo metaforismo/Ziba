@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { JSX, MouseEvent, ReactNode } from 'react';
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
-import type { Note, NotePath } from '@synapsium/core';
+import type { Note, NotePath } from '@ziba/core';
 import { ipc } from '../../../lib/ipc';
 import { extractIpcErrorCode, ipcErrorMessage } from '../../../lib/ipc-error';
 import { navigateToNote } from '../../../lib/navigate';
@@ -19,7 +19,7 @@ export type AttemptCreateOutcome =
 /**
  * IPC surface that the create-with-recovery flow needs. Pulled out as
  * a parameter so unit tests can pass mocks without going through
- * `window.synapsium`.
+ * `window.ziba`.
  */
 export type EmbedCreateIpc = {
   createNote: (args: { path: NotePath }) => Promise<Note>;
@@ -101,7 +101,7 @@ export async function attemptCreateNoteForEmbed(
  *     reachable through pnpm's strict module resolution from the app
  *     code. Verified via dynamic import probe.
  *   - Instead, we ship a ~150-line subset that handles the markdown
- *     constructs synapsium-authored notes commonly use: ATX headings,
+ *     constructs ziba-authored notes commonly use: ATX headings,
  *     paragraphs, bullet/ordered lists, fenced code blocks, inline
  *     code, bold, italic, links. Anything fancier (tables, callouts,
  *     wikilinks-as-pills) renders as plain text - acceptable for a
@@ -219,33 +219,33 @@ export function EmbedNodeView(props: NodeViewProps): JSX.Element {
 
   return (
     <NodeViewWrapper
-      className="synapsium-embed"
+      className="ziba-embed"
       data-embed=""
       data-target={target}
       contentEditable={false}
       onClick={handleNavigate}
     >
-      <div className="synapsium-embed-header">
-        <span className="synapsium-embed-header-title">{`-> ${headerLabel}`}</span>
+      <div className="ziba-embed-header">
+        <span className="ziba-embed-header-title">{`-> ${headerLabel}`}</span>
         {state.kind === 'loaded' ? (
-          <button type="button" className="synapsium-embed-open" onClick={handleHeaderButton}>
+          <button type="button" className="ziba-embed-open" onClick={handleHeaderButton}>
             Apri
           </button>
         ) : null}
       </div>
-      <div className="synapsium-embed-body">
+      <div className="ziba-embed-body">
         {state.kind === 'loading' || state.kind === 'idle' ? (
-          <div className="synapsium-embed-status">Caricamento&hellip;</div>
+          <div className="ziba-embed-status">Caricamento&hellip;</div>
         ) : null}
         {state.kind === 'creating' ? (
-          <div className="synapsium-embed-status">Creazione&hellip;</div>
+          <div className="ziba-embed-status">Creazione&hellip;</div>
         ) : null}
         {state.kind === 'error' ? (
-          <div className="synapsium-embed-status synapsium-embed-status--error">
+          <div className="ziba-embed-status ziba-embed-status--error">
             <span>{`Impossibile caricare ${headerLabel}.`}</span>
             <button
               type="button"
-              className="synapsium-embed-retry"
+              className="ziba-embed-retry"
               onClick={(e): void => {
                 e.stopPropagation();
                 handleRetry();
@@ -256,11 +256,11 @@ export function EmbedNodeView(props: NodeViewProps): JSX.Element {
           </div>
         ) : null}
         {state.kind === 'not-found' ? (
-          <div className="synapsium-embed-status synapsium-embed-status--missing">
+          <div className="ziba-embed-status ziba-embed-status--missing">
             <span>{`Nota '${headerLabel}' non trovata. Crea?`}</span>
             <button
               type="button"
-              className="synapsium-embed-create"
+              className="ziba-embed-create"
               onClick={(e): void => {
                 e.stopPropagation();
                 handleCreate();
@@ -270,9 +270,7 @@ export function EmbedNodeView(props: NodeViewProps): JSX.Element {
             </button>
           </div>
         ) : null}
-        {state.kind === 'loaded' ? (
-          <div className="synapsium-embed-preview">{previewTree}</div>
-        ) : null}
+        {state.kind === 'loaded' ? <div className="ziba-embed-preview">{previewTree}</div> : null}
       </div>
     </NodeViewWrapper>
   );
@@ -280,7 +278,7 @@ export function EmbedNodeView(props: NodeViewProps): JSX.Element {
 
 /**
  * Tiny markdown -> React renderer scoped to the constructs commonly
- * used inside synapsium notes. Output is intentionally minimal - the
+ * used inside ziba notes. Output is intentionally minimal - the
  * embed preview is a "what's in this note" affordance, not a faithful
  * re-render. Anything we can't recognize falls through as plain
  * paragraph text so the user still sees the words.
@@ -498,7 +496,7 @@ function renderInline(input: string): ReactNode {
           const pipe = inner.indexOf('|');
           const display = (pipe === -1 ? inner : inner.slice(pipe + 1)).trim();
           out.push(
-            <span key={nextKey()} className="synapsium-embed-nested">
+            <span key={nextKey()} className="ziba-embed-nested">
               {`-> ${display}`}
             </span>,
           );
@@ -518,7 +516,7 @@ function renderInline(input: string): ReactNode {
           const pipe = inner.indexOf('|');
           const display = (pipe === -1 ? inner : inner.slice(pipe + 1)).trim();
           out.push(
-            <span key={nextKey()} className="synapsium-embed-wikilink">
+            <span key={nextKey()} className="ziba-embed-wikilink">
               {display}
             </span>,
           );

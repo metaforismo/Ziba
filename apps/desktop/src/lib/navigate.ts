@@ -8,7 +8,7 @@
 // single place to add a toast / surface errors when v0.4 introduces a
 // notification system.
 
-import type { NotePath } from '@synapsium/core';
+import type { NotePath } from '@ziba/core';
 import { useEditorStore } from '../stores/editor';
 import { useUiStore } from '../stores/ui';
 
@@ -32,7 +32,7 @@ export async function navigateToNote(path: NotePath): Promise<void> {
     // The editor store already records the error; we also log so the
     // dev-mode renderer console pipe surfaces it during debugging.
     if (typeof console !== 'undefined') {
-      console.error('[synapsium] navigateToNote failed for', path, err);
+      console.error('[ziba] navigateToNote failed for', path, err);
     }
   }
 }

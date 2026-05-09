@@ -8,11 +8,11 @@
 // (`DatabaseRow`, `DatabaseGroup`, `DetectedProperty`); we don't widen
 // or re-define them so a refactor in core ripples through naturally.
 
-import type { Frontmatter } from '@synapsium/core';
+import type { Frontmatter } from '@ziba/core';
 import type { DatabaseGroup, DatabaseRow, DetectedProperty } from '../../../../shared/ipc';
 
 /** Sentinel id used by the column that holds notes lacking the groupBy key. */
-export const NULL_COLUMN_ID = '__synapsium_null__';
+export const NULL_COLUMN_ID = '__ziba_null__';
 
 /** Italian-locale label used wherever we surface the null bucket. */
 export const NULL_COLUMN_LABEL = '(senza valore)';

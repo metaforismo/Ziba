@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { NoteSummary } from '@synapsium/core';
+import type { NoteSummary } from '@ziba/core';
 import type { TagSummary, VaultInfo } from '../../shared/ipc';
 import { IpcChannels } from '../../shared/ipc';
 import { installMockIpc, type MockController } from '../test/mock-ipc';
@@ -35,7 +35,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  // setup.ts handles localStorage / timers / window.synapsium reset.
+  // setup.ts handles localStorage / timers / window.ziba reset.
 });
 
 describe('useTagsStore — refresh', () => {

@@ -19,8 +19,8 @@ describe('extractTags', () => {
   });
 
   it('supports nested tags via slash', () => {
-    expect(extractTags('#projects/synapsium')).toEqual([
-      { canonical: 'projects/synapsium', display: 'projects/synapsium' },
+    expect(extractTags('#projects/ziba')).toEqual([
+      { canonical: 'projects/ziba', display: 'projects/ziba' },
     ]);
   });
 

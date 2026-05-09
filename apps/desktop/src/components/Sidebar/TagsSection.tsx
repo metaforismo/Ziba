@@ -1,4 +1,4 @@
-import type { NotePath } from '@synapsium/core';
+import type { NotePath } from '@ziba/core';
 import { useEditorStore } from '../../stores/editor';
 import { useTagsStore } from '../../stores/tags';
 import { useUiStore } from '../../stores/ui';

@@ -12,7 +12,7 @@
 //      the full error stays in the main-process console where it belongs.
 
 import path from 'node:path';
-import type { NotePath } from '@synapsium/core';
+import type { NotePath } from '@ziba/core';
 import type { IpcErrorCode } from '../shared/ipc.js';
 
 export type { IpcErrorCode };

@@ -1,5 +1,5 @@
 import type { JSX } from 'react';
-import type { NotePath } from '@synapsium/core';
+import type { NotePath } from '@ziba/core';
 import { ConfirmDialog } from './ConfirmDialog';
 import { PromptDialog } from './PromptDialog';
 import { validateNameSegment, validateRelativeNotePath } from './path-utils';

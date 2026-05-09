@@ -24,7 +24,7 @@ import type { Plugin } from 'vite';
  */
 function devCspRelaxPlugin(): Plugin {
   return {
-    name: 'synapsium:dev-csp-relax',
+    name: 'ziba:dev-csp-relax',
     apply: 'serve', // dev only; production builds keep the strict CSP
     transformIndexHtml(html) {
       return html.replace(

@@ -30,7 +30,7 @@ export type BuildExtensionsOptions = {
 };
 
 /**
- * Returns the array of Tiptap extensions for the synapsium editor.
+ * Returns the array of Tiptap extensions for the ziba editor.
  *
  * Order matters: StarterKit's input rules can fire before our wikilink
  * input rule, but they don't overlap (`[[` isn't part of any markdown
@@ -69,7 +69,7 @@ export function buildEditorExtensions(options: BuildExtensionsOptions): Extensio
     // Markdown (must come before, like every other custom node) so
     // tiptap-markdown picks up its `addStorage().markdown` hooks. Order
     // vs Wikilink/Callout is irrelevant - the embed parse rule scans
-    // paragraph triplets after block parsing, and its `synapsiumEmbedRegistered`
+    // paragraph triplets after block parsing, and its `zibaEmbedRegistered`
     // guard keeps it idempotent.
     EmbedExtension,
     // KaTeX math nodes. Both register a markdown-it rule (block: `$$..$$`,

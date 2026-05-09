@@ -95,7 +95,7 @@ export function TopBar({ onChangeVault }: TopBarProps): JSX.Element {
     <header className="flex h-9 shrink-0 items-center justify-between border-b border-border bg-bg-subtle px-3 text-sm">
       <div className="flex min-w-0 items-center gap-3">
         <span className="truncate font-medium text-fg">
-          {current === null ? 'synapsium' : current.name}
+          {current === null ? 'ziba' : current.name}
         </span>
         {indexProgress !== null && (
           <span className="text-xs text-fg-muted">

@@ -2,7 +2,7 @@
 // process. All vault-relative paths in core types use forward slashes; we
 // only translate at the OS boundary.
 //
-// scanVault (in @synapsium/core) calls readDir with absolute directory
+// scanVault (in @ziba/core) calls readDir with absolute directory
 // paths and stores `entry.path` directly as a NotePath. That requires us
 // to compute vault-relative paths inside readDir -- but the adapter
 // signature doesn't pass vaultRoot. We solve this by storing the active
@@ -10,7 +10,7 @@
 
 import { promises as fsp } from 'node:fs';
 import path from 'node:path';
-import type { DirEntry, FilesystemAdapter, NotePath } from '@synapsium/core';
+import type { DirEntry, FilesystemAdapter, NotePath } from '@ziba/core';
 
 function toForwardSlashes(p: string): string {
   return p.split(path.sep).join('/');

@@ -1,10 +1,31 @@
 # Changelog
 
-Tutte le modifiche notevoli a synapsium saranno documentate qui.
+Tutte le modifiche notevoli a Ziba saranno documentate qui.
 
 Il formato si basa su [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e questo progetto aderisce a [Semantic Versioning](https://semver.org/lang/it/).
 
 ## [Unreleased]
+
+### v0.6 Rebrand: synapsium → Ziba
+
+The project is now called **Ziba**. All identifiers updated in lockstep:
+
+- Package names: `synapsium` → `ziba`, `@synapsium/core` → `@ziba/core`, `synapsium-desktop` → `ziba-desktop`, `@synapsium/tsconfig` → `@ziba/tsconfig`.
+- IPC bridge: `window.synapsium` → `window.ziba` (`SynapsiumApi` → `ZibaApi`).
+- Vault cache directory: `INDEX_DIR_NAME` `.synapsium` → `.ziba`. Existing vaults will silently rebuild the index on first open under the new name; the old `.synapsium/` directory is left orphan and can be removed manually.
+- CSS class prefix: `.synapsium-*` → `.ziba-*` (math, embed, wikilink styling).
+- markdown-it rule key: `synapsium_math_inline` (registry flag and token name).
+- electron-builder: `appId` `com.metaforismo.ziba`, `productName` `Ziba`.
+- Repository URL: `metaforismo/Synapsium` → `metaforismo/Ziba` in `package.json` (`homepage`, `repository.url`).
+- README, CHANGELOG, CONTRIBUTING, architecture doc, issue templates.
+
+Tests, typecheck, and lint all clean post-rename. The local working directory keeps its `synapsium` path on disk because changing it isn't part of the codebase.
+
+### v0.5.2 Fixed (review LOW items)
+
+- **`Fragment` discriminated union** in `index-store-query.ts`: `predicate / always-false / always-true` variants. `buildWhereFragments` short-circuits to `always-false` when any filter (e.g. `in [ ]`) is unsatisfiable, and the SQLite adapter now skips the round-trip entirely. All array fields in the public shapes are `ReadonlyArray`.
+- **`toSerializedError` double-prefix sanitiser**: strips a leading `[XYZ] ` from `IpcError.message` before re-wrapping with `[CODE]`. Without this, a manually-tagged message round-tripped as `[CODE] [XYZ] body` and the renderer's `ipcErrorMessage` only stripped the outer wrapper.
+- **`columnForRhs` docstring** documents that ISO datetime strings (with `T`) route to `text_value`, not `date_value` — matching the indexer's strict 10-character calendar form. Caller's responsibility to trim if comparing against a date-typed property.
 
 ### v0.5.1 Fixed (post-review hardening)
 
@@ -36,7 +57,7 @@ Total tests: **312** (140 core + 172 desktop). Was 294 at v0.5.
 - **Inline-math currency false positives** (`MathInline.ts`): the parser previously rejected `$5+$10$` only on the close side (`afterClose !== digit`), letting strings like `Pago $5+$10 totale` open a math span when the closer landed before whitespace. Added the symmetric Pandoc guard (`prev !== ASCII digit`) and extracted the scanner into a pure exported function `scanInlineMath(src, start)` for direct unit testing.
 - **CalendarView DST anchor** (`CalendarView/helpers.ts`): every `Date` in `buildMonthGrid` is now anchored at local-noon (12:00). In locales where DST falls back across midnight (historical São Paulo, parts of Argentina/Cuba), `new Date(y, m, d)` with implicit-midnight could shift cells into the previous day; noon is never affected. Defense-in-depth, zero perf cost.
 - **Embed preview rendering** (`EmbedNodeView.tsx`):
-  - `![[Other]]` nested embeds now render as a compact pill (`.synapsium-embed-nested`) instead of `!` + wikilink.
+  - `![[Other]]` nested embeds now render as a compact pill (`.ziba-embed-nested`) instead of `!` + wikilink.
   - `renderPreview` defensively strips a leading `---\n…\n---` (or `...`) frontmatter block. `Note.content` is already body-only via gray-matter, but the function is exported and reachable from other call sites where this guard matters.
 - **`![[]]` and frontmatter** stripping covered by 8 new tests in `EmbedNodeView.test.ts`.
 - **EmbedNodeView ALREADY_EXISTS retry**: the "Crea nota" CTA used to surface the IPC error if a watcher event created the same note between `resolveTitle` returning null and the `createNote` call. Now intercepts `code === 'ALREADY_EXISTS'` and re-resolves + loads the existing note transparently.
@@ -71,7 +92,7 @@ Total tests: **232** (140 core + 92 desktop). Was 190 in v0.3.
 
 ### Added
 
-- **Renderer test suite Vitest + jsdom** in `apps/desktop` (`vitest.config.ts`, `src/test/setup.ts`, `src/test/mock-ipc.ts`). 50 test cases coprono `useSearchStore` (debounce 150ms, coalesce di rapid setQuery, sequence-number guard su risposte out-of-order, chooseSelected che apre nota + chiude palette, errori IPC), `useDatabaseStore` (mutator filtri, debounce 200ms, sequence-number guard, sottoscrizione vault con vault-switch e vault-close), `useTagsStore` (refresh, selectTag con last-click-wins, applyVaultEvent debounced, modulo-level subscription a `useVaultStore`), `useUiStore` (clamping width, toggle persistence, validator `loadPersisted` con localStorage corrotto / type-mismatch / clamp), e `lib/debounce.ts` (cancel/flush/trailing-edge invariants). Mock `window.synapsium` via `installMockIpc()` con stub returns + `vi.fn()` spies per ogni canale + simulazione push events. Total project test count: **190** (140 core + 50 desktop).
+- **Renderer test suite Vitest + jsdom** in `apps/desktop` (`vitest.config.ts`, `src/test/setup.ts`, `src/test/mock-ipc.ts`). 50 test cases coprono `useSearchStore` (debounce 150ms, coalesce di rapid setQuery, sequence-number guard su risposte out-of-order, chooseSelected che apre nota + chiude palette, errori IPC), `useDatabaseStore` (mutator filtri, debounce 200ms, sequence-number guard, sottoscrizione vault con vault-switch e vault-close), `useTagsStore` (refresh, selectTag con last-click-wins, applyVaultEvent debounced, modulo-level subscription a `useVaultStore`), `useUiStore` (clamping width, toggle persistence, validator `loadPersisted` con localStorage corrotto / type-mismatch / clamp), e `lib/debounce.ts` (cancel/flush/trailing-edge invariants). Mock `window.ziba` via `installMockIpc()` con stub returns + `vi.fn()` spies per ogni canale + simulazione push events. Total project test count: **190** (140 core + 50 desktop).
 
 ### v0.3 Added
 
@@ -98,7 +119,7 @@ Total tests: **232** (140 core + 92 desktop). Was 190 in v0.3.
 ### Fixed
 
 - **Slash menu in code block**: `/` all'inizio di una riga in un fenced code block apriva il popup. Fix: `allow({ state, range })` callback rifiuta dentro `codeBlock` ancestor o inline `code` mark.
-- **White screen on launch**: `electron/main.ts` cercava `preload.js` nella stessa directory di `main.js` ma electron-vite emette il preload come `out/preload/preload.mjs`. Senza preload, `window.synapsium` era undefined e il primo IPC call schiantava React. Fix: path corretto + relax CSP in dev (Vite inietta inline scripts per React Refresh) tramite plugin Vite condizionale.
+- **White screen on launch**: `electron/main.ts` cercava `preload.js` nella stessa directory di `main.js` ma electron-vite emette il preload come `out/preload/preload.mjs`. Senza preload, `window.ziba` era undefined e il primo IPC call schiantava React. Fix: path corretto + relax CSP in dev (Vite inietta inline scripts per React Refresh) tramite plugin Vite condizionale.
 - Aggiunto `<ErrorBoundary>` top-level: errori React in fase di render mostrano un pannello con stack + bottoni Ricarica/Continua invece di blank window.
 
 ## [0.1.0] - In sviluppo
@@ -114,11 +135,11 @@ Prima release alpha della desktop app.
 - Wikilink `[[...]]` con custom Tiptap node, autocomplete su `[[`, click per navigare, link rotti evidenziati, creazione automatica di note mancanti
 - Pannello backlinks che si aggiorna live al variare del vault
 - File watcher chokidar con detection di modifiche esterne e UI di risoluzione conflitto
-- Cache SQLite (`<vault>/.synapsium/index.db`) per risoluzione titoli e backlink
+- Cache SQLite (`<vault>/.ziba/index.db`) per risoluzione titoli e backlink
 - Adapter pattern in `packages/core` (Filesystem, IndexStore, Watcher) per riusabilità futura su web e mobile
 - Build distributable via electron-builder per macOS (dmg+zip), Windows (NSIS), Linux (AppImage+deb)
 - ESLint + Prettier + EditorConfig per uniformità del codice
 - GitHub Actions CI: typecheck + lint + build su PR
 
-[Unreleased]: https://github.com/metaforismo/Synapsium/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/metaforismo/Synapsium/releases/tag/v0.1.0
+[Unreleased]: https://github.com/metaforismo/Ziba/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/metaforismo/Ziba/releases/tag/v0.1.0
