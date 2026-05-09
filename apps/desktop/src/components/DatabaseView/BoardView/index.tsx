@@ -21,8 +21,9 @@
 
 import { useCallback, useEffect, useMemo, useState, type JSX } from 'react';
 import type { Frontmatter } from '@synapsium/core';
-import type { DatabaseRow } from '../../../../shared/ipc';
+import type { DatabaseGroup, DatabaseRow } from '../../../../shared/ipc';
 import { ipc } from '../../../lib/ipc';
+import { ipcErrorMessage } from '../../../lib/ipc-error';
 import { navigateToNote } from '../../../lib/navigate';
 import { useDatabaseStore } from '../../../stores/database';
 import { Column } from './Column';
@@ -34,6 +35,14 @@ import {
   detectGroupType,
   pickSecondaryPropertyKey,
 } from './helpers';
+
+// Frozen module-level fallbacks. Each `result?.rows ?? []` would
+// allocate a fresh array on every render where `result` is null, and
+// the downstream `useMemo`s gated on `[rows, groups]` would never
+// memo-hit even though the data hasn't actually changed. Sharing one
+// frozen instance per shape pins reference equality.
+const EMPTY_ROWS: readonly DatabaseRow[] = Object.freeze([]);
+const EMPTY_GROUPS: readonly DatabaseGroup[] = Object.freeze([]);
 
 /**
  * Empty-state shown when the user hasn't picked a `groupBy`. Deliberately
@@ -70,12 +79,8 @@ export function BoardView(): JSX.Element {
     setDraggingFromColumn(null);
   }, [groupBy, result]);
 
-  // `rows` / `groups` are wrapped in `useMemo` (rather than read inline)
-  // so the `??[]` fallback identity stays stable across renders that
-  // don't actually change the result — otherwise the downstream
-  // `useMemo(buildColumns)` would re-run on every render.
-  const rows = useMemo(() => result?.rows ?? [], [result]);
-  const groups = useMemo(() => result?.groups ?? [], [result]);
+  const rows = result?.rows ?? EMPTY_ROWS;
+  const groups = result?.groups ?? EMPTY_GROUPS;
 
   // Memoize the heavy pieces. `buildColumns` is O(rows + groups) and we
   // hit it on every render (Zustand selectors return fresh refs on
@@ -144,7 +149,7 @@ export function BoardView(): JSX.Element {
       setError(null);
       void persistMove(path, patch)
         .catch((err: unknown) => {
-          const message = err instanceof Error ? err.message : 'Errore sconosciuto';
+          const message = ipcErrorMessage(err);
           setError(`Impossibile salvare lo spostamento: ${message}`);
         })
         .finally(() => {

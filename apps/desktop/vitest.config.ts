@@ -30,6 +30,12 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     coverage: { provider: 'v8' },
-    include: ['src/**/*.test.{ts,tsx}'],
+    // Renderer specs live under `src/`. We also collect specs from
+    // `electron/` for pure-logic helpers (e.g. the query-builder
+    // extracted out of `index-store.sqlite.ts`); the SQLite adapter
+    // itself is exercised end-to-end by the running app, but its
+    // SQL-shaping fragment builders are testable without spinning
+    // up better-sqlite3.
+    include: ['src/**/*.test.{ts,tsx}', 'electron/**/*.test.ts'],
   },
 });

@@ -80,6 +80,23 @@ export const IpcChannels = {
 
 export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];
 
+/**
+ * Canonical error codes attached to every rejection that crosses the
+ * IPC boundary. Defined here (not in `electron/security.ts`) because
+ * the renderer needs the type to branch on `extractIpcErrorCode(err)`.
+ *
+ * Adding a new code? Update `toSerializedError` in the security module
+ * and the `KNOWN_CODES` set in `lib/ipc-error.ts` together.
+ */
+export type IpcErrorCode =
+  | 'NO_VAULT'
+  | 'NOT_FOUND'
+  | 'ALREADY_EXISTS'
+  | 'INVALID_PATH'
+  | 'INVALID_QUERY'
+  | 'PERMISSION_DENIED'
+  | 'INTERNAL';
+
 // ---- Request / response payloads ----
 
 export type VaultInfo = {

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ipc } from '../../lib/ipc';
+import { ipcErrorMessage } from '../../lib/ipc-error';
 import { useEditorStore } from '../../stores/editor';
 import { useVaultStore } from '../../stores/vault';
 import { PromptDialog } from './PromptDialog';
@@ -28,7 +29,7 @@ export function NewNoteButton(): JSX.Element {
       setOpen(false);
     } catch (err: unknown) {
       // Surface failures as alert for v0.1; richer toasts come later.
-      const message = err instanceof Error ? err.message : 'Errore sconosciuto';
+      const message = ipcErrorMessage(err);
       window.alert(`Impossibile creare la nota: ${message}`);
     } finally {
       setSubmitting(false);

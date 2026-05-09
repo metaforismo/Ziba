@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NotePath } from '@synapsium/core';
 import type { FullGraph } from '../../../shared/ipc';
 import { ipc } from '../../lib/ipc';
+import { ipcErrorMessage } from '../../lib/ipc-error';
 import { debounce } from '../../lib/debounce';
 import { GLOBAL_GRAPH_REFETCH_MS } from '../../lib/timings';
 import { navigateToNote } from '../../lib/navigate';
@@ -71,7 +72,7 @@ export function GlobalGraph(): JSX.Element {
         setLoad({ kind: 'ready', graph });
       } catch (err: unknown) {
         if (cancelled || seq !== requestSeq.current) return;
-        const message = err instanceof Error ? err.message : 'Errore sconosciuto';
+        const message = ipcErrorMessage(err);
         setLoad({ kind: 'error', message });
       }
     };

@@ -98,7 +98,7 @@ function mondayFirstWeekday(d: Date): number {
 export function buildMonthGrid(
   year: number,
   month: number,
-  rows: DatabaseRow[],
+  rows: readonly DatabaseRow[],
   groupBy: string,
 ): DayCell[] {
   // Pre-bucket rows by ISO key so cell construction stays O(rows + cells)
@@ -119,19 +119,26 @@ export function buildMonthGrid(
     }
   }
 
-  const firstOfMonth = new Date(year, month, 1);
+  // Anchor every constructed date at local-noon (12:00) instead of
+  // midnight. In locales where DST falls back *across* midnight (e.g.
+  // historically São Paulo, parts of Argentina, Cuba) the wall clock
+  // skips or repeats 00:00, which makes `new Date(y, m, d)` either
+  // shift into the previous day or pick an ambiguous instant. Noon is
+  // never affected by DST transitions, so `getDate()` round-trips
+  // exactly. This is defense-in-depth: it costs nothing and removes
+  // the entire class of timezone-related off-by-one cell bugs.
+  const firstOfMonth = new Date(year, month, 1, 12);
   const startOffset = mondayFirstWeekday(firstOfMonth);
 
   // Grid origin = the Monday on or before the first of the month.
-  // Use `setDate` with a negative offset so month/year underflow is
-  // handled by the Date constructor itself.
-  const gridStart = new Date(year, month, 1 - startOffset);
+  // Negative-day arithmetic on the constructor handles month/year
+  // underflow (e.g. day -3 of January = December 28).
+  const gridStart = new Date(year, month, 1 - startOffset, 12);
 
-  // Decide between 35 (5 rows) and 42 (6 rows) cells. We need 6 rows
-  // when the month either starts late in the week or has 31 days
-  // pushing past day 35. Rather than hand-roll the logic, compute
-  // the smallest multiple of 7 that covers the last day of the month.
-  const lastOfMonth = new Date(year, month + 1, 0); // day 0 of next month = last day
+  // Decide between 35 (5 rows) and 42 (6 rows) cells. Six rows are
+  // needed when the month starts late in the week and has 31 days
+  // pushing past day 35.
+  const lastOfMonth = new Date(year, month + 1, 0, 12);
   const totalDays = startOffset + lastOfMonth.getDate();
   const cellCount = totalDays > 35 ? 42 : 35;
 
@@ -145,13 +152,11 @@ export function buildMonthGrid(
 
   const cells: DayCell[] = [];
   for (let i = 0; i < cellCount; i++) {
-    // Adding `i` to the start day via the Date constructor avoids
-    // DST-jump bugs that `setDate(d.getDate() + 1)` introduces in
-    // edge cases.
     const cellDate = new Date(
       gridStart.getFullYear(),
       gridStart.getMonth(),
       gridStart.getDate() + i,
+      12,
     );
     const cellY = cellDate.getFullYear();
     const cellM = cellDate.getMonth();

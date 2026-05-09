@@ -573,3 +573,18 @@ body {
   color: rgb(var(--accent));
   font-weight: 500;
 }
+/*
+ * Nested embeds inside an embed preview render as a compact pill so
+ * the reader sees that the source note transcludes another one,
+ * without recursing into a second preview (would blow up render and
+ * memory if the chain is long).
+ */
+.synapsium-embed-nested {
+  display: inline-block;
+  padding: 0 0.35rem;
+  border-radius: 0.2rem;
+  background: rgb(var(--bg-muted));
+  color: rgb(var(--fg-muted));
+  font-size: 0.85em;
+  font-weight: 500;
+}

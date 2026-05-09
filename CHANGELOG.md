@@ -6,6 +6,32 @@ Il formato si basa su [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e
 
 ## [Unreleased]
 
+### v0.5 Fixed
+
+- **Inline-math currency false positives** (`MathInline.ts`): the parser previously rejected `$5+$10$` only on the close side (`afterClose !== digit`), letting strings like `Pago $5+$10 totale` open a math span when the closer landed before whitespace. Added the symmetric Pandoc guard (`prev !== ASCII digit`) and extracted the scanner into a pure exported function `scanInlineMath(src, start)` for direct unit testing.
+- **CalendarView DST anchor** (`CalendarView/helpers.ts`): every `Date` in `buildMonthGrid` is now anchored at local-noon (12:00). In locales where DST falls back across midnight (historical São Paulo, parts of Argentina/Cuba), `new Date(y, m, d)` with implicit-midnight could shift cells into the previous day; noon is never affected. Defense-in-depth, zero perf cost.
+- **Embed preview rendering** (`EmbedNodeView.tsx`):
+  - `![[Other]]` nested embeds now render as a compact pill (`.synapsium-embed-nested`) instead of `!` + wikilink.
+  - `renderPreview` defensively strips a leading `---\n…\n---` (or `...`) frontmatter block. `Note.content` is already body-only via gray-matter, but the function is exported and reachable from other call sites where this guard matters.
+- **`![[]]` and frontmatter** stripping covered by 8 new tests in `EmbedNodeView.test.ts`.
+- **EmbedNodeView ALREADY_EXISTS retry**: the "Crea nota" CTA used to surface the IPC error if a watcher event created the same note between `resolveTitle` returning null and the `createNote` call. Now intercepts `code === 'ALREADY_EXISTS'` and re-resolves + loads the existing note transparently.
+- **IPC error code propagation** (`lib/ipc-error.ts` + IPC wrapper): the wrapper that translates main-process exceptions to the renderer now belt-and-braces the canonical code via two paths — own `code` property and a `[CODE] ` message prefix. Adds `extractIpcErrorCode(err)` and `ipcErrorMessage(err)`; every renderer call site that displays `err.message` now goes through the prefix-stripping helper.
+- **Memo stability in DatabaseView/Board/Calendar**: replaced `result?.rows ?? []` (which allocated a fresh array per render) with frozen module-level `EMPTY_ROWS` / `EMPTY_GROUPS` constants. Public helper signatures (`buildMonthGrid`, `buildColumns`, `detectGroupType`, `detectColumnType`, FilterBar, Table) now accept `readonly DatabaseRow[]` / `readonly DatabaseGroup[]`.
+
+### v0.5 Added
+
+- **KaTeX render cache** (`MathRenderer.tsx`): module-level LRU map (256 entries, keyed on `${displayMode} ${formula}`) memoises `renderToString` output across node-view re-mounts. Vaults with many formulas no longer pay the parse cost on scroll / undo / selection changes.
+- **`scanInlineMath(src, start)`** exported from `MathInline.ts` for direct testing of the inline-math recognition heuristic.
+- **`extractIpcErrorCode(err)` + `ipcErrorMessage(err)`** in `lib/ipc-error.ts` (also exported `IpcErrorCode` from `shared/ipc.ts` as the single source of truth).
+
+### v0.5 Changed
+
+- **Sidebar split** (`Sidebar/index.tsx` 553 → 344 lines): CRUD wiring extracted to `useSidebarMutations()` (~160 lines, type `SidebarMutations`); the six dialog flows extracted to `<SidebarDialogs>` keyed on a `DialogState` discriminated union (~140 lines). The orchestrator file now reads top-to-bottom: layout → tree filter → keyboard nav → context menu → dialogs.
+- **index-store query-builder split** (`index-store.sqlite.ts` 882 → 745 lines): all SQL fragment construction extracted to `electron/adapters/index-store-query.ts` — `columnForRhs`, `buildFilterFragment`, `buildWhereFragments`, `buildSortClause`, `clampQueryLimit`, plus `DEFAULT_QUERY_LIMIT` / `MAX_QUERY_LIMIT` constants. The new module is pure (no `better-sqlite3` import) and gets its own test file (27 cases).
+- **Vitest renderer config** now also collects specs from `electron/**/*.test.ts` so pure-logic helpers in the main-process tree (e.g. the query-builder) are covered without spinning up Electron.
+
+Total tests: **294** (140 core + 154 desktop). Was 233 at the close of v0.4.
+
 ### v0.4 Added
 
 - **Database sub-views** (`databaseViewMode` in `useUiStore`): tabs Tabella / Board / Calendario nel Database header. Stessa query (filtri/sort/groupBy/folder), tre visualizzazioni.

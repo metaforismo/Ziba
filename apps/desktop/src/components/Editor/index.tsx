@@ -5,6 +5,7 @@ import type { SuggestionKeyDownProps, SuggestionProps } from '@tiptap/suggestion
 import type { Frontmatter } from '@synapsium/core';
 import { useEditorStore } from '../../stores/editor';
 import { ipc } from '../../lib/ipc';
+import { ipcErrorMessage } from '../../lib/ipc-error';
 import { debounce } from '../../lib/debounce';
 import { AUTOSAVE_DEBOUNCE_MS, PROPERTY_AUTOSAVE_DEBOUNCE_MS } from '../../lib/timings';
 import { PropertyEditor } from '../PropertyEditor';
@@ -419,7 +420,7 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
     } catch (err) {
       // Surface the failure via the editor store's existing error
       // channel; we don't have a global toast in v0.1.
-      const message = err instanceof Error ? err.message : 'Errore wikilink sconosciuto';
+      const message = ipcErrorMessage(err);
       useEditorStore.setState({
         lastSaveError: `Impossibile aprire «${title}»: ${message}`,
       });

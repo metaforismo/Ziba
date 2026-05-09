@@ -24,12 +24,12 @@ import {
   type NotePath,
   type NoteSummary,
   type OutgoingWikilink,
-  type ScalarFilter,
   type TagPair,
   type TagSummaryRow,
   type UpsertNoteInput,
   type WikilinkRow,
 } from '@synapsium/core';
+import { buildSortClause, buildWhereFragments, clampQueryLimit } from './index-store-query.js';
 
 /**
  * Strip Obsidian-style heading/block refs from a wikilink target.
@@ -498,177 +498,36 @@ export class SqliteIndexStore implements IndexStoreAdapter {
     return Promise.resolve();
   }
 
-  /**
-   * Build a typed-column expression to compare against for a given filter.
-   * Numbers compare on `number_value`, ISO date strings compare on
-   * `date_value`, everything else falls back to `text_value`. This is a
-   * heuristic — the indexer wrote the value to exactly one column, so we
-   * can only match if the caller picks the right column for their RHS.
-   */
-  private static columnForRhs(rhs: number | string | boolean): {
-    column: 'number_value' | 'text_value' | 'boolean_value' | 'date_value';
-    bound: number | string | 0 | 1;
-  } {
-    if (typeof rhs === 'boolean') {
-      return { column: 'boolean_value', bound: rhs ? 1 : 0 };
-    }
-    if (typeof rhs === 'number') {
-      return { column: 'number_value', bound: rhs };
-    }
-    // string: detect ISO date.
-    if (/^\d{4}-\d{2}-\d{2}$/.test(rhs)) {
-      return { column: 'date_value', bound: rhs };
-    }
-    return { column: 'text_value', bound: rhs };
-  }
-
-  /**
-   * Translate a single filter into an EXISTS / NOT EXISTS predicate
-   * referencing `notes n`. Returns the SQL fragment plus the bound
-   * parameters in order. Caller AND's all fragments together.
-   */
-  private buildFilterFragment(f: ScalarFilter): { sql: string; params: Array<string | number> } {
-    switch (f.kind) {
-      case 'eq': {
-        const { column, bound } = SqliteIndexStore.columnForRhs(f.value);
-        return {
-          sql: `EXISTS (SELECT 1 FROM note_properties np WHERE np.source_path = n.path AND np.prop_key = ? AND np.${column} = ?)`,
-          params: [f.key, bound],
-        };
-      }
-      case 'in': {
-        if (f.values.length === 0) {
-          // No values → matches nothing.
-          return { sql: '0 = 1', params: [] };
-        }
-        // Group by inferred RHS column so we only pick the right typed col.
-        // In practice all `in` values should share a type; if they don't,
-        // we union per-column subqueries.
-        const byColumn = new Map<string, Array<number | string | 0 | 1>>();
-        for (const v of f.values) {
-          const { column, bound } = SqliteIndexStore.columnForRhs(v);
-          const arr = byColumn.get(column) ?? [];
-          arr.push(bound);
-          byColumn.set(column, arr);
-        }
-        const subs: string[] = [];
-        const params: Array<string | number> = [];
-        for (const [column, vals] of byColumn) {
-          const placeholders = vals.map(() => '?').join(', ');
-          subs.push(
-            `EXISTS (SELECT 1 FROM note_properties np WHERE np.source_path = n.path AND np.prop_key = ? AND np.${column} IN (${placeholders}))`,
-          );
-          params.push(f.key, ...vals);
-        }
-        return { sql: `(${subs.join(' OR ')})`, params };
-      }
-      case 'has':
-        return {
-          sql: `EXISTS (SELECT 1 FROM note_properties np WHERE np.source_path = n.path AND np.prop_key = ?)`,
-          params: [f.key],
-        };
-      case 'lacks':
-        return {
-          sql: `NOT EXISTS (SELECT 1 FROM note_properties np WHERE np.source_path = n.path AND np.prop_key = ?)`,
-          params: [f.key],
-        };
-      case 'lt':
-      case 'gt':
-      case 'lte':
-      case 'gte': {
-        const op = { lt: '<', gt: '>', lte: '<=', gte: '>=' }[f.kind];
-        const { column, bound } = SqliteIndexStore.columnForRhs(f.value);
-        return {
-          sql: `EXISTS (SELECT 1 FROM note_properties np WHERE np.source_path = n.path AND np.prop_key = ? AND np.${column} ${op} ?)`,
-          params: [f.key, bound],
-        };
-      }
-      case 'contains': {
-        // Substring match over text/url, plus JSON `"value"` token match
-        // on string-array. The token form is approximate but good enough
-        // for v0.3 — the array_value is JSON-encoded so an exact element
-        // match shows up as `"value"` somewhere in the string.
-        const like = `%${f.value.replace(/[\\%_]/g, (c) => '\\' + c)}%`;
-        const arrayLike = `%${JSON.stringify(f.value).replace(/[\\%_]/g, (c) => '\\' + c)}%`;
-        return {
-          sql: `EXISTS (SELECT 1 FROM note_properties np WHERE np.source_path = n.path AND np.prop_key = ? AND (np.text_value LIKE ? ESCAPE '\\' OR np.array_value LIKE ? ESCAPE '\\'))`,
-          params: [f.key, like, arrayLike],
-        };
-      }
-    }
-  }
-
   async runQuery(query: DatabaseQuery): Promise<DatabaseResult> {
     this.require();
     if (!this.db) throw new Error('IndexStore not initialized');
 
-    const where: string[] = [];
-    const params: Array<string | number> = [];
-
-    if (query.folder !== undefined && query.folder.length > 0) {
-      // Match notes whose path begins with `<folder>/`. We escape LIKE
-      // metacharacters so a literal underscore in a folder name doesn't
-      // act as a wildcard.
-      const trimmed = query.folder.replace(/\/+$/, '');
-      const escaped = trimmed.replace(/[\\%_]/g, (c) => '\\' + c);
-      where.push(`n.path LIKE ? ESCAPE '\\'`);
-      params.push(escaped + '/%');
-    }
-
-    if (query.filters && query.filters.length > 0) {
-      for (const f of query.filters) {
-        const frag = this.buildFilterFragment(f);
-        where.push(frag.sql);
-        params.push(...frag.params);
-      }
-    }
-
-    // Build sort joins. Mixed-type sort is best-effort: COALESCE picks
-    // whichever typed column was populated, in priority order text →
-    // number → date. Adapters won't promise stable ordering across
-    // mixed-type columns; document this in the interface comment.
-    const sortJoins: string[] = [];
-    const sortClauses: string[] = [];
-    const sortJoinParams: Array<string | number> = [];
-    if (query.sort && query.sort.length > 0) {
-      query.sort.forEach((s, idx) => {
-        const alias = `sp_${idx}`;
-        sortJoins.push(
-          `LEFT JOIN note_properties ${alias} ON ${alias}.source_path = n.path AND ${alias}.prop_key = ?`,
-        );
-        sortJoinParams.push(s.key);
-        const dir = s.direction === 'desc' ? 'DESC' : 'ASC';
-        sortClauses.push(
-          `COALESCE(${alias}.text_value, CAST(${alias}.number_value AS TEXT), ${alias}.date_value) ${dir}`,
-        );
-      });
-    }
-    // Deterministic tiebreak on path so ordering is stable.
-    sortClauses.push('n.path ASC');
-
-    // Total count BEFORE limit, on the same WHERE clause. We don't need
-    // the sort joins here — they don't affect cardinality.
+    // SQL shaping is delegated to `index-store-query.ts`. The adapter's
+    // job here is just to glue the fragments together with the prepared
+    // statements and the batched property fetch.
+    const { fragments: where, params: whereParams } = buildWhereFragments(query);
+    const sort = buildSortClause(query);
+    const limit = clampQueryLimit(query.limit);
     const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
-    const countSql = `SELECT COUNT(*) AS c FROM notes n ${whereSql}`;
-    const totalRow = this.db.prepare(countSql).get(...params) as { c: number } | undefined;
-    const totalCount = totalRow?.c ?? 0;
 
-    // Clamp limit to [1, 5000], default 1000.
-    const requested = query.limit ?? 1000;
-    const limit = Math.max(1, Math.min(requested, 5000));
+    // Total count BEFORE limit, on the same WHERE clause. The sort
+    // joins don't affect cardinality, so we omit them here.
+    const countSql = `SELECT COUNT(*) AS c FROM notes n ${whereSql}`;
+    const totalRow = this.db.prepare(countSql).get(...whereParams) as { c: number } | undefined;
+    const totalCount = totalRow?.c ?? 0;
 
     const selectSql = `
       SELECT n.path AS path, n.title AS title, n.mtime AS mtime
       FROM notes n
-      ${sortJoins.join('\n')}
+      ${sort.joins.join('\n')}
       ${whereSql}
-      ORDER BY ${sortClauses.join(', ')}
+      ORDER BY ${sort.orderBy.join(', ')}
       LIMIT ?
     `;
     type NoteRow = { path: string; title: string; mtime: number };
     const rowsRaw = this.db
       .prepare(selectSql)
-      .all(...sortJoinParams, ...params, limit) as NoteRow[];
+      .all(...sort.joinParams, ...whereParams, limit) as NoteRow[];
 
     // Batched property fetch: one query covers every row in the result
     // set, then we group by source_path in JS. This replaces an
@@ -686,7 +545,7 @@ export class SqliteIndexStore implements IndexStoreAdapter {
 
     let groups: DatabaseGroup[] = [];
     if (query.groupBy !== undefined && query.groupBy.length > 0) {
-      groups = this.computeGroups(query.groupBy, where, params);
+      groups = this.computeGroups(query.groupBy, where, whereParams);
     }
 
     return Promise.resolve({ rows, groups, totalCount });

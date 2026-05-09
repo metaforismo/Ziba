@@ -133,80 +133,15 @@ export const MathInlineExtension = Node.create({
               'synapsium_math_inline',
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               (state: any, silent: boolean): boolean => {
-                const start = state.pos;
-                const src: string = state.src;
-                if (src.charCodeAt(start) !== 0x24 /* $ */) return false;
-
-                // A literal `\$` is an escape, not a delimiter. We rely
-                // on markdown-it's `escape` rule to handle that case
-                // because we run *before* escape — a backslash-prefixed
-                // `$` reaches us only when there's no preceding char,
-                // which we guard below by reading `prev`.
-                const prev = start > 0 ? src.charCodeAt(start - 1) : -1;
-                if (prev === 0x5c /* backslash */) return false;
-
-                // Refuse a `$$` opening — that's the block-math fence,
-                // handled by MathBlock. Falling through here lets the
-                // block parser take precedence.
-                if (src.charCodeAt(start + 1) === 0x24 /* $ */) return false;
-
-                // Look for the closing `$`. The Pandoc heuristic to
-                // avoid currency false positives:
-                //   - the char immediately after the opening `$` must
-                //     not be whitespace,
-                //   - the char immediately before the closing `$` must
-                //     not be whitespace,
-                //   - the closing `$` must not be followed by a digit
-                //     (so "$5 + 10$" doesn't match — it'd need the
-                //     opener to fail the "non-whitespace after" check
-                //     anyway, but this is belt-and-suspenders),
-                //   - newlines are not allowed inside.
-                const afterOpen = src.charCodeAt(start + 1);
-                if (afterOpen === undefined) return false;
-                if (isWhitespace(afterOpen)) return false;
-
-                let pos = start + 1;
-                let closePos = -1;
-                while (pos < src.length) {
-                  const c = src.charCodeAt(pos);
-                  if (c === 0x0a /* \n */) return false;
-                  if (c === 0x5c /* backslash */) {
-                    // Skip the escaped char (handles `\$` and `\\`).
-                    pos += 2;
-                    continue;
-                  }
-                  if (c === 0x24 /* $ */) {
-                    // Reject `$$` mid-formula (Pandoc behaviour: it
-                    // closes the inline math then re-opens — we treat
-                    // that as a fail to keep things simple).
-                    if (src.charCodeAt(pos + 1) === 0x24) return false;
-                    // Closing-delimiter eligibility: previous char must
-                    // be non-whitespace.
-                    const beforeClose = src.charCodeAt(pos - 1);
-                    if (!isWhitespace(beforeClose)) {
-                      // Final guard: don't close if the next char is a
-                      // digit (currency-like context: `$5 + $10$`).
-                      const afterClose = src.charCodeAt(pos + 1);
-                      if (!isAsciiDigit(afterClose)) {
-                        closePos = pos;
-                        break;
-                      }
-                    }
-                  }
-                  pos += 1;
-                }
+                const closePos = scanInlineMath(state.src, state.pos);
                 if (closePos === -1) return false;
-
-                const formula = src.slice(start + 1, closePos);
-                if (formula.length === 0) return false;
-
+                const formula = state.src.slice(state.pos + 1, closePos);
                 if (!silent) {
                   const token = state.push('synapsium_math_inline', 'span', 0);
                   token.markup = '$';
                   token.content = formula;
                   token.meta = { formula };
                 }
-
                 state.pos = closePos + 1;
                 return true;
               },
@@ -231,6 +166,60 @@ export const MathInlineExtension = Node.create({
     };
   },
 });
+
+/**
+ * Scan for an inline-math formula starting at `start` in `src`. Returns
+ * the index of the closing `$`, or -1 if no valid formula is recognised
+ * at that position.
+ *
+ * The recognition uses a Pandoc-style heuristic to avoid currency
+ * false positives like `Pago $5+$10 totale`:
+ *
+ *   1. opener: char before `$` must not be a backslash (escape) or
+ *      ASCII digit (mirror of the close-side guard);
+ *   2. opener: char after `$` must exist and must not be whitespace;
+ *   3. opener: a second `$` immediately after is the block fence
+ *      (`$$`), handled elsewhere — abort here so MathBlock wins;
+ *   4. body: newlines abort, `\X` skips both chars (so `\$` and `\\`
+ *      stay in the formula), `$$` mid-formula aborts;
+ *   5. closer: char before `$` must not be whitespace, and char after
+ *      `$` must not be an ASCII digit.
+ *
+ * Exported for unit testing — the markdown-it rule is a thin wrapper.
+ */
+export function scanInlineMath(src: string, start: number): number {
+  if (src.charCodeAt(start) !== 0x24 /* $ */) return -1;
+
+  const prev = start > 0 ? src.charCodeAt(start - 1) : -1;
+  if (prev === 0x5c /* backslash */) return -1;
+  if (isAsciiDigit(prev)) return -1;
+
+  if (src.charCodeAt(start + 1) === 0x24 /* $ */) return -1;
+
+  const afterOpen = src.charCodeAt(start + 1);
+  if (afterOpen === undefined) return -1;
+  if (isWhitespace(afterOpen)) return -1;
+
+  let pos = start + 1;
+  while (pos < src.length) {
+    const c = src.charCodeAt(pos);
+    if (c === 0x0a /* \n */) return -1;
+    if (c === 0x5c /* backslash */) {
+      pos += 2;
+      continue;
+    }
+    if (c === 0x24 /* $ */) {
+      if (src.charCodeAt(pos + 1) === 0x24) return -1;
+      const beforeClose = src.charCodeAt(pos - 1);
+      if (!isWhitespace(beforeClose)) {
+        const afterClose = src.charCodeAt(pos + 1);
+        if (!isAsciiDigit(afterClose)) return pos;
+      }
+    }
+    pos += 1;
+  }
+  return -1;
+}
 
 function isWhitespace(charCode: number): boolean {
   // Standard ASCII whitespace plus undefined (end-of-string).

@@ -1,25 +1,18 @@
 import type { NotePath } from '@synapsium/core';
+import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ipc } from '../../lib/ipc';
 import { buildTree } from '../../lib/tree';
 import { useEditorStore } from '../../stores/editor';
 import { useTagsStore } from '../../stores/tags';
 import { useUiStore } from '../../stores/ui';
 import { useVaultStore } from '../../stores/vault';
-import { ConfirmDialog } from './ConfirmDialog';
 import { FileTree, flattenTree, type TreeTarget } from './FileTree';
 import { NewNoteButton } from './NewNoteButton';
-import {
-  buildFolderPath,
-  buildNotePath,
-  replaceLastSegment,
-  stripMdExtension,
-  validateNameSegment,
-  validateRelativeNotePath,
-} from './path-utils';
-import { PromptDialog } from './PromptDialog';
+import { stripMdExtension } from './path-utils';
+import { SidebarDialogs, type DialogState } from './SidebarDialogs';
 import { TagsSection } from './TagsSection';
 import { TreeContextMenu } from './TreeContextMenu';
+import { useSidebarMutations } from './useSidebarMutations';
 
 export type SidebarProps = {
   /** Optional override; defaults to opening the note via the editor store. */
@@ -32,37 +25,6 @@ type ContextMenuState = {
   y: number;
 };
 
-type DialogState =
-  | { kind: 'none' }
-  | {
-      kind: 'newNoteIn';
-      parentFolder: string;
-    }
-  | {
-      kind: 'newFolderIn';
-      parentFolder: string;
-    }
-  | {
-      kind: 'renameFile';
-      path: NotePath;
-      currentName: string;
-    }
-  | {
-      kind: 'renameFolder';
-      path: string;
-      currentName: string;
-    }
-  | {
-      kind: 'deleteFile';
-      path: NotePath;
-      title: string;
-    }
-  | {
-      kind: 'deleteFolder';
-      path: string;
-      name: string;
-    };
-
 /**
  * Real file-tree sidebar (replaces the Wave 2 stub). Composes the file
  * tree, "Nuova nota" button, context menu, and prompt/confirm dialogs.
@@ -71,29 +33,29 @@ type DialogState =
  *   - Tree data comes from `useVaultStore.notes` (refreshed via IPC).
  *   - Active highlight comes from `useEditorStore.currentPath`.
  *   - Expanded folders persist in `useUiStore.expandedFolders`.
- *   - All mutating actions (create / rename / delete) call IPC, then
- *     `refreshNotes()`. The watcher's debounced refresh would catch them
- *     too, but explicit refresh keeps the UI snappy.
+ *   - All mutating actions live in `useSidebarMutations`. The dialogs
+ *     they open are rendered by `<SidebarDialogs>`. This file is just
+ *     the orchestrator: layout, tree filtering, keyboard nav, context
+ *     menu wiring.
  */
 export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
   const notes = useVaultStore((s) => s.notes);
-  const refreshNotes = useVaultStore((s) => s.refreshNotes);
   const currentPath = useEditorStore((s) => s.currentPath);
-  const openNote = useEditorStore((s) => s.openNote);
-  const closeNote = useEditorStore((s) => s.closeNote);
   const expandedFolders = useUiStore((s) => s.expandedFolders);
   const toggleFolder = useUiStore((s) => s.toggleFolder);
   // When a tag is selected, the file tree filters to only the notes that
-  // contain it. We do the filter here (rather than passing a prop into
-  // FileTree) so the tree component stays a pure visualizer and the tag
-  // store stays the single source of truth for "which paths are visible".
+  // contain it. The filter happens here (rather than as a FileTree prop)
+  // so the tree component stays a pure visualizer and the tag store
+  // stays the single source of truth for "which paths are visible".
   const selectedTag = useTagsStore((s) => s.selectedTag);
   const notesForSelectedTag = useTagsStore((s) => s.notesForSelectedTag);
   const clearSelectedTag = useTagsStore((s) => s.selectTag);
 
+  const mutations = useSidebarMutations();
+  const { refreshing } = mutations;
+
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [dialog, setDialog] = useState<DialogState>({ kind: 'none' });
-  const [refreshing, setRefreshing] = useState(false);
   const [focusedPath, setFocusedPath] = useState<string | null>(null);
 
   const visibleNotes = useMemo(() => {
@@ -121,7 +83,6 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
     }
     const missing = ancestors.filter((a) => !expandedSet.has(a));
     if (missing.length > 0) {
-      // Add each missing ancestor; toggleFolder is the only public API.
       for (const m of missing) {
         toggleFolder(m);
       }
@@ -131,15 +92,7 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPath]);
 
-  const doRefresh = useCallback(async (): Promise<void> => {
-    setRefreshing(true);
-    try {
-      await refreshNotes();
-    } finally {
-      setRefreshing(false);
-    }
-  }, [refreshNotes]);
-
+  const openNote = useEditorStore((s) => s.openNote);
   const handleSelectFile = useCallback(
     (path: NotePath): void => {
       if (onSelectNote !== undefined) {
@@ -154,90 +107,6 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
   const handleContextMenu = useCallback((target: TreeTarget, x: number, y: number): void => {
     setContextMenu({ target, x, y });
   }, []);
-
-  // ----- Dialog action handlers -----
-
-  const createNoteIn = async (rawName: string, parentFolder: string): Promise<void> => {
-    try {
-      const path = buildNotePath(rawName, parentFolder);
-      await ipc.createNote({ path });
-      await doRefresh();
-      await openNote(path);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Errore sconosciuto';
-      window.alert(`Impossibile creare la nota: ${message}`);
-    }
-  };
-
-  const createFolderIn = async (rawName: string, parentFolder: string): Promise<void> => {
-    try {
-      const path = buildFolderPath(rawName, parentFolder);
-      await ipc.createFolder({ path });
-      await doRefresh();
-      // Auto-expand the newly created folder so the user sees it.
-      if (!expandedSet.has(path)) toggleFolder(path);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Errore sconosciuto';
-      window.alert(`Impossibile creare la cartella: ${message}`);
-    }
-  };
-
-  const renameFile = async (oldPath: NotePath, newName: string): Promise<void> => {
-    try {
-      const newPath = replaceLastSegment(oldPath, newName, true);
-      if (newPath === oldPath) return;
-      const result = await ipc.renameNote({ from: oldPath, to: newPath });
-      await doRefresh();
-      // If we just renamed the currently-open note, follow it.
-      if (currentPath === oldPath) {
-        await openNote(result.newPath);
-      }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Errore sconosciuto';
-      window.alert(`Impossibile rinominare la nota: ${message}`);
-    }
-  };
-
-  const renameFolder = async (oldPath: string, newName: string): Promise<void> => {
-    try {
-      const newPath = replaceLastSegment(oldPath, newName, false);
-      if (newPath === oldPath) return;
-      await ipc.renameFolder({ from: oldPath, to: newPath });
-      await doRefresh();
-      // If the open note lived inside the renamed folder, re-resolve it.
-      if (currentPath !== null && currentPath.startsWith(`${oldPath}/`)) {
-        const remapped = newPath + currentPath.slice(oldPath.length);
-        await openNote(remapped);
-      }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Errore sconosciuto';
-      window.alert(`Impossibile rinominare la cartella: ${message}`);
-    }
-  };
-
-  const deleteFile = async (path: NotePath): Promise<void> => {
-    try {
-      await ipc.deleteNote({ path });
-      if (currentPath === path) closeNote();
-      await doRefresh();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Errore sconosciuto';
-      window.alert(`Impossibile eliminare la nota: ${message}`);
-    }
-  };
-
-  const deleteFolder = async (path: string): Promise<void> => {
-    try {
-      await ipc.deleteFolder({ path });
-      if (currentPath !== null && currentPath.startsWith(`${path}/`)) {
-        closeNote();
-      }
-      await doRefresh();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Errore sconosciuto';
-      window.alert(`Impossibile eliminare la cartella: ${message}`);
-    }
-  };
 
   // ----- Context-menu items -----
 
@@ -406,7 +275,7 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
     [dialog.kind, contextMenu, tree, expandedSet, focusedPath, handleSelectFile, toggleFolder],
   );
 
-  const closeDialog = (): void => setDialog({ kind: 'none' });
+  const closeDialog = useCallback((): void => setDialog({ kind: 'none' }), []);
 
   return (
     <aside
@@ -469,93 +338,7 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
         />
       )}
 
-      {dialog.kind === 'newNoteIn' && (
-        <PromptDialog
-          title={dialog.parentFolder === '' ? 'Nuova nota' : `Nuova nota in ${dialog.parentFolder}`}
-          message="Inserisci un nome. Usa `/` per creare sottocartelle."
-          placeholder="nome-della-nota"
-          okLabel="Crea"
-          validate={validateRelativeNotePath}
-          onSubmit={(value): void => {
-            void createNoteIn(value, dialog.parentFolder);
-            closeDialog();
-          }}
-          onCancel={closeDialog}
-        />
-      )}
-
-      {dialog.kind === 'newFolderIn' && (
-        <PromptDialog
-          title={
-            dialog.parentFolder === ''
-              ? 'Nuova cartella'
-              : `Nuova cartella in ${dialog.parentFolder}`
-          }
-          message="Inserisci un nome per la cartella."
-          placeholder="nome-cartella"
-          okLabel="Crea"
-          validate={validateNameSegment}
-          onSubmit={(value): void => {
-            void createFolderIn(value, dialog.parentFolder);
-            closeDialog();
-          }}
-          onCancel={closeDialog}
-        />
-      )}
-
-      {dialog.kind === 'renameFile' && (
-        <PromptDialog
-          title="Rinomina nota"
-          defaultValue={dialog.currentName}
-          okLabel="Rinomina"
-          validate={validateNameSegment}
-          onSubmit={(value): void => {
-            void renameFile(dialog.path, value);
-            closeDialog();
-          }}
-          onCancel={closeDialog}
-        />
-      )}
-
-      {dialog.kind === 'renameFolder' && (
-        <PromptDialog
-          title="Rinomina cartella"
-          defaultValue={dialog.currentName}
-          okLabel="Rinomina"
-          validate={validateNameSegment}
-          onSubmit={(value): void => {
-            void renameFolder(dialog.path, value);
-            closeDialog();
-          }}
-          onCancel={closeDialog}
-        />
-      )}
-
-      {dialog.kind === 'deleteFile' && (
-        <ConfirmDialog
-          title="Elimina nota"
-          message={`Vuoi davvero eliminare "${dialog.title}"? L'azione non può essere annullata.`}
-          confirmLabel="Elimina"
-          onConfirm={(): void => {
-            void deleteFile(dialog.path);
-            closeDialog();
-          }}
-          onCancel={closeDialog}
-        />
-      )}
-
-      {dialog.kind === 'deleteFolder' && (
-        <ConfirmDialog
-          title="Elimina cartella"
-          message={`Vuoi davvero eliminare la cartella "${dialog.name}" e tutto il suo contenuto? L'azione non può essere annullata.`}
-          confirmLabel="Elimina"
-          onConfirm={(): void => {
-            void deleteFolder(dialog.path);
-            closeDialog();
-          }}
-          onCancel={closeDialog}
-        />
-      )}
+      <SidebarDialogs dialog={dialog} mutations={mutations} onClose={closeDialog} />
     </aside>
   );
 }

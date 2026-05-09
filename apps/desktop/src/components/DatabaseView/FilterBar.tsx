@@ -14,7 +14,7 @@ type Props = {
    * Sample rows we use to detect each property's type. The detection result
    * drives both the operator dropdown and the value-input coercion.
    */
-  rows: DatabaseRow[];
+  rows: readonly DatabaseRow[];
   onAdd(filter: ScalarFilter): void;
   onUpdate(index: number, filter: ScalarFilter): void;
   onRemove(index: number): void;
@@ -57,7 +57,7 @@ function isUnaryOp(kind: ScalarFilter['kind']): boolean {
  * carry the key (e.g. user just added a filter on a key with empty value
  * everywhere) we fall back to `text` so the input stays usable.
  */
-function detectType(key: string, rows: DatabaseRow[]): PropertyType {
+function detectType(key: string, rows: readonly DatabaseRow[]): PropertyType {
   for (const row of rows) {
     const prop: DetectedProperty | undefined = row.properties[key];
     if (prop !== undefined) return prop.type;
@@ -162,7 +162,7 @@ function FilterRow({
   filter: ScalarFilter;
   index: number;
   availableProperties: string[];
-  rows: DatabaseRow[];
+  rows: readonly DatabaseRow[];
   onUpdate(index: number, next: ScalarFilter): void;
   onRemove(index: number): void;
 }): JSX.Element {

@@ -11,8 +11,8 @@ import type {
 type SortSpec = NonNullable<DatabaseQuery['sort']>;
 
 type Props = {
-  rows: DatabaseRow[];
-  groups: DatabaseGroup[];
+  rows: readonly DatabaseRow[];
+  groups: readonly DatabaseGroup[];
   totalCount: number;
   /** Property keys to render as columns, in display order. */
   columns: string[];
@@ -63,7 +63,7 @@ function typeBadge(type: PropertyType | 'title'): string {
  * types — the indexer already validated detection, and a stable header
  * type matches the user's mental model of "this column is a date".
  */
-function detectColumnType(rows: DatabaseRow[], key: string): PropertyType | null {
+function detectColumnType(rows: readonly DatabaseRow[], key: string): PropertyType | null {
   for (const row of rows) {
     const prop = row.properties[key];
     if (prop !== undefined) return prop.type;
@@ -257,7 +257,7 @@ export function Table({
 
   // Bucket rows by group key when groupBy is active. Maintain insertion
   // order so rows show up under the first group header that matches.
-  const grouped: Array<{ key: string | null; rows: DatabaseRow[] }> = [];
+  const grouped: Array<{ key: string | null; rows: readonly DatabaseRow[] }> = [];
   if (groupBy !== undefined) {
     const buckets = new Map<string | null, DatabaseRow[]>();
     // Seed buckets from the adapter-provided group order so empty groups
@@ -391,7 +391,7 @@ function GroupSection({
   label: string;
   count: number;
   columnsSpan: number;
-  rows: DatabaseRow[];
+  rows: readonly DatabaseRow[];
   columns: string[];
   columnTypes: Map<string, PropertyType | null>;
   onRowClick(path: string): void;

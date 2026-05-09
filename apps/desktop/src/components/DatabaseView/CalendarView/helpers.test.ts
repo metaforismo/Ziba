@@ -130,4 +130,20 @@ describe('buildMonthGrid', () => {
       expect(c.isCurrentMonth).toBe(false);
     }
   });
+
+  it('survives the European DST fall-back (last Sunday of October)', () => {
+    // 2026-10-25 (Sunday) is the European DST fall-back day. Cell
+    // dates are anchored at noon so the wall clock around 03:00 ↔ 02:00
+    // can never push a cell into the wrong day. Both adjacent days
+    // must appear exactly once in the grid with their expected dates.
+    const cells = buildMonthGrid(2026, 9, [], 'due');
+    const days = cells.filter((c) => c.isCurrentMonth).map((c) => c.date.getDate());
+    // October has 31 days, all of them present.
+    expect(days).toEqual(Array.from({ length: 31 }, (_, i) => i + 1));
+    // And the 25th in particular round-trips correctly.
+    const oct25 = cells.find((c) => c.isCurrentMonth && c.date.getDate() === 25);
+    expect(oct25).toBeDefined();
+    expect(oct25!.date.getMonth()).toBe(9);
+    expect(oct25!.date.getFullYear()).toBe(2026);
+  });
 });

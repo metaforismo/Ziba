@@ -13,15 +13,9 @@
 
 import path from 'node:path';
 import type { NotePath } from '@synapsium/core';
+import type { IpcErrorCode } from '../shared/ipc.js';
 
-export type IpcErrorCode =
-  | 'NO_VAULT'
-  | 'NOT_FOUND'
-  | 'ALREADY_EXISTS'
-  | 'INVALID_PATH'
-  | 'INVALID_QUERY'
-  | 'PERMISSION_DENIED'
-  | 'INTERNAL';
+export type { IpcErrorCode };
 
 /** Thrown by IPC handlers; the channel wrapper translates to a sanitised error. */
 export class IpcError extends Error {

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { DatabaseQuery, DatabaseResult, ScalarFilter } from '../../shared/ipc';
 import { debounce } from '../lib/debounce';
 import { ipc } from '../lib/ipc';
+import { ipcErrorMessage } from '../lib/ipc-error';
 import { DATABASE_QUERY_DEBOUNCE_MS } from '../lib/timings';
 import { useVaultStore } from './vault';
 
@@ -179,7 +180,7 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => {
         });
       } catch (err: unknown) {
         if (seq !== requestSeq) return;
-        const message = err instanceof Error ? err.message : 'Errore sconosciuto';
+        const message = ipcErrorMessage(err);
         set({ loading: false, error: message });
       }
     },

@@ -51,9 +51,15 @@ function handle<C extends keyof IpcRequests>(channel: C, fn: Handler<C>): void {
       return await fn(args);
     } catch (err: unknown) {
       const serialized = toSerializedError(err);
-      // Re-throw an Error: Electron sends `name`/`message` to the renderer.
-      // We attach `code` so the renderer can branch on it via `(e as { code? }).code`.
-      const safeErr = new Error(serialized.message) as Error & { code: IpcErrorCode };
+      // Re-throw an Error: Electron sends `name`/`message`/`stack` plus
+      // own enumerable properties to the renderer. We belt-and-brace by
+      // both attaching `code` and prefixing the message with `[CODE]`,
+      // so the renderer can extract the code reliably even if a future
+      // Electron version tightens its structured-clone policy. See
+      // `extractIpcErrorCode` in `src/lib/ipc-error.ts`.
+      const safeErr = new Error(`[${serialized.code}] ${serialized.message}`) as Error & {
+        code: IpcErrorCode;
+      };
       safeErr.code = serialized.code;
       throw safeErr;
     }

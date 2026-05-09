@@ -3,6 +3,7 @@ import type { JSX, MouseEvent, ReactNode } from 'react';
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
 import type { Note, NotePath } from '@synapsium/core';
 import { ipc } from '../../../lib/ipc';
+import { extractIpcErrorCode, ipcErrorMessage } from '../../../lib/ipc-error';
 import { navigateToNote } from '../../../lib/navigate';
 
 /**
@@ -95,8 +96,7 @@ export function EmbedNodeView(props: NodeViewProps): JSX.Element {
         setState({ kind: 'loaded', path, note });
       } catch (err: unknown) {
         if (cancelled || latestTargetRef.current !== target) return;
-        const message = err instanceof Error ? err.message : 'errore sconosciuto';
-        setState({ kind: 'error', message });
+        setState({ kind: 'error', message: ipcErrorMessage(err) });
       }
     })();
 
@@ -124,15 +124,32 @@ export function EmbedNodeView(props: NodeViewProps): JSX.Element {
     (async (): Promise<void> => {
       try {
         // Use `${target}.md` as the path. v0.4 doesn't infer folders
-        // from the title - the new note lands at the vault root. Users
+        // from the title — the new note lands at the vault root. Users
         // who want a folder can move it via the file tree.
         const newNote = await ipc.createNote({ path: `${target}.md` });
         if (latestTargetRef.current !== target) return;
         setState({ kind: 'loaded', path: newNote.path, note: newNote });
       } catch (err: unknown) {
         if (latestTargetRef.current !== target) return;
-        const message = err instanceof Error ? err.message : 'errore sconosciuto';
-        setState({ kind: 'error', message });
+        // Race-window recovery: between our `resolveTitle` returning
+        // null and our `createNote` call, an external watcher event
+        // (or a parallel "Crea nota" gesture) may have created the
+        // note. Re-resolve and load it instead of surfacing the error.
+        if (extractIpcErrorCode(err) === 'ALREADY_EXISTS') {
+          try {
+            const path = await ipc.resolveTitle({ title: target });
+            if (latestTargetRef.current !== target) return;
+            if (path !== null) {
+              const note = await ipc.loadNote({ path });
+              if (latestTargetRef.current !== target) return;
+              setState({ kind: 'loaded', path, note });
+              return;
+            }
+          } catch {
+            // Fall through to the generic error path.
+          }
+        }
+        setState({ kind: 'error', message: ipcErrorMessage(err) });
       }
     })();
   }, [target]);
@@ -234,16 +251,18 @@ export function EmbedNodeView(props: NodeViewProps): JSX.Element {
  *   - Blockquotes (>)
  *   - Paragraphs
  *   - Inline: **bold**, *italic*, `code`, [text](url)
- *   - Wikilinks `[[Target]]` rendered as a styled span (visual cue
- *     only - clicks bubble up to the wrapper navigation handler).
+ *   - Wikilinks `[[Target]]` and embeds `![[Target]]` rendered as
+ *     styled pills (clicks bubble up to the wrapper handler).
+ *   - Leading frontmatter (`---` block at the very top) is stripped
+ *     before rendering, even though `Note.content` already strips
+ *     it — defensive against ad-hoc callers.
  *
  * Unsupported (rendered as plain text in their paragraph):
  *   - Tables, footnotes, html, setext headings, definition lists,
- *     task lists, frontmatter (caller should strip before calling),
- *     callouts.
+ *     task lists, callouts.
  */
 export function renderPreview(markdown: string): ReactNode {
-  const lines = markdown.split(/\r?\n/);
+  const lines = stripLeadingFrontmatter(markdown).split(/\r?\n/);
   const blocks: ReactNode[] = [];
 
   let i = 0;
@@ -366,6 +385,34 @@ export function renderPreview(markdown: string): ReactNode {
 }
 
 /**
+ * Strip a YAML frontmatter block at the very start of the document.
+ *
+ * `Note.content` is already body-only because `loadNote` runs the
+ * markdown through gray-matter, but `renderPreview` is also exported
+ * and may be fed a raw markdown string from tests or future callers
+ * (e.g. a clipboard paste preview). Doing the strip here makes the
+ * function safe regardless of input source.
+ *
+ * Recognises only the canonical Obsidian/Hugo form: a `---` line as
+ * the first non-empty line, followed by YAML, terminated by `---` or
+ * `...` on its own line. Anything else passes through untouched.
+ */
+function stripLeadingFrontmatter(markdown: string): string {
+  if (!markdown.startsWith('---')) return markdown;
+  const lines = markdown.split(/\r?\n/);
+  if (lines[0] !== '---') return markdown;
+  for (let i = 1; i < lines.length; i++) {
+    const ln = lines[i];
+    if (ln === '---' || ln === '...') {
+      return lines.slice(i + 1).join('\n');
+    }
+  }
+  // Unterminated frontmatter — render as-is rather than blanking the
+  // whole document. Better to show garbled markdown than nothing.
+  return markdown;
+}
+
+/**
  * Inline-level rendering. Returns a flat array of React nodes for the
  * given input string. The order of recognition matters: code spans are
  * pulled out first so emphasis substitution doesn't eat backticked
@@ -393,6 +440,27 @@ function renderInline(input: string): ReactNode {
   while (i < input.length) {
     const c = input[i] ?? '';
     const c2 = input[i + 1] ?? '';
+
+    // Embed `![[Target]]` (must precede the bare wikilink branch so
+    // the leading `!` isn't accumulated as plain text).
+    if (c === '!' && c2 === '[' && input[i + 2] === '[') {
+      const closeIdx = input.indexOf(']]', i + 3);
+      if (closeIdx !== -1) {
+        const inner = input.slice(i + 3, closeIdx);
+        if (!inner.includes('\n') && inner.length > 0) {
+          flush();
+          const pipe = inner.indexOf('|');
+          const display = (pipe === -1 ? inner : inner.slice(pipe + 1)).trim();
+          out.push(
+            <span key={nextKey()} className="synapsium-embed-nested">
+              {`-> ${display}`}
+            </span>,
+          );
+          i = closeIdx + 2;
+          continue;
+        }
+      }
+    }
 
     // Wikilink `[[Target]]` or `[[Target|Alias]]`.
     if (c === '[' && c2 === '[') {

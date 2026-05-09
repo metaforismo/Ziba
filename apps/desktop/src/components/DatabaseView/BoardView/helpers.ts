@@ -29,6 +29,7 @@ export type BoardColumn = {
   id: string;
   label: string;
   value: string | number | boolean | null;
+  /** Mutable during construction (`distributeRows` pushes into it). */
   rows: DatabaseRow[];
 };
 
@@ -64,7 +65,7 @@ export function formatColumnLabel(value: string | number | boolean | null): stri
  * "(senza valore)" column in that case).
  */
 export function detectGroupType(
-  rows: DatabaseRow[],
+  rows: readonly DatabaseRow[],
   groupBy: string,
 ): DetectedProperty['type'] | null {
   for (const row of rows) {
@@ -115,8 +116,8 @@ export function rowColumnIds(row: DatabaseRow, groupBy: string): string[] {
  * still rendered so the user can drop into them.
  */
 export function buildColumns(
-  rows: DatabaseRow[],
-  groups: DatabaseGroup[],
+  rows: readonly DatabaseRow[],
+  groups: readonly DatabaseGroup[],
   groupBy: string,
 ): BoardColumn[] {
   const groupType = detectGroupType(rows, groupBy);
@@ -210,7 +211,11 @@ export function buildColumns(
  * data. We deliberately mutate `columns` in-place so `buildColumns` can
  * keep its single allocation pattern.
  */
-function distributeRows(rows: DatabaseRow[], groupBy: string, columns: BoardColumn[]): void {
+function distributeRows(
+  rows: readonly DatabaseRow[],
+  groupBy: string,
+  columns: BoardColumn[],
+): void {
   const byId = new Map<string, BoardColumn>();
   for (const c of columns) byId.set(c.id, c);
 
@@ -260,7 +265,10 @@ function distributeRows(rows: DatabaseRow[], groupBy: string, columns: BoardColu
  * Returns `null` when no candidate exists. Rendering branches on this:
  * a card without a secondary just shows the title.
  */
-export function pickSecondaryPropertyKey(rows: DatabaseRow[], groupBy: string): string | null {
+export function pickSecondaryPropertyKey(
+  rows: readonly DatabaseRow[],
+  groupBy: string,
+): string | null {
   const counts = new Map<string, number>();
   for (const row of rows) {
     for (const key of Object.keys(row.properties)) {

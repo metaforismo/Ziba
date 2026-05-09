@@ -1,6 +1,7 @@
 import type { Frontmatter, Note, NotePath } from '@synapsium/core';
 import { create } from 'zustand';
 import { ipc } from '../lib/ipc';
+import { ipcErrorMessage } from '../lib/ipc-error';
 
 type EditorState = {
   currentPath: NotePath | null;
@@ -93,7 +94,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         lastSaveError: null,
       });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Errore sconosciuto';
+      const message = ipcErrorMessage(err);
       set({ lastSaveError: message });
     }
   },

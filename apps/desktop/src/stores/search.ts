@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { SearchHit } from '../../shared/ipc';
 import { debounce } from '../lib/debounce';
 import { ipc } from '../lib/ipc';
+import { ipcErrorMessage } from '../lib/ipc-error';
 import { SEARCH_DEBOUNCE_MS } from '../lib/timings';
 import { useEditorStore } from './editor';
 
@@ -105,7 +106,7 @@ export const useSearchStore = create<SearchState>((set, get) => {
         set({ results, loading: false, error: null, selectedIndex: 0 });
       } catch (err: unknown) {
         if (seq !== requestSeq) return;
-        const message = err instanceof Error ? err.message : 'Errore sconosciuto';
+        const message = ipcErrorMessage(err);
         set({ results: [], loading: false, error: message });
       }
     },

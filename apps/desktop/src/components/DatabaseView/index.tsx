@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { JSX } from 'react';
 import type { NotePath } from '@synapsium/core';
-import type { DatabaseQuery } from '../../../shared/ipc';
+import type { DatabaseGroup, DatabaseQuery, DatabaseRow } from '../../../shared/ipc';
 import { useDatabaseStore } from '../../stores/database';
 import { navigateToNote } from '../../lib/navigate';
 import { useUiStore, type DatabaseViewMode } from '../../stores/ui';
@@ -18,6 +18,12 @@ import { Table } from './Table';
  * column without forcing horizontal scroll on first paint.
  */
 const DEFAULT_VISIBLE_COLUMN_COUNT = 5;
+
+// Frozen empty fallbacks — see BoardView/CalendarView for the same
+// reasoning (avoid per-render `[]` allocations driving downstream
+// memo invalidations).
+const EMPTY_ROWS: readonly DatabaseRow[] = Object.freeze([]);
+const EMPTY_GROUPS: readonly DatabaseGroup[] = Object.freeze([]);
 
 /** Locale-aware "last updated at" formatter (HH:MM:SS). */
 const TIME_FORMATTER = new Intl.DateTimeFormat('it', {
@@ -108,8 +114,8 @@ export function DatabaseView(): JSX.Element {
 
   const filters = useMemo(() => query.filters ?? [], [query.filters]);
 
-  const rows = result?.rows ?? [];
-  const groups = result?.groups ?? [];
+  const rows = result?.rows ?? EMPTY_ROWS;
+  const groups = result?.groups ?? EMPTY_GROUPS;
   const totalCount = result?.totalCount ?? 0;
   const noteCountLabel = totalCount === 1 ? '1 nota' : `${totalCount} note`;
 

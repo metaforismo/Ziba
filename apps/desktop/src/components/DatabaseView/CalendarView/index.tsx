@@ -7,13 +7,20 @@ import { useDatabaseStore } from '../../../stores/database';
 import { MonthGrid } from './MonthGrid';
 import { buildMonthGrid, formatMonthTitle } from './helpers';
 
+// Module-level frozen empty array. `useMemo(() => result?.rows ?? [])`
+// looks stable but every fresh `[]` produced when `result` is null
+// causes downstream `useMemo`s to recompute (their array dep churns
+// on every render even though the value is "no data" both times).
+// Sharing one frozen instance keeps reference equality across renders.
+const EMPTY_ROWS: readonly DatabaseRow[] = Object.freeze([]);
+
 /**
  * Detect whether a property key resolves to a `date`-typed property
  * across the rows. Uses the same first-non-empty heuristic as the
  * Table view's column-type detection — a stable type per key matches
  * how the indexer enforces detection at write time.
  */
-function detectGroupByType(rows: DatabaseRow[], key: string): PropertyType | null {
+function detectGroupByType(rows: readonly DatabaseRow[], key: string): PropertyType | null {
   for (const row of rows) {
     const prop = row.properties[key];
     if (prop !== undefined) return prop.type;
@@ -42,10 +49,7 @@ export function CalendarView(): JSX.Element {
     month: today.getMonth(),
   }));
 
-  // Stabilise `rows` so the `useMemo` deps below don't change on every
-  // render when `result` is null (the `?? []` fallback would allocate a
-  // fresh empty array each time).
-  const rows = useMemo(() => result?.rows ?? [], [result]);
+  const rows = result?.rows ?? EMPTY_ROWS;
 
   // Detect the groupBy property's type. Empty / missing / non-date →
   // we render the empty-state and bail out of the rest of the work.
