@@ -31,6 +31,7 @@ import {
   applyFrontmatterPatch,
   buildColumns,
   buildFrontmatterAfterMove,
+  detectGroupType,
   pickSecondaryPropertyKey,
 } from './helpers';
 
@@ -84,6 +85,14 @@ export function BoardView(): JSX.Element {
     return buildColumns(rows, groups, groupBy);
   }, [rows, groups, groupBy]);
 
+  // Detected from the column set, NOT the source row — a row in the
+  // null bucket has no property of its own but the column itself is
+  // typed (e.g. multi-select). This drives the drop-handler's branch.
+  const groupType = useMemo(() => {
+    if (groupBy === undefined || groupBy === '') return null;
+    return detectGroupType(rows, groupBy);
+  }, [rows, groupBy]);
+
   const secondaryKey = useMemo<string | null>(() => {
     if (groupBy === undefined || groupBy === '') return null;
     return pickSecondaryPropertyKey(rows, groupBy);
@@ -120,6 +129,7 @@ export function BoardView(): JSX.Element {
       const patch = buildFrontmatterAfterMove({
         row,
         groupBy,
+        groupType,
         fromColumnId,
         toColumn,
       });
@@ -141,7 +151,7 @@ export function BoardView(): JSX.Element {
           setSavingPath((cur) => (cur === path ? null : cur));
         });
     },
-    [draggingPath, draggingFromColumn, groupBy, rows],
+    [draggingPath, draggingFromColumn, groupBy, groupType, rows],
   );
 
   // ---- Render branches ----------------------------------------------------

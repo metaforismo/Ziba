@@ -6,6 +6,18 @@ Il formato si basa su [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e
 
 ## [Unreleased]
 
+### v0.4 Added
+
+- **Database sub-views** (`databaseViewMode` in `useUiStore`): tabs Tabella / Board / Calendario nel Database header. Stessa query (filtri/sort/groupBy/folder), tre visualizzazioni.
+- **Board view (kanban)** (`components/DatabaseView/BoardView/`) — colonne raggruppate per `groupBy` property, drag-and-drop HTML5 nativo (no nuova dep). Drop su una colonna aggiorna il frontmatter via `ipc.saveNote` (replace per scalari, splice per array). "(senza valore)" column sempre presente per cancellare la property. Multi-select (`string-array`): card appare in tutte le colonne dei suoi tag. +30 unit test in `helpers.test.ts`.
+- **Calendar view** (`components/DatabaseView/CalendarView/`) — griglia mensile Lun-Dom italiano. Buckets le note per ISO date in `properties[groupBy]`. Header con prev/next/Oggi. Each cell up to 3 note pills + "+N altre". Today accent-bordered, out-of-month dimmed. DST-safe + reject calendar-invalid ISO. +12 unit test.
+- **Embed block** (`Editor/extensions/Embed.ts` + `EmbedNodeView.tsx`) — `![[Target]]` Tiptap atomic node con React node view che lazy-loada il target via `ipc.resolveTitle` + `ipc.loadNote`. Markdown roundtrip Obsidian-compatible. Hand-rolled markdown preview renderer (~150 righe, no nuova dep — usa solo escape via React). Stati: loading / not-found (con "Crea nota" CTA) / error (con Riprova). Click → `navigateToNote`. Slash menu entry `↪ Embed nota`.
+- **Math (KaTeX)** (`Editor/extensions/MathBlock.ts` + `MathInline.ts` + `MathRenderer.tsx`) — `$$..$$` block + `$..$` inline. Tiptap atomic nodes con React node view. KaTeX `renderToString` con `throwOnError: false`. Click → live-preview textarea editor (Cmd+Enter commit, Esc revert, blur fallback commit). Markdown roundtrip via markdown-it block + inline rules con guards Pandoc-style anti-currency-falsi-positivi. Slash menu entries `∑ Formula matematica` (block) e `𝑥 Formula inline`. Nuova dep runtime: `katex@^0.16.11` + `@types/katex@^0.16.7`.
+- **`navigateToNote(path)`** in `lib/navigate.ts` — shared switch-view + open helper, riusato da DatabaseView (Table/Board) e GlobalGraph. Uno spot per evolvere a toast-based error surface.
+- **`lib/graph-tuning.ts`** — costanti del global graph estratte (CANVAS_W/H, ZOOM_MIN/MAX, FIT_PADDING, LARGE_THRESHOLD, LABEL_TOP_DEGREE_QUANTILE, DIM_OPACITY) parallela a `lib/timings.ts`.
+
+Total tests: **232** (140 core + 92 desktop). Was 190 in v0.3.
+
 ### Added
 
 - **Renderer test suite Vitest + jsdom** in `apps/desktop` (`vitest.config.ts`, `src/test/setup.ts`, `src/test/mock-ipc.ts`). 50 test cases coprono `useSearchStore` (debounce 150ms, coalesce di rapid setQuery, sequence-number guard su risposte out-of-order, chooseSelected che apre nota + chiude palette, errori IPC), `useDatabaseStore` (mutator filtri, debounce 200ms, sequence-number guard, sottoscrizione vault con vault-switch e vault-close), `useTagsStore` (refresh, selectTag con last-click-wins, applyVaultEvent debounced, modulo-level subscription a `useVaultStore`), `useUiStore` (clamping width, toggle persistence, validator `loadPersisted` con localStorage corrotto / type-mismatch / clamp), e `lib/debounce.ts` (cancel/flush/trailing-edge invariants). Mock `window.synapsium` via `installMockIpc()` con stub returns + `vi.fn()` spies per ogni canale + simulazione push events. Total project test count: **190** (140 core + 50 desktop).

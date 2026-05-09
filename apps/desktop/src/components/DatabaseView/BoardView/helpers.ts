@@ -300,10 +300,17 @@ export function pickSecondaryPropertyKey(rows: DatabaseRow[], groupBy: string): 
 export function buildFrontmatterAfterMove(args: {
   row: DatabaseRow;
   groupBy: string;
+  /**
+   * Type of the property as detected from the column set (not the source
+   * row's own property — a row may sit in the "(senza valore)" bucket
+   * with no value, while the column itself is multi-select). Pass the
+   * result of {@link detectGroupType} from the call site.
+   */
+  groupType: DetectedProperty['type'] | null;
   fromColumnId: string;
   toColumn: BoardColumn;
 }): Frontmatter | null {
-  const { row, groupBy, fromColumnId, toColumn } = args;
+  const { row, groupBy, groupType, fromColumnId, toColumn } = args;
 
   // Same column → no-op. The view also short-circuits on this, but
   // returning `null` here makes the helper safe to call unconditionally.
@@ -315,10 +322,15 @@ export function buildFrontmatterAfterMove(args: {
   // caller is responsible for loading the note's frontmatter and merging
   // via {@link applyFrontmatterPatch}.
   const prop = row.properties[groupBy];
-  const isArray = prop?.type === 'string-array';
+  // Branch on the COLUMN type, not the row's own property type. A row
+  // sitting in the null bucket has `prop === undefined`; we still need
+  // to write an array if the column is string-array (otherwise we'd
+  // corrupt frontmatter as `tags: 'work'` instead of `tags: ['work']`).
+  const isArray = groupType === 'string-array';
 
   if (isArray) {
-    const current = prop.value;
+    // Source array: empty when the row had no value at all.
+    const current = prop?.type === 'string-array' ? prop.value : [];
     if (toColumn.value === null) {
       // Drop on null bucket: clear the property entirely.
       return { [groupBy]: PATCH_DELETE };

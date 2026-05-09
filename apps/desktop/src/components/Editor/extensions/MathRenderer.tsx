@@ -1,4 +1,3 @@
-// TODO: register MathBlockExtension + MathInlineExtension in EditorExtensions.ts
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
 import katex from 'katex';
@@ -50,6 +49,13 @@ function renderKatex(formula: string, displayMode: boolean): string | null {
     throwOnError: false,
     errorColor: '#ef4444',
     output: 'html',
+    // Defence in depth against KaTeX commands that historically had CVEs
+    // (e.g. `\href`, `\htmlClass`). `trust: false` is the default but we
+    // pin it explicitly so a future KaTeX upgrade can't silently flip
+    // the default. `strict: 'ignore'` keeps malformed input rendering
+    // instead of throwing past the safety net.
+    trust: false,
+    strict: 'ignore',
   });
 }
 
@@ -189,6 +195,14 @@ function createMathNodeView({
       // these inside a NodeViewWrapper so ProseMirror still owns the
       // outer DOM node — that way arrow keys and selection updates
       // continue to behave correctly when the user exits edit mode.
+      //
+      // For inline math (Wrapper === 'span') we MUST keep every
+      // descendant inline too — a <div> inside a <span> is invalid HTML
+      // and the browser auto-closes the span, breaking ProseMirror's
+      // atom invariant. We use <span> elements with utility classes
+      // for layout instead.
+      const Container = Wrapper;
+      const Editor = Wrapper;
       return (
         <NodeViewWrapper
           as={Wrapper}
@@ -197,32 +211,55 @@ function createMathNodeView({
           data-math-block={displayMode ? '' : undefined}
           data-math-inline={displayMode ? undefined : ''}
         >
-          <div className="synapsium-math-editor">
-            <div className="synapsium-math-preview">
+          <Container
+            className={
+              displayMode
+                ? 'synapsium-math-editor synapsium-math-editor--block'
+                : 'synapsium-math-editor synapsium-math-editor--inline'
+            }
+          >
+            <Editor className="synapsium-math-preview">
               {previewMarkup === null ? (
                 <span className="synapsium-math-placeholder">{placeholder}</span>
               ) : (
                 <span dangerouslySetInnerHTML={previewMarkup} />
               )}
-            </div>
-            <textarea
-              ref={textareaRef}
-              className="synapsium-math-textarea"
-              value={draft}
-              onChange={(e): void => setDraft(e.target.value)}
-              onKeyDown={onKeyDown}
-              onBlur={(): void => {
-                // Commit on blur so a stray click outside doesn't strand
-                // the user in edit mode. Inline math without commit
-                // would otherwise look broken (the textarea floats over
-                // the next paragraph).
-                commit();
-              }}
-              rows={displayMode ? 3 : 1}
-              spellCheck={false}
-              placeholder="LaTeX (e.g. x^2 + y^2 = z^2)"
-            />
-          </div>
+            </Editor>
+            {/* The block editor uses a multi-line <textarea>; the inline
+                editor uses a single-line <input> so it stays in flow with
+                the paragraph (and so onKeyDown's Enter behaviour matches
+                "commit" intent rather than "newline"). */}
+            {displayMode ? (
+              <textarea
+                ref={textareaRef as React.RefObject<HTMLTextAreaElement>}
+                className="synapsium-math-textarea"
+                value={draft}
+                onChange={(e): void => setDraft(e.target.value)}
+                onKeyDown={onKeyDown}
+                onBlur={(): void => commit()}
+                rows={3}
+                spellCheck={false}
+                placeholder="LaTeX (e.g. x^2 + y^2 = z^2)"
+              />
+            ) : (
+              <input
+                type="text"
+                ref={textareaRef as unknown as React.RefObject<HTMLInputElement>}
+                className="synapsium-math-input"
+                value={draft}
+                onChange={(e): void => setDraft(e.target.value)}
+                // The shared `onKeyDown` is typed against
+                // `HTMLTextAreaElement` (the original block-only path).
+                // The handler doesn't read textarea-specific fields, so a
+                // cast is safe here — the key codes it inspects exist on
+                // both elements.
+                onKeyDown={onKeyDown as unknown as React.KeyboardEventHandler<HTMLInputElement>}
+                onBlur={(): void => commit()}
+                spellCheck={false}
+                placeholder="x^2 + y^2"
+              />
+            )}
+          </Container>
         </NodeViewWrapper>
       );
     }

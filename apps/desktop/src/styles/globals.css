@@ -379,17 +379,30 @@ body {
   outline: 1px solid rgb(var(--accent) / 0.4);
 }
 
-.synapsium-math-editor {
+.synapsium-math-editor--block {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+}
+
+/*
+ * The inline editor must remain inline so the surrounding paragraph
+ * doesn't collapse. We use inline-flex with a small gap so the live
+ * preview sits next to the input field on the same baseline.
+ */
+.synapsium-math-editor--inline {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  vertical-align: baseline;
 }
 
 .synapsium-math-preview {
   min-height: 1.2em;
 }
 
-.synapsium-math-textarea {
+.synapsium-math-textarea,
+.synapsium-math-input {
   width: 100%;
   padding: 0.4rem 0.5rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -399,10 +412,18 @@ body {
   color: rgb(var(--fg));
   border: 1px solid rgb(var(--border));
   border-radius: 0.25rem;
-  resize: vertical;
   outline: none;
 }
-.synapsium-math-textarea:focus {
+.synapsium-math-textarea {
+  resize: vertical;
+}
+.synapsium-math-input {
+  width: auto;
+  min-width: 12rem;
+  padding: 0.2rem 0.4rem;
+}
+.synapsium-math-textarea:focus,
+.synapsium-math-input:focus {
   border-color: rgb(var(--accent));
   box-shadow: 0 0 0 2px rgb(var(--accent) / 0.2);
 }

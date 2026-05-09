@@ -71,6 +71,13 @@ I tuoi dati restano file `.md` con frontmatter YAML sul tuo disco. Sincronizzabi
 - 💡 **Callout block** — Tiptap node con 6 kinds (note, info, tip, warning, danger, success). Markdown roundtrip Obsidian-compatible (`> [!kind]`).
 - 🔢 **Typed property index** — ogni frontmatter property estratta in colonne SQLite tipizzate per query veloci
 
+### v0.4 — DB sub-views + blocchi avanzati (✅ shipped)
+
+- 📋 **Board view (kanban)** — sub-mode del Database: colonne raggruppate per property, drag-and-drop per spostare le note tra colonne. Aggiorna direttamente il frontmatter sul disco. Multi-select friendly (string-array).
+- 🗓️ **Calendar view** — sub-mode del Database: griglia mensile italiana (Lun-Dom), navigazione prev/next/oggi, note posizionate nel giorno della loro property data. Click → apre.
+- ↪️ **Embed block** — `![[Nota]]` mostra il contenuto di un'altra nota inline (read-only). Markdown roundtrip Obsidian-compatible. Lazy-load del target.
+- ∑ **Math (KaTeX)** — formule LaTeX con `$$..$$` block e `$..$` inline. Click sul rendering → editor LaTeX live preview. Markdown roundtrip nativo.
+
 ### In arrivo
 
 Vedi la [roadmap](#roadmap).
@@ -188,9 +195,10 @@ pnpm --filter synapsium-desktop run dist:linux   # AppImage + .deb
 |---|---|---|
 | ✅ v0.1 | Foundation desktop | Vault + editor + wikilink + backlink + watcher |
 | ✅ v0.2 | Power editing | Search FTS5 (Cmd+K), property editor, tag system, slash menu, mini-graph |
-| ✅ v0.3 | Database & graph (table view + global graph + callout) | Database table view, grafo globale interattivo, callout block proper |
-| v0.4 (next) | DB views complete + blocchi | Kanban view, calendar view, embed `![[...]]`, equation `$$...$$` (KaTeX) |
-| v1.0 | Multi-piattaforma | Web app, plugin system base, sync via filesystem-cloud (Dropbox/iCloud/Drive) |
+| ✅ v0.3 | Database & graph | Database table view, grafo globale interattivo, callout block proper |
+| ✅ v0.4 | DB sub-views + blocchi | Kanban view, calendar view, embed `![[...]]`, math (KaTeX) `$$...$$` |
+| v0.5 (next) | Polish + power-user | Property drag handles, theme switcher, Sidebar refactor, plugin system foundation |
+| v1.0 | Multi-piattaforma | Web app, plugin system, sync via filesystem-cloud (Dropbox/iCloud/Drive) |
 | v1.x | AI native | Embeddings locali, semantic search, auto-link suggestions, Q&A sul vault, agent organizzativi |
 | v1.5+ | Mobile | Expo app (iOS/Android), sync server custom |
 

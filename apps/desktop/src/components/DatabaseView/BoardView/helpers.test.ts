@@ -189,6 +189,7 @@ describe('buildFrontmatterAfterMove', () => {
     const patch = buildFrontmatterAfterMove({
       row: r,
       groupBy: 'status',
+      groupType: 'text',
       fromColumnId: 's:todo',
       toColumn: { id: 's:todo', label: 'todo', value: 'todo', rows: [] },
     });
@@ -201,6 +202,7 @@ describe('buildFrontmatterAfterMove', () => {
       const patch = buildFrontmatterAfterMove({
         row: r,
         groupBy: 'status',
+        groupType: 'text',
         fromColumnId: 's:todo',
         toColumn: { id: 's:doing', label: 'doing', value: 'doing', rows: [] },
       });
@@ -212,6 +214,7 @@ describe('buildFrontmatterAfterMove', () => {
       const patch = buildFrontmatterAfterMove({
         row: r,
         groupBy: 'status',
+        groupType: 'text',
         fromColumnId: 's:todo',
         toColumn: { id: NULL_COLUMN_ID, label: NULL_COLUMN_LABEL, value: null, rows: [] },
       });
@@ -223,6 +226,7 @@ describe('buildFrontmatterAfterMove', () => {
       const patch = buildFrontmatterAfterMove({
         row: r,
         groupBy: 'status',
+        groupType: 'text',
         fromColumnId: NULL_COLUMN_ID,
         toColumn: { id: 's:doing', label: 'doing', value: 'doing', rows: [] },
       });
@@ -236,6 +240,7 @@ describe('buildFrontmatterAfterMove', () => {
       const patch = buildFrontmatterAfterMove({
         row: r,
         groupBy: 'tags',
+        groupType: 'string-array',
         fromColumnId: 's:a',
         toColumn: { id: 's:c', label: 'c', value: 'c', rows: [] },
       });
@@ -247,6 +252,7 @@ describe('buildFrontmatterAfterMove', () => {
       const patch = buildFrontmatterAfterMove({
         row: r,
         groupBy: 'tags',
+        groupType: 'string-array',
         fromColumnId: NULL_COLUMN_ID,
         toColumn: { id: 's:b', label: 'b', value: 'b', rows: [] },
       });
@@ -258,6 +264,7 @@ describe('buildFrontmatterAfterMove', () => {
       const patch = buildFrontmatterAfterMove({
         row: r,
         groupBy: 'tags',
+        groupType: 'string-array',
         fromColumnId: NULL_COLUMN_ID,
         toColumn: { id: 's:b', label: 'b', value: 'b', rows: [] },
       });
@@ -269,6 +276,7 @@ describe('buildFrontmatterAfterMove', () => {
       const patch = buildFrontmatterAfterMove({
         row: r,
         groupBy: 'tags',
+        groupType: 'string-array',
         fromColumnId: 's:a',
         toColumn: { id: 's:b', label: 'b', value: 'b', rows: [] },
       });
@@ -280,10 +288,27 @@ describe('buildFrontmatterAfterMove', () => {
       const patch = buildFrontmatterAfterMove({
         row: r,
         groupBy: 'tags',
+        groupType: 'string-array',
         fromColumnId: 's:a',
         toColumn: { id: NULL_COLUMN_ID, label: NULL_COLUMN_LABEL, value: null, rows: [] },
       });
       expect(patch).toEqual({ tags: PATCH_DELETE });
+    });
+
+    it('writes an array even when the source row had no value (the audit #1 bug)', () => {
+      // Row has no `tags` key at all → previously the helper fell through
+      // to the scalar branch and wrote `tags: 'work'` (string), corrupting
+      // the multi-select. With groupType pinned to 'string-array' it
+      // correctly writes `tags: ['work']`.
+      const r = row('a.md', {});
+      const patch = buildFrontmatterAfterMove({
+        row: r,
+        groupBy: 'tags',
+        groupType: 'string-array',
+        fromColumnId: NULL_COLUMN_ID,
+        toColumn: { id: 's:work', label: 'work', value: 'work', rows: [] },
+      });
+      expect(patch).toEqual({ tags: ['work'] });
     });
   });
 });
