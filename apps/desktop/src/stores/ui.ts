@@ -16,6 +16,14 @@ export type RightPaneTab = 'backlinks' | 'graph';
  */
 export type MainView = 'editor' | 'database' | 'graph';
 
+/**
+ * Sub-mode within the Database view. The same query (filters / sort /
+ * groupBy) can be visualized as a sortable table (v0.3), a kanban-style
+ * board grouped by a single property (v0.4), or a monthly calendar
+ * grouped by a date property (v0.4). One DatabaseQuery, multiple shapes.
+ */
+export type DatabaseViewMode = 'table' | 'board' | 'calendar';
+
 type Persisted = {
   sidebarWidth: number;
   backlinksWidth: number;
@@ -37,6 +45,12 @@ type Persisted = {
   rightPaneTab: RightPaneTab;
   /** Top-level view (editor / database / graph). Persisted across reloads. */
   mainView: MainView;
+  /**
+   * Active sub-mode of the database view. Persisted independently of
+   * `mainView` so swapping back to the database view restores the user's
+   * preferred visualization without forcing a re-pick.
+   */
+  databaseViewMode: DatabaseViewMode;
 };
 
 const DEFAULTS: Persisted = {
@@ -47,6 +61,7 @@ const DEFAULTS: Persisted = {
   tagsExpanded: true,
   rightPaneTab: 'backlinks',
   mainView: 'editor',
+  databaseViewMode: 'table',
 };
 
 function isRightPaneTab(v: unknown): v is RightPaneTab {
@@ -55,6 +70,10 @@ function isRightPaneTab(v: unknown): v is RightPaneTab {
 
 function isMainView(v: unknown): v is MainView {
   return v === 'editor' || v === 'database' || v === 'graph';
+}
+
+function isDatabaseViewMode(v: unknown): v is DatabaseViewMode {
+  return v === 'table' || v === 'board' || v === 'calendar';
 }
 
 const MIN_SIDEBAR = 160;
@@ -95,6 +114,9 @@ function loadPersisted(): Persisted {
       tagsExpanded: typeof p.tagsExpanded === 'boolean' ? p.tagsExpanded : DEFAULTS.tagsExpanded,
       rightPaneTab: isRightPaneTab(p.rightPaneTab) ? p.rightPaneTab : DEFAULTS.rightPaneTab,
       mainView: isMainView(p.mainView) ? p.mainView : DEFAULTS.mainView,
+      databaseViewMode: isDatabaseViewMode(p.databaseViewMode)
+        ? p.databaseViewMode
+        : DEFAULTS.databaseViewMode,
     };
   } catch {
     return DEFAULTS;
@@ -120,6 +142,7 @@ type UiState = Persisted & {
   toggleTags(): void;
   setRightPaneTab(tab: RightPaneTab): void;
   setMainView(view: MainView): void;
+  setDatabaseViewMode(mode: DatabaseViewMode): void;
 };
 
 export const useUiStore = create<UiState>((set, get) => {
@@ -134,6 +157,7 @@ export const useUiStore = create<UiState>((set, get) => {
       tagsExpanded,
       rightPaneTab,
       mainView,
+      databaseViewMode,
     } = get();
     savePersisted({
       sidebarWidth,
@@ -143,6 +167,7 @@ export const useUiStore = create<UiState>((set, get) => {
       tagsExpanded,
       rightPaneTab,
       mainView,
+      databaseViewMode,
     });
   };
 
@@ -191,6 +216,11 @@ export const useUiStore = create<UiState>((set, get) => {
     setMainView(view) {
       if (get().mainView === view) return;
       set({ mainView: view });
+      persist();
+    },
+    setDatabaseViewMode(mode) {
+      if (get().databaseViewMode === mode) return;
+      set({ databaseViewMode: mode });
       persist();
     },
   };

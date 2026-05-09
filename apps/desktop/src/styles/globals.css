@@ -1,3 +1,16 @@
+/*
+ * KaTeX core CSS. Bundles the math typography rules and the WOFF2
+ * fonts under `katex/dist/fonts/`. Vite resolves the relative font
+ * URLs out of `node_modules/katex/dist/` automatically.
+ *
+ * Must precede the `@tailwind` directives because CSS spec requires
+ * `@import` rules to come before any other rule (besides `@charset`).
+ * Imported once at the top of the app stylesheet so the styles are
+ * available to every Tiptap-rendered math node — both the editor
+ * itself and any future read-only preview surface.
+ */
+@import 'katex/dist/katex.min.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -325,4 +338,217 @@ body {
 }
 .synapsium-callout-quote::before {
   content: '❝';
+}
+
+/*
+ * Math nodes (v0.4). Block math (`$$..$$`) renders centered with a
+ * little vertical breathing room; inline math (`$..$`) flows with the
+ * surrounding text. Both nodes render KaTeX HTML inside via the React
+ * node view in `extensions/MathRenderer.tsx`. Hover hints at the
+ * click-to-edit affordance.
+ *
+ * Errors come from KaTeX's `throwOnError: false` mode — the library
+ * emits a `<span class="katex-error">` colored via the `errorColor`
+ * option we pass in. We add `.synapsium-math-error` for any future
+ * post-processing (currently unused but kept as the documented hook
+ * for tweaking error styling outside of KaTeX defaults).
+ */
+.synapsium-math-block {
+  text-align: center;
+  margin: 0.75rem 0;
+  padding: 0.5rem;
+  border-radius: 0.25rem;
+  cursor: text;
+}
+.synapsium-math-block:hover {
+  background: rgb(var(--bg-muted) / 0.5);
+}
+
+.synapsium-math-inline {
+  cursor: text;
+}
+.synapsium-math-inline:hover {
+  background: rgb(var(--bg-muted) / 0.5);
+  border-radius: 0.125rem;
+}
+
+/* Editing mode container — overrides hover background so the textarea
+   stays readable. */
+.synapsium-math--editing {
+  background: rgb(var(--bg-subtle));
+  outline: 1px solid rgb(var(--accent) / 0.4);
+}
+
+.synapsium-math-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.synapsium-math-preview {
+  min-height: 1.2em;
+}
+
+.synapsium-math-textarea {
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  background: rgb(var(--bg));
+  color: rgb(var(--fg));
+  border: 1px solid rgb(var(--border));
+  border-radius: 0.25rem;
+  resize: vertical;
+  outline: none;
+}
+.synapsium-math-textarea:focus {
+  border-color: rgb(var(--accent));
+  box-shadow: 0 0 0 2px rgb(var(--accent) / 0.2);
+}
+
+.synapsium-math-placeholder {
+  color: rgb(var(--fg-muted));
+  font-style: italic;
+  font-size: 0.9em;
+}
+
+.synapsium-math-error,
+.synapsium-math-block .katex-error,
+.synapsium-math-inline .katex-error {
+  color: rgb(239 68 68);
+  font-family: ui-monospace, monospace;
+  font-size: 0.85em;
+}
+
+/*
+ * Embed (transclusion) block. Renders another note's content inline
+ * as a read-only preview. The whole wrapper is clickable - clicking
+ * navigates to the embedded note. The header carries the target
+ * label and an explicit "Apri" affordance.
+ *
+ * v0.4 keeps the styling deliberately simple (no shadow, no fancy
+ * states) so the embed reads as a "card" without competing for
+ * attention with the surrounding prose.
+ */
+.synapsium-embed {
+  border: 1px solid rgb(var(--border));
+  border-radius: 0.375rem;
+  margin: 0.75rem 0;
+  background: rgb(var(--bg-subtle));
+  cursor: pointer;
+  overflow: hidden;
+}
+.synapsium-embed:hover {
+  border-color: rgb(var(--accent) / 0.6);
+}
+.synapsium-embed-header {
+  padding: 0.4rem 0.75rem;
+  border-bottom: 1px solid rgb(var(--border));
+  font-size: 0.75rem;
+  color: rgb(var(--fg-muted));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.synapsium-embed-header-title {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.synapsium-embed-open,
+.synapsium-embed-retry,
+.synapsium-embed-create {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 0.25rem;
+  border: 1px solid rgb(var(--border));
+  background: rgb(var(--bg));
+  color: rgb(var(--fg-subtle));
+  cursor: pointer;
+}
+.synapsium-embed-open:hover,
+.synapsium-embed-retry:hover,
+.synapsium-embed-create:hover {
+  background: rgb(var(--accent) / 0.12);
+  color: rgb(var(--accent));
+  border-color: rgb(var(--accent) / 0.6);
+}
+.synapsium-embed-body {
+  padding: 0.75rem;
+  font-size: 0.875rem;
+  color: rgb(var(--fg-subtle));
+  max-height: 320px;
+  overflow-y: auto;
+}
+.synapsium-embed-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  color: rgb(var(--fg-muted));
+  font-style: italic;
+}
+.synapsium-embed-status--error {
+  color: rgb(239 68 68);
+  font-style: normal;
+}
+.synapsium-embed-status--missing {
+  color: rgb(var(--fg-muted));
+  font-style: normal;
+}
+.synapsium-embed-preview {
+  /* Inner preview content. We tone down headings so a level-1 inside
+   * the embed doesn't dominate over the host page's headings, and
+   * collapse default top/bottom margins so the preview hugs the
+   * embed body padding. */
+  line-height: 1.5;
+}
+.synapsium-embed-preview > *:first-child {
+  margin-top: 0;
+}
+.synapsium-embed-preview > *:last-child {
+  margin-bottom: 0;
+}
+.synapsium-embed-preview h1,
+.synapsium-embed-preview h2,
+.synapsium-embed-preview h3,
+.synapsium-embed-preview h4,
+.synapsium-embed-preview h5,
+.synapsium-embed-preview h6 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0.5rem 0 0.25rem 0;
+  color: rgb(var(--fg));
+}
+.synapsium-embed-preview p {
+  margin: 0.25rem 0;
+}
+.synapsium-embed-preview ul,
+.synapsium-embed-preview ol {
+  margin: 0.25rem 0;
+  padding-left: 1.25rem;
+}
+.synapsium-embed-preview blockquote {
+  margin: 0.25rem 0;
+  padding-left: 0.75rem;
+  border-left: 2px solid rgb(var(--border));
+  color: rgb(var(--fg-muted));
+}
+.synapsium-embed-preview pre {
+  margin: 0.25rem 0;
+  padding: 0.4rem 0.6rem;
+  background: rgb(var(--bg-muted));
+  border-radius: 0.25rem;
+  font-size: 0.8rem;
+  overflow-x: auto;
+}
+.synapsium-embed-preview code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+}
+.synapsium-embed-wikilink {
+  color: rgb(var(--accent));
+  font-weight: 500;
 }

@@ -2,6 +2,9 @@ import type { Extensions } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import { Markdown } from 'tiptap-markdown';
 import { CalloutExtension } from './extensions/Callout';
+import { EmbedExtension } from './extensions/Embed';
+import { MathBlockExtension } from './extensions/MathBlock';
+import { MathInlineExtension } from './extensions/MathInline';
 import { SlashCommandExtension, type SlashCommandRenderer } from './extensions/SlashCommand';
 import { TagMarkExtension } from './extensions/TagMark';
 import { Wikilink } from './extensions/Wikilink';
@@ -62,6 +65,19 @@ export function buildEditorExtensions(options: BuildExtensionsOptions): Extensio
     // is a `div[data-callout]` selector, which doesn't overlap with
     // blockquote's tag matcher.
     CalloutExtension,
+    // Block-level embed (transclusion) node. Order matters relative to
+    // Markdown (must come before, like every other custom node) so
+    // tiptap-markdown picks up its `addStorage().markdown` hooks. Order
+    // vs Wikilink/Callout is irrelevant - the embed parse rule scans
+    // paragraph triplets after block parsing, and its `synapsiumEmbedRegistered`
+    // guard keeps it idempotent.
+    EmbedExtension,
+    // KaTeX math nodes. Both register a markdown-it rule (block: `$$..$$`,
+    // inline: `$..$`) and a serialise hook before Markdown picks them up.
+    // Inline pos: must come before Markdown so tiptap-markdown's parser
+    // sees their inline rule registration.
+    MathBlockExtension,
+    MathInlineExtension,
     // Slash-command menu. Order doesn't matter relative to the other
     // extensions: the suggestion plugin manages its own decoration set
     // and never collides with the wikilink trigger (`/` vs `[[`).

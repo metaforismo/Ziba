@@ -4,7 +4,10 @@ import type { NotePath } from '@synapsium/core';
 import type { DatabaseQuery } from '../../../shared/ipc';
 import { useDatabaseStore } from '../../stores/database';
 import { navigateToNote } from '../../lib/navigate';
+import { useUiStore, type DatabaseViewMode } from '../../stores/ui';
 import { useVaultStore } from '../../stores/vault';
+import { BoardView } from './BoardView';
+import { CalendarView } from './CalendarView';
 import { ColumnPicker } from './ColumnPicker';
 import { FilterBar } from './FilterBar';
 import { Table } from './Table';
@@ -54,6 +57,8 @@ export function DatabaseView(): JSX.Element {
   const subscribeToVaultEvents = useDatabaseStore((s) => s.subscribeToVaultEvents);
 
   const currentVault = useVaultStore((s) => s.current);
+  const databaseViewMode = useUiStore((s) => s.databaseViewMode);
+  const setDatabaseViewMode = useUiStore((s) => s.setDatabaseViewMode);
 
   // User-controlled column visibility. We seed it lazily once we have the
   // first non-empty available-properties list; subsequent vault events that
@@ -203,6 +208,8 @@ export function DatabaseView(): JSX.Element {
               setFolder(trimmed === '' ? undefined : trimmed);
             }}
           />
+
+          <ViewModeTabs current={databaseViewMode} onChange={setDatabaseViewMode} />
         </div>
       </header>
 
@@ -237,7 +244,7 @@ export function DatabaseView(): JSX.Element {
           </div>
         )}
 
-        {!isEmpty && result !== null && (
+        {!isEmpty && result !== null && databaseViewMode === 'table' && (
           <Table
             rows={rows}
             groups={groups}
@@ -249,6 +256,10 @@ export function DatabaseView(): JSX.Element {
             onRowClick={onRowClick}
           />
         )}
+
+        {!isEmpty && result !== null && databaseViewMode === 'board' && <BoardView />}
+
+        {!isEmpty && result !== null && databaseViewMode === 'calendar' && <CalendarView />}
 
         {result === null && error === null && (
           <div className="flex h-full items-center justify-center p-8 text-fg-muted">
@@ -369,6 +380,50 @@ function FolderScopeInput({
         placeholder="(tutte)"
         className="w-40 rounded border border-border bg-bg-subtle px-1.5 py-0.5 text-fg outline-none focus:ring-1 focus:ring-accent placeholder:text-fg-muted"
       />
+    </div>
+  );
+}
+
+/**
+ * Database view-mode switcher: Table / Board / Calendar. Persisted via
+ * `useUiStore.databaseViewMode`. The query state itself is shared
+ * across modes — switching tabs doesn't lose filters or sort.
+ */
+function ViewModeTabs({
+  current,
+  onChange,
+}: {
+  current: DatabaseViewMode;
+  onChange(mode: DatabaseViewMode): void;
+}): JSX.Element {
+  const TABS: ReadonlyArray<{ id: DatabaseViewMode; label: string }> = [
+    { id: 'table', label: 'Tabella' },
+    { id: 'board', label: 'Board' },
+    { id: 'calendar', label: 'Calendario' },
+  ];
+  return (
+    <div role="tablist" aria-label="Vista database" className="ml-auto flex items-center gap-0.5">
+      {TABS.map((t) => {
+        const active = t.id === current;
+        return (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={(): void => {
+              onChange(t.id);
+            }}
+            className={
+              active
+                ? 'rounded bg-bg-muted px-2 py-0.5 text-xs font-medium text-fg'
+                : 'rounded px-2 py-0.5 text-xs font-medium text-fg-subtle hover:bg-bg-muted hover:text-fg'
+            }
+          >
+            {t.label}
+          </button>
+        );
+      })}
     </div>
   );
 }

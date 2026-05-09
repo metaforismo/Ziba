@@ -160,6 +160,27 @@ const SLASH_MENU_ITEMS: ReadonlyArray<SlashMenuItem> = [
     keywords: ['callout', 'quote', 'citazione', 'cita'],
     icon: '❝',
   },
+  {
+    id: 'embed',
+    title: 'Embed nota',
+    description: "Mostra un'altra nota inline",
+    keywords: ['embed', 'transclusion', 'inline'],
+    icon: '↪',
+  },
+  {
+    id: 'math-block',
+    title: 'Formula matematica',
+    description: 'Blocco LaTeX `$$..$$` con rendering KaTeX',
+    keywords: ['math', 'matematica', 'latex', 'katex', 'formula', 'equation'],
+    icon: '∑',
+  },
+  {
+    id: 'math-inline',
+    title: 'Formula inline',
+    description: 'Formula LaTeX inline `$..$`',
+    keywords: ['math', 'matematica', 'latex', 'katex', 'inline'],
+    icon: '𝑥',
+  },
 ];
 
 /**
@@ -247,6 +268,34 @@ function runSlashCommand(editor: Editor, id: string): void {
       return;
     case 'horizontal-rule':
       editor.chain().focus().setHorizontalRule().run();
+      return;
+    case 'embed':
+      // Insert an embed targeting a placeholder title. The user
+      // typically follows up by clicking "Crea nota" inside the embed
+      // body or by editing the source markdown directly. We don't
+      // open a picker here for v0.4 - keeps the slash flow uniform
+      // with the other no-op-payload entries.
+      editor
+        .chain()
+        .focus()
+        .insertContent({ type: 'embed', attrs: { target: 'Nuova nota' } })
+        .run();
+      return;
+    case 'math-block':
+      // Insert an empty math block. The node-view's empty-state
+      // ("↪ tap to add formula") prompts the user to click and edit.
+      editor
+        .chain()
+        .focus()
+        .insertContent({ type: 'mathBlock', attrs: { formula: '' } })
+        .run();
+      return;
+    case 'math-inline':
+      editor
+        .chain()
+        .focus()
+        .insertContent({ type: 'mathInline', attrs: { formula: '' } })
+        .run();
       return;
     default: {
       // Callout entries share the `callout-<kind>` id pattern. We map
