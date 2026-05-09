@@ -6,6 +6,10 @@ Il formato si basa su [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e
 
 ## [Unreleased]
 
+### Added
+
+- **Renderer test suite Vitest + jsdom** in `apps/desktop` (`vitest.config.ts`, `src/test/setup.ts`, `src/test/mock-ipc.ts`). 50 test cases coprono `useSearchStore` (debounce 150ms, coalesce di rapid setQuery, sequence-number guard su risposte out-of-order, chooseSelected che apre nota + chiude palette, errori IPC), `useDatabaseStore` (mutator filtri, debounce 200ms, sequence-number guard, sottoscrizione vault con vault-switch e vault-close), `useTagsStore` (refresh, selectTag con last-click-wins, applyVaultEvent debounced, modulo-level subscription a `useVaultStore`), `useUiStore` (clamping width, toggle persistence, validator `loadPersisted` con localStorage corrotto / type-mismatch / clamp), e `lib/debounce.ts` (cancel/flush/trailing-edge invariants). Mock `window.synapsium` via `installMockIpc()` con stub returns + `vi.fn()` spies per ogni canale + simulazione push events. Total project test count: **190** (140 core + 50 desktop).
+
 ### v0.3 Added
 
 - **Database view** (`components/DatabaseView/`) — vista tabellare di tutto il vault triggered dal pulsante "Database" in TopBar. FilterBar tipizzata (eq/contains/has/lacks/lt/gt/lte/gte), sort multi-key, group-by, ColumnPicker, click-row apre nota. Empty states distinti (vault-empty vs filtered-out). Cell rendering type-aware (Italian-locale dates/numbers, ✓/✗ booleans, link URLs, chip arrays).

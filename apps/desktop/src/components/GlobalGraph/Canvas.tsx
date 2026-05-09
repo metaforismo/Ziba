@@ -1,5 +1,9 @@
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef } from 'react';
 import type { NotePath } from '@synapsium/core';
+import {
+  GRAPH_DIM_OPACITY as DIM_OPACITY,
+  GRAPH_LABEL_TOP_DEGREE_QUANTILE as LABEL_TOP_DEGREE_QUANTILE,
+} from '../../lib/graph-tuning';
 
 /**
  * Stylable graph node with the bits the canvas needs to render. We keep
@@ -75,10 +79,8 @@ type Props = {
 
 // Below this scale we hide labels entirely — they pile up and become
 // unreadable. Above 1.5x we show labels but only for the most-connected
-// nodes, since at 5x the small ones still don't have room. The exact
-// thresholds are picked by eye, not theory.
+// nodes (the quantile threshold lives in `lib/graph-tuning.ts`).
 const LABEL_MIN_SCALE = 1.5;
-const LABEL_TOP_DEGREE_QUANTILE = 0.85;
 
 // Visual constants. We keep these here (not as Tailwind classes) because
 // SVG elements need actual `fill`/`stroke` attributes — a class with a
@@ -91,7 +93,6 @@ const EDGE_STROKE = 'rgb(var(--fg-muted) / 0.4)';
 const EDGE_STROKE_HIGHLIGHT = 'rgb(var(--accent))';
 const LABEL_FILL = 'rgb(var(--fg))';
 
-const DIM_OPACITY = 0.18;
 const FULL_OPACITY = 1;
 
 function transformString(view: CanvasView): string {

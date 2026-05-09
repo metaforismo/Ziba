@@ -4,8 +4,7 @@ import type { FullGraph } from '../../../shared/ipc';
 import { ipc } from '../../lib/ipc';
 import { debounce } from '../../lib/debounce';
 import { GLOBAL_GRAPH_REFETCH_MS } from '../../lib/timings';
-import { useEditorStore } from '../../stores/editor';
-import { useUiStore } from '../../stores/ui';
+import { navigateToNote } from '../../lib/navigate';
 import {
   Canvas,
   type CanvasEdge,
@@ -18,23 +17,22 @@ import { computeBounds, initializePositions, runGlobalLayout } from './layout';
 // Logical canvas the simulation runs on. The SVG `viewBox` matches
 // these numbers; on screen we just stretch to fill the container, with
 // `preserveAspectRatio` keeping the layout undistorted.
-const CANVAS_W = 2000;
-const CANVAS_H = 1400;
+// Tuning constants live in `lib/graph-tuning.ts` so the same values
+// can be referenced by Canvas.tsx and any future graph variants. We
+// alias to short local names here to keep the body readable.
+import {
+  GRAPH_CANVAS_WIDTH as CANVAS_W,
+  GRAPH_CANVAS_HEIGHT as CANVAS_H,
+  GRAPH_ZOOM_MIN as ZOOM_MIN,
+  GRAPH_ZOOM_MAX as ZOOM_MAX,
+  GRAPH_FIT_PADDING as FIT_PADDING,
+  GRAPH_LARGE_THRESHOLD as LARGE_GRAPH_WARN_THRESHOLD,
+} from '../../lib/graph-tuning';
 
 const NODE_R_MIN = 3;
 const NODE_R_MAX = 18;
 
 const ZOOM_STEP = 1.25;
-const ZOOM_MIN = 0.1;
-const ZOOM_MAX = 6;
-// Padding around the bounding box on fit-to-screen so nodes don't
-// kiss the edges of the viewport.
-const FIT_PADDING = 40;
-
-// Above this node count the O(n²) repulsion is genuinely slow; we still
-// run it (the v0.3 spec says "log a warn and ship") but tell the dev
-// console so future debugging has a breadcrumb.
-const LARGE_GRAPH_WARN_THRESHOLD = 1000;
 
 type LoadState =
   | { kind: 'idle' }
@@ -43,9 +41,6 @@ type LoadState =
   | { kind: 'error'; message: string };
 
 export function GlobalGraph(): JSX.Element {
-  const openNote = useEditorStore((s) => s.openNote);
-  const setMainView = useUiStore((s) => s.setMainView);
-
   const [load, setLoad] = useState<LoadState>({ kind: 'idle' });
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<NotePath | null>(null);
@@ -399,18 +394,14 @@ export function GlobalGraph(): JSX.Element {
     setSelectedId((cur) => (cur === id ? null : id));
   }, []);
 
-  const handleNodeDoubleClick = useCallback(
-    (id: NotePath): void => {
-      // Sync the live transform back into React state before opening
-      // the editor — otherwise on next mount the canvas would snap
-      // back to the last React-tracked view.
-      const handle = canvasRef.current;
-      if (handle !== null) setView(handle.getView());
-      void openNote(id);
-      setMainView('editor');
-    },
-    [openNote, setMainView],
-  );
+  const handleNodeDoubleClick = useCallback((id: NotePath): void => {
+    // Sync the live transform back into React state before opening
+    // the editor — otherwise on next mount the canvas would snap
+    // back to the last React-tracked view.
+    const handle = canvasRef.current;
+    if (handle !== null) setView(handle.getView());
+    void navigateToNote(id);
+  }, []);
 
   const handleBackgroundClick = useCallback((): void => {
     setSelectedId(null);

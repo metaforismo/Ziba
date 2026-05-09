@@ -3,8 +3,7 @@ import type { JSX } from 'react';
 import type { NotePath } from '@synapsium/core';
 import type { DatabaseQuery } from '../../../shared/ipc';
 import { useDatabaseStore } from '../../stores/database';
-import { useEditorStore } from '../../stores/editor';
-import { useUiStore } from '../../stores/ui';
+import { navigateToNote } from '../../lib/navigate';
 import { useVaultStore } from '../../stores/vault';
 import { ColumnPicker } from './ColumnPicker';
 import { FilterBar } from './FilterBar';
@@ -55,8 +54,6 @@ export function DatabaseView(): JSX.Element {
   const subscribeToVaultEvents = useDatabaseStore((s) => s.subscribeToVaultEvents);
 
   const currentVault = useVaultStore((s) => s.current);
-  const setMainView = useUiStore((s) => s.setMainView);
-  const openNote = useEditorStore((s) => s.openNote);
 
   // User-controlled column visibility. We seed it lazily once we have the
   // first non-empty available-properties list; subsequent vault events that
@@ -121,11 +118,10 @@ export function DatabaseView(): JSX.Element {
   };
 
   const onRowClick = (path: NotePath): void => {
-    // Switch view first so the editor surface is on screen; the note will
-    // load asynchronously. Loading the note before flipping would leave
-    // the user staring at the table for a few hundred ms.
-    setMainView('editor');
-    void openNote(path);
+    // Shared switch-view + open helper. View flips synchronously so the
+    // editor surface appears immediately; the note body loads in the
+    // background. Same flow used by the global graph node click.
+    void navigateToNote(path);
   };
 
   // The body switches between three states (in priority order):
