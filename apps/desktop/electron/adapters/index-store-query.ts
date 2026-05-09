@@ -25,18 +25,35 @@ export const DEFAULT_QUERY_LIMIT = 1000;
 /** Hard cap on LIMIT — clamped before reaching SQLite. */
 export const MAX_QUERY_LIMIT = 5000;
 
-export type Fragment = {
-  sql: string;
-  params: Array<string | number>;
-};
+/**
+ * A single WHERE-fragment. Three variants make the semantics explicit:
+ *
+ *   - `predicate` — a real SQL fragment with bound params. The caller
+ *     concatenates `sql` and feeds `params` in order.
+ *   - `always-false` — the filter as written cannot match any row
+ *     (today: `in [ ]`). The caller should short-circuit and skip the
+ *     SQLite round-trip entirely.
+ *   - `always-true` — the filter has no effect (currently unused, but
+ *     reserved so a future filter-kind that degenerates to "match
+ *     anything" doesn't have to invent an `1 = 1` literal).
+ *
+ * Modelling them as a discriminated union prevents the previous
+ * collision where `{ sql: '0 = 1' }` rode the same shape as a real
+ * predicate — and it makes future filter-kinds explicit about which
+ * degenerate case they fall into.
+ */
+export type Fragment =
+  | { kind: 'predicate'; sql: string; params: ReadonlyArray<string | number> }
+  | { kind: 'always-false' }
+  | { kind: 'always-true' };
 
 export type SortClause = {
   /** LEFT JOIN snippets used to expose sort-target columns on `notes n`. */
-  joins: string[];
+  joins: ReadonlyArray<string>;
   /** Parameters bound by the joins (one per sort key — the property key). */
-  joinParams: Array<string | number>;
+  joinParams: ReadonlyArray<string | number>;
   /** Ordered list of `<expr> ASC|DESC` clauses, including the path tiebreak. */
-  orderBy: string[];
+  orderBy: ReadonlyArray<string>;
 };
 
 /**
@@ -45,9 +62,14 @@ export type SortClause = {
  * `text_value` / `number_value` / `boolean_value` / `date_value`, so
  * we have to send the comparison to the matching column.
  *
- * Heuristic for strings: if the input looks like an ISO date
- * (`YYYY-MM-DD`), treat it as a date — that mirrors the indexer's
- * detection rule. Anything else falls back to `text_value`.
+ * Heuristic for strings: only the exact 10-character ISO calendar form
+ * `YYYY-MM-DD` routes to `date_value` — that's what the indexer's
+ * `detectProperty` accepts. Everything else (free text, datetimes
+ * with a `T` component like `2026-05-09T10:00`, locale strings) falls
+ * back to `text_value`. If a datetime needs to compare against a
+ * `date_value`-stored property, the caller must trim it to the date
+ * portion before passing it in — otherwise the LHS and RHS land in
+ * different columns and the comparison silently returns no rows.
  */
 export function columnForRhs(rhs: number | string | boolean): {
   column: 'number_value' | 'text_value' | 'boolean_value' | 'date_value';
@@ -84,13 +106,17 @@ export function buildFilterFragment(f: ScalarFilter): Fragment {
     case 'eq': {
       const { column, bound } = columnForRhs(f.value);
       return {
+        kind: 'predicate',
         sql: `EXISTS (SELECT 1 FROM note_properties np WHERE np.source_path = n.path AND np.prop_key = ? AND np.${column} = ?)`,
         params: [f.key, bound],
       };
     }
     case 'in': {
       if (f.values.length === 0) {
-        return { sql: '0 = 1', params: [] };
+        // `in [ ]` matches nothing — surface this as the explicit
+        // always-false variant so the adapter can short-circuit and
+        // skip the SQLite round-trip entirely.
+        return { kind: 'always-false' };
       }
       const byColumn = new Map<string, Array<number | string | 0 | 1>>();
       for (const v of f.values) {
@@ -108,15 +134,17 @@ export function buildFilterFragment(f: ScalarFilter): Fragment {
         );
         params.push(f.key, ...vals);
       }
-      return { sql: `(${subs.join(' OR ')})`, params };
+      return { kind: 'predicate', sql: `(${subs.join(' OR ')})`, params };
     }
     case 'has':
       return {
+        kind: 'predicate',
         sql: `EXISTS (SELECT 1 FROM note_properties np WHERE np.source_path = n.path AND np.prop_key = ?)`,
         params: [f.key],
       };
     case 'lacks':
       return {
+        kind: 'predicate',
         sql: `NOT EXISTS (SELECT 1 FROM note_properties np WHERE np.source_path = n.path AND np.prop_key = ?)`,
         params: [f.key],
       };
@@ -127,6 +155,7 @@ export function buildFilterFragment(f: ScalarFilter): Fragment {
       const op = { lt: '<', gt: '>', lte: '<=', gte: '>=' }[f.kind];
       const { column, bound } = columnForRhs(f.value);
       return {
+        kind: 'predicate',
         sql: `EXISTS (SELECT 1 FROM note_properties np WHERE np.source_path = n.path AND np.prop_key = ? AND np.${column} ${op} ?)`,
         params: [f.key, bound],
       };
@@ -139,6 +168,7 @@ export function buildFilterFragment(f: ScalarFilter): Fragment {
       const like = `%${f.value.replace(/[\\%_]/g, (c) => '\\' + c)}%`;
       const arrayLike = `%${JSON.stringify(f.value).replace(/[\\%_]/g, (c) => '\\' + c)}%`;
       return {
+        kind: 'predicate',
         sql: `EXISTS (SELECT 1 FROM note_properties np WHERE np.source_path = n.path AND np.prop_key = ? AND (np.text_value LIKE ? ESCAPE '\\' OR np.array_value LIKE ? ESCAPE '\\'))`,
         params: [f.key, like, arrayLike],
       };
@@ -147,14 +177,30 @@ export function buildFilterFragment(f: ScalarFilter): Fragment {
 }
 
 /**
- * Build the WHERE-fragment list (each entry is a top-level conjunct)
- * from a query's `folder` + `filters` fields. The caller AND's the
- * fragments and prepends a single `WHERE`.
+ * Result of compiling all top-level WHERE conjuncts. The adapter
+ * branches on `kind`:
+ *   - `predicates` — concatenate `fragments` with ` AND ` and prepend
+ *     `WHERE`. `params` flow into the prepared statement in order.
+ *     An empty `fragments` array means "no constraint" → no WHERE
+ *     clause at all.
+ *   - `always-false` — at least one filter is unsatisfiable
+ *     (e.g. `in [ ]`). The whole query matches nothing; the adapter
+ *     should return an empty result without touching SQLite.
  */
-export function buildWhereFragments(query: DatabaseQuery): {
-  fragments: string[];
-  params: Array<string | number>;
-} {
+export type WhereFragments =
+  | {
+      kind: 'predicates';
+      fragments: ReadonlyArray<string>;
+      params: ReadonlyArray<string | number>;
+    }
+  | { kind: 'always-false' };
+
+/**
+ * Build the WHERE-fragment list (each entry is a top-level conjunct)
+ * from a query's `folder` + `filters` fields. AND-of-fragments
+ * semantics: a single `always-false` short-circuits the whole query.
+ */
+export function buildWhereFragments(query: DatabaseQuery): WhereFragments {
   const fragments: string[] = [];
   const params: Array<string | number> = [];
 
@@ -178,12 +224,22 @@ export function buildWhereFragments(query: DatabaseQuery): {
   if (query.filters !== undefined && query.filters.length > 0) {
     for (const f of query.filters) {
       const frag = buildFilterFragment(f);
-      fragments.push(frag.sql);
-      params.push(...frag.params);
+      switch (frag.kind) {
+        case 'always-false':
+          // One unsatisfiable conjunct collapses the whole AND.
+          return { kind: 'always-false' };
+        case 'always-true':
+          // No-op conjunct — drop it so the WHERE stays minimal.
+          continue;
+        case 'predicate':
+          fragments.push(frag.sql);
+          params.push(...frag.params);
+          continue;
+      }
     }
   }
 
-  return { fragments, params };
+  return { kind: 'predicates', fragments, params };
 }
 
 /**

@@ -505,7 +505,17 @@ export class SqliteIndexStore implements IndexStoreAdapter {
     // SQL shaping is delegated to `index-store-query.ts`. The adapter's
     // job here is just to glue the fragments together with the prepared
     // statements and the batched property fetch.
-    const { fragments: where, params: whereParams } = buildWhereFragments(query);
+    const whereResult = buildWhereFragments(query);
+
+    // Short-circuit: a filter like `in [ ]` collapses the whole AND
+    // to "matches nothing". No need to round-trip SQLite for an
+    // empty result we can prove from the query alone.
+    if (whereResult.kind === 'always-false') {
+      return Promise.resolve({ rows: [], groups: [], totalCount: 0 });
+    }
+
+    const where = whereResult.fragments;
+    const whereParams = whereResult.params;
     const sort = buildSortClause(query);
     const limit = clampQueryLimit(query.limit);
     const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
@@ -608,8 +618,8 @@ export class SqliteIndexStore implements IndexStoreAdapter {
    */
   private computeGroups(
     groupKey: string,
-    where: string[],
-    params: Array<string | number>,
+    where: ReadonlyArray<string>,
+    params: ReadonlyArray<string | number>,
   ): DatabaseGroup[] {
     if (!this.db) throw new Error('IndexStore not initialized');
     const whereSql = where.length > 0 ? `AND ${where.join(' AND ')}` : '';

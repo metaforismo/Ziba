@@ -92,7 +92,7 @@ export type SerializedIpcError = {
  */
 export function toSerializedError(err: unknown): SerializedIpcError {
   if (err instanceof IpcError) {
-    return { code: err.code, message: err.message };
+    return { code: err.code, message: stripLeadingCodePrefix(err.message) };
   }
   if (err && typeof err === 'object' && 'code' in err) {
     const sysCode = (err as NodeJS.ErrnoException).code;
@@ -109,4 +109,16 @@ export function toSerializedError(err: unknown): SerializedIpcError {
   // Log the raw error for debugging; renderer gets a generic message.
   console.error('[ipc] unexpected error:', err);
   return { code: 'INTERNAL', message: 'Errore interno. Controlla i log.' };
+}
+
+/**
+ * Strip a leading `[XYZ] ` prefix from a message before wrapping it
+ * with our own canonical `[CODE] `. Without this, an `IpcError` whose
+ * message was authored with an already-bracketed prefix would round-
+ * trip as `[CODE] [XYZ] message` — the renderer's `ipcErrorMessage`
+ * strips the outer wrapper but leaves the inner one cosmetically
+ * leaked. Cheap to neutralise here.
+ */
+function stripLeadingCodePrefix(message: string): string {
+  return message.replace(/^\[[A-Z_]+\]\s/, '');
 }

@@ -40,44 +40,68 @@ describe('columnForRhs', () => {
   });
 });
 
+// Test helpers — narrow the discriminated unions so individual specs
+// can read `.sql` / `.params` without re-asserting the kind every time.
+function asPredicate(f: ReturnType<typeof buildFilterFragment>): {
+  sql: string;
+  params: ReadonlyArray<string | number>;
+} {
+  if (f.kind !== 'predicate') {
+    throw new Error(`expected predicate, got ${f.kind}`);
+  }
+  return f;
+}
+function asPredicates(w: ReturnType<typeof buildWhereFragments>): {
+  fragments: ReadonlyArray<string>;
+  params: ReadonlyArray<string | number>;
+} {
+  if (w.kind !== 'predicates') {
+    throw new Error(`expected predicates, got ${w.kind}`);
+  }
+  return w;
+}
+
 describe('buildFilterFragment', () => {
-  it('eq emits an EXISTS subquery on the typed column', () => {
-    const f = buildFilterFragment({ kind: 'eq', key: 'priority', value: 1 });
+  it('eq emits a predicate EXISTS subquery on the typed column', () => {
+    const f = asPredicate(buildFilterFragment({ kind: 'eq', key: 'priority', value: 1 }));
     expect(f.sql).toContain('np.prop_key = ?');
     expect(f.sql).toContain('np.number_value = ?');
     expect(f.params).toEqual(['priority', 1]);
   });
 
   it('in with one type emits a single subquery', () => {
-    const f = buildFilterFragment({
-      kind: 'in',
-      key: 'tag',
-      values: ['urgent', 'work'],
-    });
+    const f = asPredicate(
+      buildFilterFragment({
+        kind: 'in',
+        key: 'tag',
+        values: ['urgent', 'work'],
+      }),
+    );
     expect(f.sql).toMatch(/text_value IN \(\?, \?\)/);
     expect(f.params).toEqual(['tag', 'urgent', 'work']);
   });
 
   it('in with mixed types emits OR-united subqueries per column', () => {
-    const f = buildFilterFragment({
-      kind: 'in',
-      key: 'mixed',
-      values: ['hello', 42],
-    });
+    const f = asPredicate(
+      buildFilterFragment({
+        kind: 'in',
+        key: 'mixed',
+        values: ['hello', 42],
+      }),
+    );
     expect(f.sql).toMatch(/text_value/);
     expect(f.sql).toMatch(/number_value/);
     expect(f.sql).toMatch(/ OR /);
   });
 
-  it('in with empty values yields the `0 = 1` no-match guard', () => {
+  it('in with empty values returns the always-false variant', () => {
     expect(buildFilterFragment({ kind: 'in', key: 'k', values: [] })).toEqual({
-      sql: '0 = 1',
-      params: [],
+      kind: 'always-false',
     });
   });
 
   it('has uses EXISTS with only the prop_key existence check', () => {
-    const f = buildFilterFragment({ kind: 'has', key: 'due' });
+    const f = asPredicate(buildFilterFragment({ kind: 'has', key: 'due' }));
     expect(f.sql).toContain('EXISTS');
     // The SQL has equality for join+key, but no comparison against any
     // typed value column.
@@ -86,7 +110,7 @@ describe('buildFilterFragment', () => {
   });
 
   it('lacks uses NOT EXISTS', () => {
-    const f = buildFilterFragment({ kind: 'lacks', key: 'archived' });
+    const f = asPredicate(buildFilterFragment({ kind: 'lacks', key: 'archived' }));
     expect(f.sql).toContain('NOT EXISTS');
     expect(f.params).toEqual(['archived']);
   });
@@ -97,13 +121,13 @@ describe('buildFilterFragment', () => {
     ['lte', '<='],
     ['gte', '>='],
   ] as const)('%s emits the matching SQL operator', (kind, op) => {
-    const f = buildFilterFragment({ kind, key: 'priority', value: 5 });
+    const f = asPredicate(buildFilterFragment({ kind, key: 'priority', value: 5 }));
     expect(f.sql).toContain(`np.number_value ${op} ?`);
     expect(f.params).toEqual(['priority', 5]);
   });
 
   it('contains uses LIKE on text_value and array_value with escaping', () => {
-    const f = buildFilterFragment({ kind: 'contains', key: 'body', value: 'a_b%c' });
+    const f = asPredicate(buildFilterFragment({ kind: 'contains', key: 'body', value: 'a_b%c' }));
     expect(f.sql).toContain('text_value LIKE');
     expect(f.sql).toContain('array_value LIKE');
     // LIKE wildcards in the user input are escaped so they're matched
@@ -114,35 +138,50 @@ describe('buildFilterFragment', () => {
 
 describe('buildWhereFragments', () => {
   it('returns no fragments for an empty query', () => {
-    const out = buildWhereFragments({});
+    const out = asPredicates(buildWhereFragments({}));
     expect(out.fragments).toEqual([]);
     expect(out.params).toEqual([]);
   });
 
   it('emits a folder LIKE fragment with trailing slash', () => {
-    const out = buildWhereFragments({ folder: 'projects' });
+    const out = asPredicates(buildWhereFragments({ folder: 'projects' }));
     expect(out.fragments[0]).toContain('n.path LIKE');
     expect(out.params[0]).toBe('projects/%');
   });
 
   it('strips trailing slashes from folder before building the LIKE', () => {
-    const out = buildWhereFragments({ folder: 'projects/' });
+    const out = asPredicates(buildWhereFragments({ folder: 'projects/' }));
     expect(out.params[0]).toBe('projects/%');
   });
 
   it('escapes LIKE-significant characters in the folder name', () => {
-    const out = buildWhereFragments({ folder: 'a_b%c' });
+    const out = asPredicates(buildWhereFragments({ folder: 'a_b%c' }));
     expect(out.params[0]).toBe('a\\_b\\%c/%');
   });
 
   it('combines folder and filters in declaration order', () => {
-    const out = buildWhereFragments({
-      folder: 'projects',
-      filters: [{ kind: 'eq', key: 'status', value: 'open' }],
-    });
+    const out = asPredicates(
+      buildWhereFragments({
+        folder: 'projects',
+        filters: [{ kind: 'eq', key: 'status', value: 'open' }],
+      }),
+    );
     expect(out.fragments).toHaveLength(2);
     expect(out.fragments[0]).toContain('n.path LIKE');
     expect(out.fragments[1]).toContain('np.text_value');
+  });
+
+  it('short-circuits to always-false when any filter is unsatisfiable', () => {
+    // A single `in [ ]` collapses the whole AND to "match nothing".
+    // The adapter is then free to skip SQLite entirely.
+    const out = buildWhereFragments({
+      folder: 'projects',
+      filters: [
+        { kind: 'eq', key: 'status', value: 'open' },
+        { kind: 'in', key: 'tag', values: [] },
+      ],
+    });
+    expect(out.kind).toBe('always-false');
   });
 });
 
@@ -209,18 +248,18 @@ describe('clampQueryLimit', () => {
 
 describe('buildWhereFragments — folder edge cases', () => {
   it('treats whitespace-only folder as "no folder filter"', () => {
-    const out = buildWhereFragments({ folder: '   ' });
+    const out = asPredicates(buildWhereFragments({ folder: '   ' }));
     expect(out.fragments).toEqual([]);
     expect(out.params).toEqual([]);
   });
 
   it('trims surrounding whitespace before building the LIKE', () => {
-    const out = buildWhereFragments({ folder: '  projects  ' });
+    const out = asPredicates(buildWhereFragments({ folder: '  projects  ' }));
     expect(out.params[0]).toBe('projects/%');
   });
 
   it('treats an empty-string folder as "no folder filter"', () => {
-    const out = buildWhereFragments({ folder: '' });
+    const out = asPredicates(buildWhereFragments({ folder: '' }));
     expect(out.fragments).toEqual([]);
   });
 });
