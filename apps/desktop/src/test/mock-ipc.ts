@@ -120,6 +120,14 @@ function buildDefaultHandlers(): Required<MockHandlers> {
     }),
     [IpcChannels.getFullGraph]: async () => ({ nodes: [], edges: [] }),
 
+    // v1.0 — taxonomy + relations
+    [IpcChannels.listObjectTypes]: async () => [],
+    [IpcChannels.upsertObjectType]: async () => undefined,
+    [IpcChannels.deleteObjectType]: async () => undefined,
+    [IpcChannels.getTypeCounts]: async () => [],
+    [IpcChannels.getRelationsBySource]: async () => [],
+    [IpcChannels.getRelationsByTarget]: async () => [],
+
     [IpcChannels.getRecentVaults]: async () => [],
   };
   return defaults as unknown as Required<MockHandlers>;
