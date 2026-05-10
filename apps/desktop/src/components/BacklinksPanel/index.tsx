@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { useEditorStore } from '../../stores/editor';
 import { useUiStore, type RightPaneTab } from '../../stores/ui';
 import { MiniGraph } from '../MiniGraph';
+import { ObjectPanel } from '../ObjectPanel';
 import { BacklinksList } from './BacklinksList';
 
 type TabSpec = {
@@ -9,12 +10,27 @@ type TabSpec = {
   label: string;
 };
 
-// Italian copy: "Grafo" reads more naturally than "Graph" alongside the
-// existing "Backlinks" label in the rest of the UI.
-const TABS: readonly TabSpec[] = [
+// Italian copy: "Grafo" reads more naturally than "Graph" alongside
+// the existing "Backlinks" / "Oggetto" labels in the rest of the UI.
+// We use the same `RightPaneTab` id `'backlinks'` for both untyped
+// (BacklinksList) and typed (ObjectPanel) modes — the persistence
+// shouldn't churn just because the user opened a typed note.
+const TABS_UNTYPED: readonly TabSpec[] = [
   { id: 'backlinks', label: 'Backlinks' },
   { id: 'graph', label: 'Grafo' },
 ] as const;
+
+const TABS_TYPED: readonly TabSpec[] = [
+  { id: 'backlinks', label: 'Oggetto' },
+  { id: 'graph', label: 'Grafo' },
+] as const;
+
+function readTypeFromFrontmatter(fm: Record<string, unknown> | undefined): string | null {
+  if (fm === undefined) return null;
+  const t = fm.type;
+  if (typeof t !== 'string') return null;
+  return /^[a-z][a-z0-9-]*$/.test(t) ? t : null;
+}
 
 /**
  * Tabbed shell for the right-side panel. Hosts:
@@ -32,6 +48,7 @@ const TABS: readonly TabSpec[] = [
  */
 export function BacklinksPanel(): JSX.Element {
   const currentPath = useEditorStore((s) => s.currentPath);
+  const currentNote = useEditorStore((s) => s.currentNote);
   const activeTab = useUiStore((s) => s.rightPaneTab);
   const setRightPaneTab = useUiStore((s) => s.setRightPaneTab);
 
@@ -43,11 +60,18 @@ export function BacklinksPanel(): JSX.Element {
     setActiveLoading(loading);
   }, []);
 
+  // v1.0: when the active note has a `type:` we swap the legacy
+  // backlinks list for the object panel. Untyped notes keep the
+  // backlinks behaviour unchanged. Tab id `'backlinks'` is reused
+  // for both modes (label changes; persistence stays).
+  const isTyped = readTypeFromFrontmatter(currentNote?.frontmatter) !== null;
+  const tabs = isTyped ? TABS_TYPED : TABS_UNTYPED;
+
   return (
     <aside className="flex h-full flex-col overflow-hidden bg-bg-subtle">
       <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2">
         <div role="tablist" aria-label="Pannello laterale" className="flex items-center gap-2">
-          {TABS.map((tab) => {
+          {tabs.map((tab) => {
             const active = tab.id === activeTab;
             return (
               <button
@@ -83,7 +107,11 @@ export function BacklinksPanel(): JSX.Element {
         aria-labelledby={`right-pane-tab-${activeTab}`}
       >
         {activeTab === 'backlinks' ? (
-          <BacklinksList currentPath={currentPath} onLoadingChange={handleLoadingChange} />
+          isTyped ? (
+            <ObjectPanel />
+          ) : (
+            <BacklinksList currentPath={currentPath} onLoadingChange={handleLoadingChange} />
+          )
         ) : (
           <MiniGraph currentPath={currentPath} onLoadingChange={handleLoadingChange} />
         )}
