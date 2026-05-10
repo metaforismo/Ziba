@@ -10,6 +10,7 @@ import { promises as fsp } from 'node:fs';
 import path from 'node:path';
 import {
   deriveTitleFromPath,
+  extractAllRelations,
   extractProperties,
   extractTags,
   extractWikilinks,
@@ -22,7 +23,7 @@ import {
   type Note,
   type NotePath,
   type NoteSummary,
-  type OutgoingWikilink,
+  type ResolvedRelation,
 } from '@ziba/core';
 import { getFilesystemAdapter } from '../adapters/filesystem.electron.js';
 import { assertResolvedWithinVault, assertVaultRelative, IpcError } from '../security.js';
@@ -77,12 +78,17 @@ async function reindexSingle(
     body,
   });
 
-  const links: OutgoingWikilink[] = [];
-  for (const target of wikilinks) {
-    const resolved = await store.resolveTitleToPath(target);
-    links.push({ targetTitle: target, targetPath: resolved });
+  // v1.0: extract typed relations (frontmatter `relations:` map +
+  // body wikilinks as `kind = ''`). Resolve each target_title to a
+  // path so the renderer can navigate without re-resolving on every
+  // read.
+  const allRelations = extractAllRelations({ frontmatter, content: body });
+  const resolved: ResolvedRelation[] = [];
+  for (const r of allRelations) {
+    const targetPath = await store.resolveTitleToPath(r.targetTitle);
+    resolved.push({ kind: r.kind, targetTitle: r.targetTitle, targetPath });
   }
-  await store.replaceWikilinks(filePath, links);
+  await store.replaceRelations(filePath, resolved);
   await store.replaceTags(filePath, mergedTags);
 
   // Typed property index (v0.3 Wave 1). Drops unsupported values silently
@@ -189,12 +195,16 @@ export async function renameNote(args: {
     mtimeMs: note.mtimeMs,
     body: note.content,
   });
-  const links: OutgoingWikilink[] = [];
-  for (const target of note.wikilinks) {
-    const resolved = await store.resolveTitleToPath(target);
-    links.push({ targetTitle: target, targetPath: resolved });
+  const allRelations = extractAllRelations({
+    frontmatter: note.frontmatter,
+    content: note.content,
+  });
+  const resolved: ResolvedRelation[] = [];
+  for (const r of allRelations) {
+    const targetPath = await store.resolveTitleToPath(r.targetTitle);
+    resolved.push({ kind: r.kind, targetTitle: r.targetTitle, targetPath });
   }
-  await store.replaceWikilinks(args.to, links);
+  await store.replaceRelations(args.to, resolved);
 
   const contentTags = extractTags(note.content);
   const mergedTags = mergeTagsFromFrontmatter(note.frontmatter, contentTags);

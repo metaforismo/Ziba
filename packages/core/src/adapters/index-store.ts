@@ -1,5 +1,7 @@
 import type { Note, NotePath, NoteSummary } from '../types/note.js';
 import type { DatabaseQuery, DatabaseResult, DetectedProperty, FullGraph } from '../query/index.js';
+import type { RelationEntry } from '../markdown/relations.js';
+import type { ObjectTypeSchema } from '../types/schema.js';
 
 export type WikilinkRow = {
   sourcePath: NotePath;
@@ -33,6 +35,38 @@ export type TagSummaryRow = {
   /** Display-case form (one of the canonicalised display values). */
   display: string;
   count: number;
+};
+
+/**
+ * v1.0: row form of a typed relation as stored in SQLite. The
+ * indexer's `RelationEntry` extracts kind+title from frontmatter+body;
+ * the caller then resolves `targetPath` (against `notes`) and persists
+ * via `replaceRelations`.
+ */
+export type ResolvedRelation = {
+  /** `''` for generic body wikilinks, otherwise the relation kind. */
+  kind: string;
+  targetTitle: string;
+  /** null = unresolved / broken link. */
+  targetPath: NotePath | null;
+};
+
+/** Read shape returned by getRelations / getReverseRelations. */
+export type RelationRow = {
+  sourcePath: NotePath;
+  kind: string;
+  targetTitle: string;
+  targetPath: NotePath | null;
+};
+
+/** v1.0: row form of a cached object-type schema. */
+export type ObjectTypeRow = {
+  id: string;
+  label: string;
+  icon: string | null;
+  color: string | null;
+  schema: ObjectTypeSchema;
+  mtimeMs: number;
 };
 
 /**
@@ -125,5 +159,36 @@ export interface IndexStoreAdapter {
    */
   getFullGraph(): Promise<FullGraph>;
 
+  /**
+   * v1.0: replace all relations originating from `sourcePath`. The
+   * caller is responsible for resolving each `targetTitle` →
+   * `targetPath` against the current vault before passing them in
+   * (mirroring the existing `replaceWikilinks` flow). `kind = ''` is
+   * the sentinel for generic body wikilinks.
+   */
+  replaceRelations(sourcePath: NotePath, relations: ResolvedRelation[]): Promise<void>;
+
+  /** v1.0: list all relations originating from `sourcePath`. */
+  getRelations(args: { sourcePath: NotePath; kind?: string }): Promise<RelationRow[]>;
+
+  /**
+   * v1.0: list all relations pointing AT `targetPath`. Used by the
+   * object panel to drive both the inverse-relation view and the
+   * kind-grouped backlinks panel.
+   */
+  getReverseRelations(args: { targetPath: NotePath; kind?: string }): Promise<RelationRow[]>;
+
+  /** v1.0: every cached object type, sorted by id. */
+  listObjectTypes(): Promise<ObjectTypeRow[]>;
+
+  /** v1.0: insert or replace a type's cached schema. */
+  upsertObjectType(row: ObjectTypeRow): Promise<void>;
+
+  /** v1.0: drop a type from the cache. No-op if not present. */
+  deleteObjectType(id: string): Promise<void>;
+
   clear(): Promise<void>;
 }
+
+// Re-export the entry shape so callers can import it from this module.
+export type { RelationEntry };

@@ -12,6 +12,7 @@ import { IpcChannels, type VaultInfo } from '../../shared/ipc.js';
 import { getFilesystemAdapter } from '../adapters/filesystem.electron.js';
 import { SqliteIndexStore } from '../adapters/index-store.sqlite.js';
 import { ChokidarWatcher } from '../adapters/watcher.chokidar.js';
+import { bootstrapSchemas } from '../schema-loader.js';
 import { IpcError } from '../security.js';
 import {
   consumeIfSelfWrite,
@@ -100,6 +101,13 @@ export async function openVault(win: BrowserWindow, args: { root: string }): Pro
   const indexStore = new SqliteIndexStore();
   await indexStore.init(root);
   setIndexStore(indexStore);
+
+  // v1.0: bootstrap object-type schemas. Copies the seven seed YAMLs
+  // into `<root>/.ziba/schema/` if the dir is empty, then parses every
+  // `.yml` and syncs the result into the `object_types` cache.
+  // Errors in individual schemas are logged and skipped — one bad
+  // file shouldn't block opening the vault.
+  await bootstrapSchemas(root, indexStore);
 
   // Initial index. Push progress to the renderer so the UI can show a
   // spinner / progress bar while large vaults import.

@@ -13,6 +13,8 @@ import {
   INDEX_DIR_NAME,
   PRAGMAS,
   SCHEMA_SQL,
+  EXPECTED_USER_VERSION,
+  MIGRATION_DROP_SQL,
   type DatabaseGroup,
   type DatabaseQuery,
   type DatabaseResult,
@@ -23,7 +25,10 @@ import {
   type IndexStoreAdapter,
   type NotePath,
   type NoteSummary,
+  type ObjectTypeRow,
   type OutgoingWikilink,
+  type RelationRow,
+  type ResolvedRelation,
   type TagPair,
   type TagSummaryRow,
   type UpsertNoteInput,
@@ -98,12 +103,18 @@ export class SqliteIndexStore implements IndexStoreAdapter {
     getNote: Database.Statement;
     listNotes: Database.Statement;
     searchByTitle: Database.Statement;
-    deleteWikilinksFor: Database.Statement;
-    insertWikilink: Database.Statement;
+    deleteRelationsFor: Database.Statement;
+    insertRelation: Database.Statement;
     getBacklinks: Database.Statement;
     getOutgoing: Database.Statement;
+    getRelationsBySource: Database.Statement;
+    getRelationsBySourceAndKind: Database.Statement;
+    getReverseRelations: Database.Statement;
+    getReverseRelationsByKind: Database.Statement;
+    findRelationsByResolvedTarget: Database.Statement;
+    updateRelationTargetPath: Database.Statement;
     resolveTitle: Database.Statement;
-    clearWikilinks: Database.Statement;
+    clearRelations: Database.Statement;
     clearNotes: Database.Statement;
     deleteFts: Database.Statement;
     insertFts: Database.Statement;
@@ -119,6 +130,9 @@ export class SqliteIndexStore implements IndexStoreAdapter {
     clearProps: Database.Statement;
     graphNodes: Database.Statement;
     graphEdges: Database.Statement;
+    upsertObjectType: Database.Statement;
+    deleteObjectType: Database.Statement;
+    listObjectTypes: Database.Statement;
   } | null = null;
 
   async init(vaultRoot: string): Promise<void> {
@@ -130,14 +144,25 @@ export class SqliteIndexStore implements IndexStoreAdapter {
     db.exec(PRAGMAS);
     db.exec(SCHEMA_SQL);
 
+    // v1.0: cache schema versioning. Drops legacy / changed tables on
+    // a version mismatch and re-creates them; the existing reindex
+    // pipeline rebuilds the data from disk on the next save / open.
+    // Index is a cache, no data loss.
+    const versionRow = db.prepare('PRAGMA user_version').get() as { user_version: number };
+    if (versionRow.user_version < EXPECTED_USER_VERSION) {
+      db.exec(MIGRATION_DROP_SQL);
+      db.exec(SCHEMA_SQL);
+      db.exec(`PRAGMA user_version = ${EXPECTED_USER_VERSION}`);
+    }
+
     // Augment with case-insensitive lookup indexes. The shared schema can't
     // assume a particular collation, so we add LOWER() expression indexes
     // here -- these are idempotent (CREATE INDEX IF NOT EXISTS).
     db.exec(`
       CREATE INDEX IF NOT EXISTS idx_notes_title_lower
         ON notes(LOWER(title));
-      CREATE INDEX IF NOT EXISTS idx_wikilinks_target_title_lower
-        ON wikilinks(LOWER(target_title));
+      CREATE INDEX IF NOT EXISTS idx_relations_target_title_lower
+        ON relations(LOWER(target_title));
     `);
 
     this.db = db;
@@ -165,27 +190,65 @@ export class SqliteIndexStore implements IndexStoreAdapter {
         ORDER BY LOWER(title) ASC
         LIMIT @limit
       `),
-      deleteWikilinksFor: db.prepare(`DELETE FROM wikilinks WHERE source_path = ?`),
-      insertWikilink: db.prepare(`
-        INSERT OR REPLACE INTO wikilinks (source_path, target_title, target_path)
-        VALUES (?, ?, ?)
+      deleteRelationsFor: db.prepare(`DELETE FROM relations WHERE source_path = ?`),
+      insertRelation: db.prepare(`
+        INSERT INTO relations (source_path, kind, target_title, target_path)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT (source_path, kind, target_title) DO UPDATE SET
+          target_path = excluded.target_path
       `),
-      // Join back to notes for source title -- the IPC layer needs it for
-      // backlinks UI without an extra round-trip per row.
+      // Backlinks now read from `relations` (kind-agnostic). Returning
+      // every kind preserves v0.x panel behaviour; the v1.0 object
+      // panel can group by `kind` itself.
       getBacklinks: db.prepare(`
-        SELECT w.source_path AS source_path,
-               w.target_title AS target_title,
-               w.target_path  AS target_path,
+        SELECT r.source_path  AS source_path,
+               r.target_title AS target_title,
+               r.target_path  AS target_path,
                n.title        AS source_title
-        FROM wikilinks w
-        JOIN notes n ON n.path = w.source_path
-        WHERE w.target_path = ?
+        FROM relations r
+        JOIN notes n ON n.path = r.source_path
+        WHERE r.target_path = ?
+        ORDER BY r.kind, r.source_path
       `),
+      // `getOutgoing` keeps the v0.x shape (no `kind`) so the existing
+      // OutgoingWikilink consumers continue to work. v1.0 callers
+      // wanting kind-aware outgoing edges use `getRelationsBySource`.
       getOutgoing: db.prepare(`
         SELECT source_path, target_title, target_path
-        FROM wikilinks
+        FROM relations
         WHERE source_path = ?
       `),
+      getRelationsBySource: db.prepare(`
+        SELECT source_path, kind, target_title, target_path
+        FROM relations
+        WHERE source_path = ?
+        ORDER BY kind, target_title
+      `),
+      getRelationsBySourceAndKind: db.prepare(`
+        SELECT source_path, kind, target_title, target_path
+        FROM relations
+        WHERE source_path = ? AND kind = ?
+        ORDER BY target_title
+      `),
+      getReverseRelations: db.prepare(`
+        SELECT source_path, kind, target_title, target_path
+        FROM relations
+        WHERE target_path = ?
+        ORDER BY kind, source_path
+      `),
+      getReverseRelationsByKind: db.prepare(`
+        SELECT source_path, kind, target_title, target_path
+        FROM relations
+        WHERE target_path = ? AND kind = ?
+        ORDER BY source_path
+      `),
+      findRelationsByResolvedTarget: db.prepare(
+        `SELECT source_path, kind, target_title FROM relations WHERE target_path = ?`,
+      ),
+      updateRelationTargetPath: db.prepare(
+        `UPDATE relations SET target_path = ?
+         WHERE source_path = ? AND kind = ? AND target_title = ?`,
+      ),
       // "Most canonical" tiebreak: shortest path, then alphabetic.
       resolveTitle: db.prepare(`
         SELECT path FROM notes
@@ -193,7 +256,7 @@ export class SqliteIndexStore implements IndexStoreAdapter {
         ORDER BY LENGTH(path) ASC, path ASC
         LIMIT 1
       `),
-      clearWikilinks: db.prepare(`DELETE FROM wikilinks`),
+      clearRelations: db.prepare(`DELETE FROM relations`),
       clearNotes: db.prepare(`DELETE FROM notes`),
       deleteFts: db.prepare(`DELETE FROM notes_fts WHERE path = ?`),
       // Plain FTS5 table: we delete-then-insert rather than rely on rowid
@@ -245,12 +308,29 @@ export class SqliteIndexStore implements IndexStoreAdapter {
       clearProps: db.prepare(`DELETE FROM note_properties`),
       graphNodes: db.prepare(`SELECT path, title FROM notes`),
       graphEdges: db.prepare(`
-        SELECT w.source_path AS source,
-               w.target_path  AS target,
-               n.title         AS target_title
-        FROM wikilinks w
-        JOIN notes n ON n.path = w.target_path
-        WHERE w.target_path IS NOT NULL
+        SELECT r.source_path AS source,
+               r.target_path  AS target,
+               n.title         AS target_title,
+               r.kind          AS kind
+        FROM relations r
+        JOIN notes n ON n.path = r.target_path
+        WHERE r.target_path IS NOT NULL
+      `),
+      upsertObjectType: db.prepare(`
+        INSERT INTO object_types (id, label, icon, color, schema_json, mtime)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT (id) DO UPDATE SET
+          label       = excluded.label,
+          icon        = excluded.icon,
+          color       = excluded.color,
+          schema_json = excluded.schema_json,
+          mtime       = excluded.mtime
+      `),
+      deleteObjectType: db.prepare(`DELETE FROM object_types WHERE id = ?`),
+      listObjectTypes: db.prepare(`
+        SELECT id, label, icon, color, schema_json, mtime
+        FROM object_types
+        ORDER BY id
       `),
     };
   }
@@ -365,45 +445,125 @@ export class SqliteIndexStore implements IndexStoreAdapter {
     return rows.map((r) => ({ targetTitle: r.target_title, targetPath: r.target_path }));
   }
 
+  /**
+   * v0.x compat shim. Body wikilinks are now `kind = ''` rows in the
+   * `relations` table; this shim adapts to that shape so existing
+   * callers (notes.ts save flow) keep working until migrated to
+   * `replaceRelations` directly. Sets `kind = ''` for every entry.
+   */
   async replaceWikilinks(sourcePath: NotePath, links: OutgoingWikilink[]): Promise<void> {
+    return this.replaceRelations(
+      sourcePath,
+      links.map((l) => ({ kind: '', targetTitle: l.targetTitle, targetPath: l.targetPath })),
+    );
+  }
+
+  async replaceRelations(sourcePath: NotePath, relations: ResolvedRelation[]): Promise<void> {
     const s = this.require();
     if (!this.db) throw new Error('IndexStore not initialized');
-    const tx = this.db.transaction((src: NotePath, ls: OutgoingWikilink[]) => {
-      s.deleteWikilinksFor.run(src);
-      for (const l of ls) {
-        s.insertWikilink.run(src, l.targetTitle, l.targetPath);
+    const tx = this.db.transaction((src: NotePath, rels: ResolvedRelation[]) => {
+      s.deleteRelationsFor.run(src);
+      for (const r of rels) {
+        s.insertRelation.run(src, r.kind, r.targetTitle, r.targetPath);
       }
     });
-    tx(sourcePath, links);
+    tx(sourcePath, relations);
+    return Promise.resolve();
+  }
+
+  async getRelations(args: { sourcePath: NotePath; kind?: string }): Promise<RelationRow[]> {
+    const s = this.require();
+    type R = {
+      source_path: string;
+      kind: string;
+      target_title: string;
+      target_path: string | null;
+    };
+    const rows =
+      args.kind === undefined
+        ? (s.getRelationsBySource.all(args.sourcePath) as R[])
+        : (s.getRelationsBySourceAndKind.all(args.sourcePath, args.kind) as R[]);
+    return Promise.resolve(rows.map(rowToRelation));
+  }
+
+  async getReverseRelations(args: { targetPath: NotePath; kind?: string }): Promise<RelationRow[]> {
+    const s = this.require();
+    type R = {
+      source_path: string;
+      kind: string;
+      target_title: string;
+      target_path: string | null;
+    };
+    const rows =
+      args.kind === undefined
+        ? (s.getReverseRelations.all(args.targetPath) as R[])
+        : (s.getReverseRelationsByKind.all(args.targetPath, args.kind) as R[]);
+    return Promise.resolve(rows.map(rowToRelation));
+  }
+
+  async listObjectTypes(): Promise<ObjectTypeRow[]> {
+    const s = this.require();
+    type R = {
+      id: string;
+      label: string;
+      icon: string | null;
+      color: string | null;
+      schema_json: string;
+      mtime: number;
+    };
+    const rows = s.listObjectTypes.all() as R[];
+    return Promise.resolve(
+      rows.map((r) => ({
+        id: r.id,
+        label: r.label,
+        icon: r.icon,
+        color: r.color,
+        schema: JSON.parse(r.schema_json),
+        mtimeMs: r.mtime,
+      })),
+    );
+  }
+
+  async upsertObjectType(row: ObjectTypeRow): Promise<void> {
+    const s = this.require();
+    s.upsertObjectType.run(
+      row.id,
+      row.label,
+      row.icon,
+      row.color,
+      JSON.stringify(row.schema),
+      row.mtimeMs,
+    );
+    return Promise.resolve();
+  }
+
+  async deleteObjectType(id: string): Promise<void> {
+    const s = this.require();
+    s.deleteObjectType.run(id);
     return Promise.resolve();
   }
 
   async reresolveStaleWikilinks(formerlyResolvingTo: NotePath): Promise<void> {
+    const s = this.require();
     if (!this.db) throw new Error('IndexStore not initialized');
-    // Find every wikilink whose stored target_path was the now-renamed
-    // (or now-deleted) note. We re-resolve each by its target_title so the
-    // link can land on whoever currently owns that title (possibly the
-    // renamed note at its new path, possibly a different note, possibly
-    // null if no match).
-    type StaleRow = { source_path: string; target_title: string };
-    const stale = this.db
-      .prepare(`SELECT source_path, target_title FROM wikilinks WHERE target_path = ?`)
-      .all(formerlyResolvingTo) as StaleRow[];
+    // Find every relation whose stored target_path was the now-renamed
+    // (or now-deleted) note, then re-resolve each by its target_title.
+    // The relation may land on the renamed note at its new path, on a
+    // different note that now matches the title, or null (broken).
+    type StaleRow = { source_path: string; kind: string; target_title: string };
+    const stale = s.findRelationsByResolvedTarget.all(formerlyResolvingTo) as StaleRow[];
     if (stale.length === 0) return;
 
-    // better-sqlite3 transactions are sync; resolve the new target paths
-    // up-front so the inner loop is a pure SQL batch.
+    // better-sqlite3 transactions are sync; resolve up-front so the
+    // inner loop is a pure SQL batch.
     const resolutions: Array<{ row: StaleRow; newPath: NotePath | null }> = [];
     for (const r of stale) {
       resolutions.push({ row: r, newPath: await this.resolveTitleToPath(r.target_title) });
     }
 
-    const updateStmt = this.db.prepare(
-      `UPDATE wikilinks SET target_path = ? WHERE source_path = ? AND target_title = ?`,
-    );
     this.db.transaction((items: typeof resolutions) => {
       for (const { row, newPath } of items) {
-        updateStmt.run(newPath, row.source_path, row.target_title);
+        s.updateRelationTargetPath.run(newPath, row.source_path, row.kind, row.target_title);
       }
     })(resolutions);
   }
@@ -466,7 +626,7 @@ export class SqliteIndexStore implements IndexStoreAdapter {
     const s = this.require();
     if (!this.db) throw new Error('IndexStore not initialized');
     const tx = this.db.transaction(() => {
-      s.clearWikilinks.run();
+      s.clearRelations.run();
       s.clearTags.run();
       s.clearProps.run();
       s.clearFts.run();
@@ -677,6 +837,20 @@ export class SqliteIndexStore implements IndexStoreAdapter {
  * `DetectedProperty` back. Returns `null` for malformed rows (shouldn't
  * happen if writes go through the typed adapter, but we guard anyway).
  */
+function rowToRelation(r: {
+  source_path: string;
+  kind: string;
+  target_title: string;
+  target_path: string | null;
+}): RelationRow {
+  return {
+    sourcePath: r.source_path,
+    kind: r.kind,
+    targetTitle: r.target_title,
+    targetPath: r.target_path,
+  };
+}
+
 function sqliteRowToDetected(r: {
   prop_key: string;
   prop_type: string;
