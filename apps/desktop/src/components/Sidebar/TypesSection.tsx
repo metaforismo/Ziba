@@ -19,20 +19,15 @@ import { useUiStore } from '../../stores/ui';
  * panel" with one click. We could split it later if the section
  * counts grow large enough to warrant separate gestures.
  */
-export function TypesSection(): JSX.Element | null {
+export function TypesSection(): JSX.Element {
   const types = useTagsStore((s) => s.types);
   const selectedType = useTagsStore((s) => s.selectedType);
   const notesForSelectedType = useTagsStore((s) => s.notesForSelectedType);
   const selectType = useTagsStore((s) => s.selectType);
-  const expanded = useUiStore((s) => s.tagsExpanded);
+  const expanded = useUiStore((s) => s.typesExpanded);
+  const toggleExpanded = useUiStore((s) => s.toggleTypes);
   const openNote = useEditorStore((s) => s.openNote);
   const currentPath = useEditorStore((s) => s.currentPath);
-
-  // Don't render the section header when the vault has zero typed
-  // notes — the "Tag" / "Note" sections give the right v0.x feel for
-  // untyped vaults. Once the user labels at least one note, the
-  // section appears automatically.
-  if (types.length === 0) return null;
 
   const handleClick = (id: string): void => {
     if (selectedType === id) {
@@ -48,9 +43,11 @@ export function TypesSection(): JSX.Element | null {
 
   return (
     <section className="shrink-0 border-b border-border" aria-label="Tipi">
-      <div
-        className="flex w-full items-center justify-between gap-2 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-fg-muted"
-        aria-label="Tipi"
+      <button
+        type="button"
+        onClick={toggleExpanded}
+        className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-fg-muted hover:text-fg"
+        aria-expanded={expanded}
       >
         <span className="flex items-center gap-1.5">
           <span aria-hidden="true" className="inline-block w-3 text-center">
@@ -64,20 +61,32 @@ export function TypesSection(): JSX.Element | null {
         >
           {types.length}
         </span>
-      </div>
+      </button>
 
       {expanded && (
         <div className="px-1 pb-2">
-          <ul role="list" className="max-h-[200px] space-y-px overflow-y-auto">
-            {types.map((t) => (
-              <TypeRow
-                key={t.id}
-                type={t}
-                active={selectedType === t.id}
-                onClick={(): void => handleClick(t.id)}
-              />
-            ))}
-          </ul>
+          {types.length === 0 ? (
+            // Didactic empty state. Without it a v0.x user wouldn't
+            // know the feature exists. The hint is intentionally
+            // light-touch — once at least one note is typed, the
+            // section auto-populates.
+            <p className="px-2 py-2 text-xs text-fg-muted">
+              Aggiungi <code className="font-mono">type: &lt;slug&gt;</code> nel frontmatter di una
+              nota per categorizzarla. Gli schema vivono in{' '}
+              <code className="font-mono">.ziba/schema/</code>.
+            </p>
+          ) : (
+            <ul role="list" className="max-h-[200px] space-y-px overflow-y-auto">
+              {types.map((t) => (
+                <TypeRow
+                  key={t.id}
+                  type={t}
+                  active={selectedType === t.id}
+                  onClick={(): void => handleClick(t.id)}
+                />
+              ))}
+            </ul>
+          )}
 
           {selectedType !== null && (
             <div className="mt-2 border-t border-border pt-2">

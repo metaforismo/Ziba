@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { extractType } from '@ziba/core';
 import { useEditorStore } from '../../stores/editor';
 import { useUiStore, type RightPaneTab } from '../../stores/ui';
 import { MiniGraph } from '../MiniGraph';
@@ -24,13 +25,6 @@ const TABS_TYPED: readonly TabSpec[] = [
   { id: 'backlinks', label: 'Oggetto' },
   { id: 'graph', label: 'Grafo' },
 ] as const;
-
-function readTypeFromFrontmatter(fm: Record<string, unknown> | undefined): string | null {
-  if (fm === undefined) return null;
-  const t = fm.type;
-  if (typeof t !== 'string') return null;
-  return /^[a-z][a-z0-9-]*$/.test(t) ? t : null;
-}
 
 /**
  * Tabbed shell for the right-side panel. Hosts:
@@ -64,7 +58,7 @@ export function BacklinksPanel(): JSX.Element {
   // backlinks list for the object panel. Untyped notes keep the
   // backlinks behaviour unchanged. Tab id `'backlinks'` is reused
   // for both modes (label changes; persistence stays).
-  const isTyped = readTypeFromFrontmatter(currentNote?.frontmatter) !== null;
+  const isTyped = currentNote !== null && extractType(currentNote.frontmatter) !== null;
   const tabs = isTyped ? TABS_TYPED : TABS_UNTYPED;
 
   return (

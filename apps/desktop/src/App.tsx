@@ -5,6 +5,7 @@ import { SearchPalette } from './components/SearchPalette';
 import { ToastStack } from './components/ToastStack';
 import { useEditorStore } from './stores/editor';
 import { useSearchStore } from './stores/search';
+import { useTagsStore } from './stores/tags';
 import { useUiStore } from './stores/ui';
 import { useVaultStore } from './stores/vault';
 import { ipc } from './lib/ipc';
@@ -25,6 +26,13 @@ export function App(): JSX.Element {
     void hydrateFromMain();
 
     const offVaultEvent = ipc.onVaultEvent((event) => {
+      // v1.0.1: schema-only change (someone edited a yml in
+      // `<vault>/.ziba/schema/`). Skip the notes refresh — the file
+      // tree didn't change — and just rebuild the taxonomy.
+      if (event.type === 'schemasChanged') {
+        void useTagsStore.getState().refresh();
+        return;
+      }
       applyVaultEvent(event);
       if (event.type === 'change' || event.type === 'add') {
         applyExternalChange(event.path, event.mtimeMs);

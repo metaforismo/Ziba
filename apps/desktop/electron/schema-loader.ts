@@ -7,6 +7,7 @@
 
 import { promises as fsp } from 'node:fs';
 import path from 'node:path';
+import chokidar, { type FSWatcher } from 'chokidar';
 import {
   INDEX_DIR_NAME,
   SEED_SCHEMAS,
@@ -99,4 +100,117 @@ export async function bootstrapSchemas(
   await ensureSeedSchemas(vaultRoot);
   const loaded = await loadSchemasIntoStore(vaultRoot, store);
   return { loaded };
+}
+
+/**
+ * Process a single schema file event. Re-reads + parses + upserts into
+ * the store; on parse failure or read error, logs and leaves the prior
+ * cache row in place (so a transient editor mid-save doesn't blow away
+ * a working schema).
+ *
+ * `unlink` is special: we delete the type from the cache immediately —
+ * a removed yaml is the user's explicit "drop this type" gesture.
+ */
+async function applySchemaFileEvent(
+  full: string,
+  event: 'add' | 'change' | 'unlink',
+  store: IndexStoreAdapter,
+): Promise<void> {
+  if (event === 'unlink') {
+    // Derive the type id from the filename: `<id>.yml` or `<id>.yaml`.
+    // We don't have access to the schema content (the file is gone),
+    // so the filename is the only available key.
+    const base = path.basename(full).replace(/\.(yml|yaml)$/i, '');
+    if (base.length > 0) {
+      try {
+        await store.deleteObjectType(base);
+      } catch (err) {
+        console.error(`[schema-loader] failed to drop type "${base}":`, err);
+      }
+    }
+    return;
+  }
+
+  let content: string;
+  let mtimeMs: number;
+  try {
+    content = await fsp.readFile(full, 'utf8');
+    const stat = await fsp.stat(full);
+    mtimeMs = stat.mtimeMs;
+  } catch (err) {
+    console.error(`[schema-loader] failed to read ${full}:`, err);
+    return;
+  }
+
+  const result = parseSchemaYaml(content);
+  if (!result.ok) {
+    console.error(`[schema-loader] schema "${full}" has errors:`, result.errors);
+    return;
+  }
+
+  const row: ObjectTypeRow = {
+    id: result.schema.id,
+    label: result.schema.label,
+    icon: result.schema.icon ?? null,
+    color: result.schema.color ?? null,
+    schema: result.schema,
+    mtimeMs,
+  };
+  await store.upsertObjectType(row);
+}
+
+/**
+ * Watch `<vault>/.ziba/schema/` for `.yml` / `.yaml` changes and
+ * sync them into the `object_types` cache. Each event additionally
+ * fires `onChanged()` so the caller can push a `schemasChanged`
+ * event to the renderer (which refreshes the sidebar TypesSection
+ * and the ObjectPanel labels in place — no vault re-open required).
+ *
+ * Returned `stop()` unwatches and releases handles. Call it on
+ * vault close so a subsequent `openVault` can install a fresh
+ * watcher against the new vault.
+ *
+ * The watcher is independent from the main vault watcher because the
+ * latter explicitly skips `.ziba/` to avoid recursing into our own
+ * cache directory.
+ */
+export function watchSchemas(
+  vaultRoot: string,
+  store: IndexStoreAdapter,
+  onChanged: () => void,
+): { stop: () => Promise<void> } {
+  const dir = path.join(vaultRoot, INDEX_DIR_NAME, SCHEMA_DIR_NAME);
+  const watcher: FSWatcher = chokidar.watch(dir, {
+    ignored: (p) => {
+      // Only watch yaml files. chokidar may emit events for the dir
+      // itself or for non-yaml siblings; we filter them out cheaply.
+      if (p === dir) return false;
+      return !/\.(yml|yaml)$/i.test(p);
+    },
+    persistent: true,
+    ignoreInitial: true,
+    awaitWriteFinish: { stabilityThreshold: 150, pollInterval: 50 },
+  });
+
+  const handle =
+    (event: 'add' | 'change' | 'unlink') =>
+    async (full: string): Promise<void> => {
+      await applySchemaFileEvent(full, event, store);
+      onChanged();
+    };
+  watcher.on('add', (p: string): void => {
+    void handle('add')(p);
+  });
+  watcher.on('change', (p: string): void => {
+    void handle('change')(p);
+  });
+  watcher.on('unlink', (p: string): void => {
+    void handle('unlink')(p);
+  });
+
+  return {
+    stop: async (): Promise<void> => {
+      await watcher.close();
+    },
+  };
 }

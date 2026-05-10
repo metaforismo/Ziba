@@ -38,6 +38,13 @@ type TagsState = {
    * frontmatter (a schema with no users does not show up).
    */
   types: TypeSummary[];
+  /**
+   * v1.0: every cached object-type schema, regardless of whether any
+   * note carries that type. Populated on `refresh()` from
+   * `ipc.listObjectTypes()`. Serves as a renderer-side cache so the
+   * ObjectPanel doesn't re-fetch schemas on every note swap.
+   */
+  objectTypeSchemas: ObjectTypeRow[];
 
   /** Canonical (lowercase) tag the user is filtering by, or null. */
   selectedTag: string | null;
@@ -113,6 +120,7 @@ export const useTagsStore = create<TagsState>((set, get) => {
   return {
     tags: [],
     types: [],
+    objectTypeSchemas: [],
     selectedTag: null,
     selectedType: null,
     notesForSelectedTag: [],
@@ -124,6 +132,7 @@ export const useTagsStore = create<TagsState>((set, get) => {
         set({
           tags: [],
           types: [],
+          objectTypeSchemas: [],
           selectedTag: null,
           selectedType: null,
           notesForSelectedTag: [],
@@ -142,6 +151,9 @@ export const useTagsStore = create<TagsState>((set, get) => {
 
         const selectedTag = get().selectedTag;
         const selectedType = get().selectedType;
+        // Cache the full schemas so ObjectPanel can read them in-place
+        // instead of round-tripping IPC on every note swap.
+        set({ objectTypeSchemas: typeSchemas });
 
         // Drop a stale tag filter (the last note carrying it was
         // deleted or renamed away from this tag).

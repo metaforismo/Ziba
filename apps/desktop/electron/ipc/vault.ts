@@ -12,17 +12,19 @@ import { IpcChannels, type VaultInfo } from '../../shared/ipc.js';
 import { getFilesystemAdapter } from '../adapters/filesystem.electron.js';
 import { SqliteIndexStore } from '../adapters/index-store.sqlite.js';
 import { ChokidarWatcher } from '../adapters/watcher.chokidar.js';
-import { bootstrapSchemas } from '../schema-loader.js';
+import { bootstrapSchemas, watchSchemas } from '../schema-loader.js';
 import { IpcError } from '../security.js';
 import {
   consumeIfSelfWrite,
   getCurrentVault,
   getIndexStore,
+  getSchemaWatcher,
   getWatcher,
   requireIndexStore,
   setCurrentVault,
   setFilesystem,
   setIndexStore,
+  setSchemaWatcher,
   setWatcher,
 } from '../state.js';
 import { pushRecentVault } from './settings.js';
@@ -56,6 +58,15 @@ async function teardown(): Promise<void> {
       // Best effort -- a watcher that fails to stop shouldn't block reopen.
     }
     setWatcher(null);
+  }
+  const sw = getSchemaWatcher();
+  if (sw) {
+    try {
+      await sw.stop();
+    } catch {
+      // Best effort.
+    }
+    setSchemaWatcher(null);
   }
   const s = getIndexStore();
   if (s) {
@@ -108,6 +119,16 @@ export async function openVault(win: BrowserWindow, args: { root: string }): Pro
   // Errors in individual schemas are logged and skipped — one bad
   // file shouldn't block opening the vault.
   await bootstrapSchemas(root, indexStore);
+
+  // v1.0.1: hot-reload schemas. Editing `.ziba/schema/<id>.yml` while
+  // the vault is open propagates to the SQLite cache and pushes a
+  // `schemasChanged` event so the renderer refreshes its taxonomy
+  // without a vault re-open.
+  const schemaW = watchSchemas(root, indexStore, () => {
+    if (win.isDestroyed()) return;
+    win.webContents.send(IpcChannels.vaultEvent, { type: 'schemasChanged' });
+  });
+  setSchemaWatcher(schemaW);
 
   // Initial index. Push progress to the renderer so the UI can show a
   // spinner / progress bar while large vaults import.

@@ -244,7 +244,12 @@ export type IpcResponses = {
 export type VaultEventPayload =
   | { type: 'add' | 'change'; path: NotePath; mtimeMs: number }
   | { type: 'unlink'; path: NotePath }
-  | { type: 'addDir' | 'unlinkDir'; path: NotePath };
+  | { type: 'addDir' | 'unlinkDir'; path: NotePath }
+  // v1.0.1: emitted when `<vault>/.ziba/schema/*.yml` changes —
+  // either a schema file was added, edited, or removed. Renderers
+  // refresh the taxonomy cache so sidebar / object-panel labels +
+  // icons + colors update without a vault re-open.
+  | { type: 'schemasChanged' };
 
 export type IndexProgressPayload = { processed: number; total: number | null };
 
