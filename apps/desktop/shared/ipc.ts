@@ -19,6 +19,7 @@ import type {
   PropertyType,
   RelationRow,
   ScalarFilter,
+  TypeCountRow,
 } from '@ziba/core';
 
 // Re-export the v0.3 query / graph types + v1.0 object/relation types
@@ -37,6 +38,7 @@ export type {
   PropertyType,
   RelationRow,
   ScalarFilter,
+  TypeCountRow,
 };
 
 export const IpcChannels = {
@@ -79,6 +81,7 @@ export const IpcChannels = {
   listObjectTypes: 'types:list',
   upsertObjectType: 'types:upsert',
   deleteObjectType: 'types:delete',
+  getTypeCounts: 'types:counts',
   getRelationsBySource: 'relations:bySource',
   getRelationsByTarget: 'relations:byTarget',
 
@@ -166,6 +169,7 @@ export type IpcRequests = {
   [IpcChannels.listObjectTypes]: void;
   [IpcChannels.upsertObjectType]: { row: ObjectTypeRow };
   [IpcChannels.deleteObjectType]: { id: string };
+  [IpcChannels.getTypeCounts]: void;
   [IpcChannels.getRelationsBySource]: { sourcePath: NotePath; kind?: string };
   [IpcChannels.getRelationsByTarget]: { targetPath: NotePath; kind?: string };
 
@@ -228,6 +232,7 @@ export type IpcResponses = {
   [IpcChannels.listObjectTypes]: ObjectTypeRow[];
   [IpcChannels.upsertObjectType]: void;
   [IpcChannels.deleteObjectType]: void;
+  [IpcChannels.getTypeCounts]: TypeCountRow[];
   [IpcChannels.getRelationsBySource]: RelationRow[];
   [IpcChannels.getRelationsByTarget]: RelationRow[];
 

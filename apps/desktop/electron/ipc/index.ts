@@ -38,6 +38,7 @@ import {
   listObjectTypes,
   upsertObjectType,
   deleteObjectType,
+  getTypeCounts,
   getRelationsBySource,
   getRelationsByTarget,
 } from './types.js';
@@ -112,6 +113,7 @@ export function registerIpcHandlers(win: BrowserWindow): void {
   handle(IpcChannels.listObjectTypes, () => listObjectTypes());
   handle(IpcChannels.upsertObjectType, (args) => upsertObjectType(args));
   handle(IpcChannels.deleteObjectType, (args) => deleteObjectType(args));
+  handle(IpcChannels.getTypeCounts, () => getTypeCounts());
   handle(IpcChannels.getRelationsBySource, (args) => getRelationsBySource(args));
   handle(IpcChannels.getRelationsByTarget, (args) => getRelationsByTarget(args));
 

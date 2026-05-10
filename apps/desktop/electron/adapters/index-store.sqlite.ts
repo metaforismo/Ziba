@@ -29,6 +29,7 @@ import {
   type OutgoingWikilink,
   type RelationRow,
   type ResolvedRelation,
+  type TypeCountRow,
   type TagPair,
   type TagSummaryRow,
   type UpsertNoteInput,
@@ -133,6 +134,7 @@ export class SqliteIndexStore implements IndexStoreAdapter {
     upsertObjectType: Database.Statement;
     deleteObjectType: Database.Statement;
     listObjectTypes: Database.Statement;
+    getTypeCounts: Database.Statement;
   } | null = null;
 
   async init(vaultRoot: string): Promise<void> {
@@ -332,6 +334,20 @@ export class SqliteIndexStore implements IndexStoreAdapter {
         FROM object_types
         ORDER BY id
       `),
+      // Aggregated count of notes per `type:` slug. Counts are derived
+      // from `note_properties` (the v0.3 typed-property index) — there
+      // is no denormalised type column on `notes`. Filtered to non-null
+      // text values so a note that wrote `type: 42` (numeric, lands
+      // in `number_value`) doesn't pollute the type taxonomy.
+      getTypeCounts: db.prepare(`
+        SELECT text_value AS type, COUNT(*) AS count
+        FROM note_properties
+        WHERE prop_key = 'type'
+          AND prop_type = 'text'
+          AND text_value IS NOT NULL
+        GROUP BY text_value
+        ORDER BY count DESC, text_value ASC
+      `),
     };
   }
 
@@ -499,6 +515,13 @@ export class SqliteIndexStore implements IndexStoreAdapter {
         ? (s.getReverseRelations.all(args.targetPath) as R[])
         : (s.getReverseRelationsByKind.all(args.targetPath, args.kind) as R[]);
     return Promise.resolve(rows.map(rowToRelation));
+  }
+
+  async getTypeCounts(): Promise<TypeCountRow[]> {
+    const s = this.require();
+    type R = { type: string; count: number };
+    const rows = s.getTypeCounts.all() as R[];
+    return Promise.resolve(rows.map((r) => ({ type: r.type, count: r.count })));
   }
 
   async listObjectTypes(): Promise<ObjectTypeRow[]> {

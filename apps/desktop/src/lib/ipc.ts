@@ -13,6 +13,7 @@ import type {
   RelationRow,
   SearchHit,
   TagSummary,
+  TypeCountRow,
   VaultEventPayload,
   VaultInfo,
 } from '../../shared/ipc';
@@ -120,6 +121,9 @@ export const ipc = {
   },
   deleteObjectType(args: { id: string }): Promise<void> {
     return api().invoke(IpcChannels.deleteObjectType, args);
+  },
+  getTypeCounts(): Promise<TypeCountRow[]> {
+    return api().invoke(IpcChannels.getTypeCounts);
   },
   getRelationsBySource(args: { sourcePath: NotePath; kind?: string }): Promise<RelationRow[]> {
     return api().invoke(IpcChannels.getRelationsBySource, args);

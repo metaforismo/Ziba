@@ -6,7 +6,7 @@
 // handlers exist so the renderer doesn't need to know the adapter
 // shape directly.
 
-import type { NotePath, ObjectTypeRow, RelationRow } from '@ziba/core';
+import type { NotePath, ObjectTypeRow, RelationRow, TypeCountRow } from '@ziba/core';
 import { requireIndexStore } from '../state.js';
 
 export async function listObjectTypes(): Promise<ObjectTypeRow[]> {
@@ -19,6 +19,10 @@ export async function upsertObjectType(args: { row: ObjectTypeRow }): Promise<vo
 
 export async function deleteObjectType(args: { id: string }): Promise<void> {
   return requireIndexStore().deleteObjectType(args.id);
+}
+
+export async function getTypeCounts(): Promise<TypeCountRow[]> {
+  return requireIndexStore().getTypeCounts();
 }
 
 export async function getRelationsBySource(args: {

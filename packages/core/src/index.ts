@@ -11,4 +11,5 @@ export type {
   ResolvedRelation,
   RelationRow,
   ObjectTypeRow,
+  TypeCountRow,
 } from './adapters/index-store.js';
