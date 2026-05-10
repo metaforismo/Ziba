@@ -13,6 +13,7 @@ let currentVault: VaultInfo | null = null;
 let indexStore: IndexStoreAdapter | null = null;
 let watcher: WatcherAdapter | null = null;
 let filesystem: FilesystemAdapter | null = null;
+let schemaWatcher: { stop: () => Promise<void> } | null = null;
 
 // Paths we just wrote ourselves, with an expiry timestamp. The watcher
 // uses this to skip echoes of our own writes (chokidar's awaitWriteFinish
@@ -51,6 +52,14 @@ export function getFilesystem(): FilesystemAdapter | null {
 
 export function setFilesystem(fs: FilesystemAdapter | null): void {
   filesystem = fs;
+}
+
+export function getSchemaWatcher(): { stop: () => Promise<void> } | null {
+  return schemaWatcher;
+}
+
+export function setSchemaWatcher(w: { stop: () => Promise<void> } | null): void {
+  schemaWatcher = w;
 }
 
 /**

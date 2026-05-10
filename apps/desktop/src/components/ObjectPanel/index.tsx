@@ -1,6 +1,6 @@
 import type { JSX } from 'react';
 import { useEffect, useMemo, useState } from 'react';
-import type { NotePath } from '@ziba/core';
+import { extractType, type NotePath } from '@ziba/core';
 import type { ObjectTypeRow, RelationRow } from '../../../shared/ipc';
 import { ipc } from '../../lib/ipc';
 import { ipcErrorMessage } from '../../lib/ipc-error';
@@ -32,20 +32,28 @@ import { navigateToNote } from '../../lib/navigate';
 export function ObjectPanel(): JSX.Element {
   const currentNote = useEditorStore((s) => s.currentNote);
   const types = useTagsStore((s) => s.types);
+  const objectTypeSchemas = useTagsStore((s) => s.objectTypeSchemas);
 
-  // Note can be null briefly during load. Render nothing rather than
-  // a flash of "no type" — the parent decides which panel to mount.
+  // Note can be null briefly during load. Render the empty state
+  // rather than a flash of "no type" — the parent decides which
+  // panel to mount.
   if (currentNote === null) return <EmptyState />;
 
-  const typeId = readTypeFromFrontmatter(currentNote.frontmatter);
+  const typeId = extractType(currentNote.frontmatter);
   if (typeId === null) return <EmptyState />;
 
   return (
     <ObjectPanelInner
       typeId={typeId}
       sourcePath={currentNote.path}
+      // mtimeMs as a dep on the inner effect so saving the note
+      // (which re-extracts relations on the indexer side) triggers a
+      // refetch — without it the panel would show stale relations
+      // until the user reopens the note.
+      mtimeMs={currentNote.mtimeMs}
       frontmatter={currentNote.frontmatter}
       typeMeta={types.find((t) => t.id === typeId) ?? null}
+      cachedSchema={objectTypeSchemas.find((s) => s.id === typeId) ?? null}
     />
   );
 }
@@ -53,34 +61,39 @@ export function ObjectPanel(): JSX.Element {
 function ObjectPanelInner({
   typeId,
   sourcePath,
+  mtimeMs,
   frontmatter,
   typeMeta,
+  cachedSchema,
 }: {
   typeId: string;
   sourcePath: NotePath;
+  mtimeMs: number;
   frontmatter: Record<string, unknown>;
   typeMeta: { id: string; label: string; icon: string | null; color: string | null } | null;
+  cachedSchema: ObjectTypeRow | null;
 }): JSX.Element {
-  const [schema, setSchema] = useState<ObjectTypeRow | null>(null);
   const [outgoing, setOutgoing] = useState<RelationRow[]>([]);
   const [inverse, setInverse] = useState<RelationRow[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  // Effect runs whenever the source path or type id changes — both
-  // legitimate reasons to refetch (note switched, user edited the
-  // frontmatter `type:`).
+  // Refetch relations whenever the source path, the type id, or the
+  // note's mtime changes. mtime as a dep is what makes the panel
+  // reactive to saves: the indexer rewrites `relations` on each
+  // upsert, and a watcher event re-loads `currentNote` with a fresh
+  // `mtimeMs` — this useEffect catches that and pulls the new state.
+  // Schemas are taken from the renderer-side cache (`cachedSchema`),
+  // so we no longer round-trip IPC for them on every note swap.
   useEffect(() => {
     let cancelled = false;
     setError(null);
     (async (): Promise<void> => {
       try {
-        const [schemas, out, inv] = await Promise.all([
-          ipc.listObjectTypes(),
+        const [out, inv] = await Promise.all([
           ipc.getRelationsBySource({ sourcePath }),
           ipc.getRelationsByTarget({ targetPath: sourcePath }),
         ]);
         if (cancelled) return;
-        setSchema(schemas.find((s) => s.id === typeId) ?? null);
         // Filter `kind = ''` out of outgoing — those are body
         // wikilinks, which the legacy backlinks UI handled. Object
         // panel surfaces only the typed relations the user
@@ -95,7 +108,9 @@ function ObjectPanelInner({
     return (): void => {
       cancelled = true;
     };
-  }, [sourcePath, typeId]);
+  }, [sourcePath, typeId, mtimeMs]);
+
+  const schema = cachedSchema;
 
   const groupedOutgoing = useMemo(() => groupBy(outgoing, (r) => r.kind), [outgoing]);
   const groupedInverse = useMemo(() => groupBy(inverse, (r) => r.kind), [inverse]);
@@ -336,12 +351,6 @@ function EmptyHint({ children }: { children: React.ReactNode }): JSX.Element {
 }
 
 // ---- helpers --------------------------------------------------------------
-
-function readTypeFromFrontmatter(fm: Record<string, unknown>): string | null {
-  const t = fm.type;
-  if (typeof t !== 'string') return null;
-  return /^[a-z][a-z0-9-]*$/.test(t) ? t : null;
-}
 
 function groupBy<T>(items: ReadonlyArray<T>, keyOf: (t: T) => string): Record<string, T[]> {
   const out: Record<string, T[]> = {};

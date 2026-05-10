@@ -39,6 +39,12 @@ type Persisted = {
    */
   tagsExpanded: boolean;
   /**
+   * v1.0: whether the "Tipi" section of the sidebar is expanded.
+   * Independent of `tagsExpanded` so the user can collapse one without
+   * the other.
+   */
+  typesExpanded: boolean;
+  /**
    * Active tab in the right-side panel. Persisted so users keep the same
    * view across reloads.
    */
@@ -59,6 +65,7 @@ const DEFAULTS: Persisted = {
   backlinksOpen: true,
   expandedFolders: [],
   tagsExpanded: true,
+  typesExpanded: true,
   rightPaneTab: 'backlinks',
   mainView: 'editor',
   databaseViewMode: 'table',
@@ -112,6 +119,8 @@ function loadPersisted(): Persisted {
           ? p.expandedFolders
           : DEFAULTS.expandedFolders,
       tagsExpanded: typeof p.tagsExpanded === 'boolean' ? p.tagsExpanded : DEFAULTS.tagsExpanded,
+      typesExpanded:
+        typeof p.typesExpanded === 'boolean' ? p.typesExpanded : DEFAULTS.typesExpanded,
       rightPaneTab: isRightPaneTab(p.rightPaneTab) ? p.rightPaneTab : DEFAULTS.rightPaneTab,
       mainView: isMainView(p.mainView) ? p.mainView : DEFAULTS.mainView,
       databaseViewMode: isDatabaseViewMode(p.databaseViewMode)
@@ -147,6 +156,7 @@ type UiState = Persisted & {
   toggleFolder(path: string): void;
   setExpandedFolders(paths: string[]): void;
   toggleTags(): void;
+  toggleTypes(): void;
   setRightPaneTab(tab: RightPaneTab): void;
   setMainView(view: MainView): void;
   setDatabaseViewMode(mode: DatabaseViewMode): void;
@@ -164,6 +174,7 @@ export const useUiStore = create<UiState>((set, get) => {
       backlinksOpen,
       expandedFolders,
       tagsExpanded,
+      typesExpanded,
       rightPaneTab,
       mainView,
       databaseViewMode,
@@ -174,6 +185,7 @@ export const useUiStore = create<UiState>((set, get) => {
       backlinksOpen,
       expandedFolders,
       tagsExpanded,
+      typesExpanded,
       rightPaneTab,
       mainView,
       databaseViewMode,
@@ -222,6 +234,10 @@ export const useUiStore = create<UiState>((set, get) => {
     },
     toggleTags() {
       set({ tagsExpanded: !get().tagsExpanded });
+      persist();
+    },
+    toggleTypes() {
+      set({ typesExpanded: !get().typesExpanded });
       persist();
     },
     setRightPaneTab(tab) {

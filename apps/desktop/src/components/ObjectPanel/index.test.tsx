@@ -127,7 +127,10 @@ describe('ObjectPanel — typed note', () => {
       },
       mtimeMs: 0,
     };
-    mock.setHandler('types:list', async () => [bookSchema]);
+    // ObjectPanel reads the schema from the renderer-side cache
+    // (`useTagsStore.objectTypeSchemas`) rather than per-mount IPC,
+    // so we seed the store directly.
+    useTagsStore.setState({ objectTypeSchemas: [bookSchema] });
     mock.setHandler('relations:bySource', async () => [
       {
         sourcePath: 'tolkien.md',
