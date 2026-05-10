@@ -7,7 +7,7 @@
 Markdown locale come fonte unica di verità, database strutturati come Notion, grafo di connessioni come Obsidian. In futuro: AI-native (semantic search, auto-link, agent organizzativi).
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-alpha%20%E2%80%94%20v0.1-orange)](#stato)
+[![Status](https://img.shields.io/badge/status-alpha%20%E2%80%94%20v0.5-orange)](#stato)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 [Filosofia](#filosofia--perché-Ziba) ·
@@ -42,7 +42,7 @@ I tuoi dati restano file `.md` con frontmatter YAML sul tuo disco. Sincronizzabi
 
 ## Stato
 
-> **Alpha — v0.3 in costruzione.** Non è ancora installabile come app distribuita. Funziona solo in modalità sviluppo, ma le funzionalità centrali (vault, editor, wikilink/backlink, search FTS5, database view, grafo globale, callout) sono cablate end-to-end.
+> **Alpha — v0.5 shipped, v0.6 in progettazione.** Non è ancora installabile come bundle distribuito. Funziona solo in modalità sviluppo (`pnpm dev`), ma il core è completo end-to-end: vault locale, editor a blocchi con wikilink/backlink, search FTS5, database con vista tabella/kanban/calendario, grafo globale, callout, embed `![[]]`, math LaTeX, IPC error surface tipizzato, toast UI. La base test è 340+ casi (140 core + 200 desktop) con typecheck e lint puliti.
 
 ## Funzionalità
 
@@ -77,6 +77,15 @@ I tuoi dati restano file `.md` con frontmatter YAML sul tuo disco. Sincronizzabi
 - 🗓️ **Calendar view** — sub-mode del Database: griglia mensile italiana (Lun-Dom), navigazione prev/next/oggi, note posizionate nel giorno della loro property data. Click → apre.
 - ↪️ **Embed block** — `![[Nota]]` mostra il contenuto di un'altra nota inline (read-only). Markdown roundtrip Obsidian-compatible. Lazy-load del target.
 - ∑ **Math (KaTeX)** — formule LaTeX con `$$..$$` block e `$..$` inline. Click sul rendering → editor LaTeX live preview. Markdown roundtrip nativo.
+
+### v0.5 — Hardening + UX polish (✅ shipped)
+
+- 🛡️ **IPC error surface tipizzato** — `IpcErrorCode` derivato dal type union, `extractIpcErrorCode` / `ipcErrorMessage` helper round-trippano `code` su due path indipendenti (own property + `[CODE]` message prefix). Defense-in-depth contro structured-clone changes futuri di Electron.
+- 🍞 **Toast surface globale** — sostituisce `window.alert` ovunque. Non-blocking, color-coded per kind (info/success/warning/error), auto-dismiss configurabile, `role="alert"` per gli errori. Tutte le mutazioni della sidebar passano attraverso il toast.
+- ⚙️ **Two-stage error split nelle mutazioni** — IPC failure dice "Impossibile X"; refresh/follow-up failure dice "X riuscito ma aggiornamento fallito" (truthful — l'azione È accaduta sul disco). Pinned da test dedicati.
+- ⌨️ **Keyboard shortcuts** — `Cmd/Ctrl+S` salva, `Cmd/Ctrl+N` apre la prompt nuova nota, `Cmd/Ctrl+K` (già v0.2) apre la search palette.
+- 🏗️ **Refactor**: Sidebar 553 → ~340 righe (`useSidebarMutations` hook + `<SidebarDialogs>` component); `index-store.sqlite.ts` 882 → 745 con query-builder estratto come modulo puro; `Fragment` discriminated union (`predicate / always-false / always-true`) consente short-circuit della query quando un filtro è unsatisfiable.
+- 🎨 **DST anchor**, **KaTeX LRU cache**, **scanInlineMath** Pandoc-style guards, **CalendarView/BoardView memo stability** con `EMPTY_ROWS` frozen const.
 
 ### In arrivo
 
@@ -197,7 +206,10 @@ pnpm --filter ziba-desktop run dist:linux   # AppImage + .deb
 | ✅ v0.2 | Power editing | Search FTS5 (Cmd+K), property editor, tag system, slash menu, mini-graph |
 | ✅ v0.3 | Database & graph | Database table view, grafo globale interattivo, callout block proper |
 | ✅ v0.4 | DB sub-views + blocchi | Kanban view, calendar view, embed `![[...]]`, math (KaTeX) `$$...$$` |
-| v0.5 (next) | Polish + power-user | Property drag handles, theme switcher, Sidebar refactor, plugin system foundation |
+| ✅ v0.5 | Hardening + UX polish | IPC error surface, toast UI, two-stage error split, Cmd+S/Cmd+N shortcuts, Sidebar refactor, query-builder split |
+| v0.6 (next) | Plugin system foundation | Manifest + capabilities + lifecycle, sandboxed plugin contexts, first-party plugin examples |
+| v1.0 | Web build + sync | Web app via OPFS / remote sync, plugin marketplace, theme switcher, multi-vault |
+| v1.x | AI-native | Semantic search, auto-link, agent organizzativi |
 | v1.0 | Multi-piattaforma | Web app, plugin system, sync via filesystem-cloud (Dropbox/iCloud/Drive) |
 | v1.x | AI native | Embeddings locali, semantic search, auto-link suggestions, Q&A sul vault, agent organizzativi |
 | v1.5+ | Mobile | Expo app (iOS/Android), sync server custom |

@@ -18,12 +18,12 @@
     "clean": "rimraf out dist .turbo"
   },
   "dependencies": {
-    "@ziba/core": "workspace:*",
     "@tiptap/core": "^2.10.3",
     "@tiptap/pm": "^2.10.3",
     "@tiptap/react": "^2.10.3",
     "@tiptap/starter-kit": "^2.10.3",
     "@tiptap/suggestion": "^2.10.3",
+    "@ziba/core": "workspace:*",
     "better-sqlite3": "^11.5.0",
     "chokidar": "^3.6.0",
     "clsx": "^2.1.1",
@@ -34,7 +34,8 @@
     "zustand": "^4.5.5"
   },
   "devDependencies": {
-    "@ziba/tsconfig": "workspace:*",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.2",
     "@types/better-sqlite3": "^7.6.11",
     "@types/katex": "^0.16.7",
     "@types/node": "^20.16.13",
@@ -42,6 +43,7 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.3",
     "@vitest/coverage-v8": "^2.1.0",
+    "@ziba/tsconfig": "workspace:*",
     "autoprefixer": "^10.4.20",
     "electron": "^32.2.0",
     "electron-builder": "^25.1.8",
