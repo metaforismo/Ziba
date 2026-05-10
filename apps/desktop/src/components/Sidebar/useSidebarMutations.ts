@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react';
 import { ipc } from '../../lib/ipc';
 import { ipcErrorMessage } from '../../lib/ipc-error';
 import { useEditorStore } from '../../stores/editor';
+import { toast } from '../../stores/toast';
 import { useUiStore } from '../../stores/ui';
 import { useVaultStore } from '../../stores/vault';
 import { buildFolderPath, buildNotePath, replaceLastSegment } from './path-utils';
@@ -28,9 +29,10 @@ import { buildFolderPath, buildNotePath, replaceLastSegment } from './path-utils
  * user just sees a stale tree. The narrow scope keeps the message
  * truthful.
  *
- * Errors surface through `window.alert` for v0.5 — same as before. A
- * future iteration can replace that with a toast surface; concentrating
- * the calls here makes that swap a one-file change.
+ * Errors surface through the global toast store (`stores/toast.ts`):
+ * the IPC stage uses an error toast, the follow-up stage uses a
+ * warning toast. Tests can drain `useToastStore.getState().toasts`
+ * to assert on what the user would see.
  */
 export type SidebarMutations = {
   refreshing: boolean;
@@ -58,10 +60,11 @@ async function runFollowUp(verb: string, fn: () => Promise<void>): Promise<void>
     await fn();
   } catch (err: unknown) {
     console.error(`[sidebar] follow-up after ${verb} failed:`, err);
-    window.alert(
+    toast.warning(
       `${verb} riuscito ma l'aggiornamento della vista è fallito (${ipcErrorMessage(
         err,
       )}). Premi F5 per ricaricare.`,
+      'Aggiornamento incompleto',
     );
   }
 }
@@ -91,7 +94,7 @@ export function useSidebarMutations(): SidebarMutations {
       try {
         await ipc.createNote({ path });
       } catch (err: unknown) {
-        window.alert(`Impossibile creare la nota: ${ipcErrorMessage(err)}`);
+        toast.error(ipcErrorMessage(err), 'Impossibile creare la nota');
         return;
       }
       await runFollowUp('Creazione nota', async () => {
@@ -108,7 +111,7 @@ export function useSidebarMutations(): SidebarMutations {
       try {
         await ipc.createFolder({ path });
       } catch (err: unknown) {
-        window.alert(`Impossibile creare la cartella: ${ipcErrorMessage(err)}`);
+        toast.error(ipcErrorMessage(err), 'Impossibile creare la cartella');
         return;
       }
       await runFollowUp('Creazione cartella', async () => {
@@ -129,7 +132,7 @@ export function useSidebarMutations(): SidebarMutations {
         const result = await ipc.renameNote({ from: oldPath, to: newPath });
         resultNewPath = result.newPath;
       } catch (err: unknown) {
-        window.alert(`Impossibile rinominare la nota: ${ipcErrorMessage(err)}`);
+        toast.error(ipcErrorMessage(err), 'Impossibile rinominare la nota');
         return;
       }
       await runFollowUp('Rinomina nota', async () => {
@@ -149,7 +152,7 @@ export function useSidebarMutations(): SidebarMutations {
       try {
         await ipc.renameFolder({ from: oldPath, to: newPath });
       } catch (err: unknown) {
-        window.alert(`Impossibile rinominare la cartella: ${ipcErrorMessage(err)}`);
+        toast.error(ipcErrorMessage(err), 'Impossibile rinominare la cartella');
         return;
       }
       await runFollowUp('Rinomina cartella', async () => {
@@ -169,7 +172,7 @@ export function useSidebarMutations(): SidebarMutations {
       try {
         await ipc.deleteNote({ path });
       } catch (err: unknown) {
-        window.alert(`Impossibile eliminare la nota: ${ipcErrorMessage(err)}`);
+        toast.error(ipcErrorMessage(err), 'Impossibile eliminare la nota');
         return;
       }
       await runFollowUp('Eliminazione nota', async () => {
@@ -185,7 +188,7 @@ export function useSidebarMutations(): SidebarMutations {
       try {
         await ipc.deleteFolder({ path });
       } catch (err: unknown) {
-        window.alert(`Impossibile eliminare la cartella: ${ipcErrorMessage(err)}`);
+        toast.error(ipcErrorMessage(err), 'Impossibile eliminare la cartella');
         return;
       }
       await runFollowUp('Eliminazione cartella', async () => {

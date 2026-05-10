@@ -37,3 +37,4 @@ electron-builder.yml.local
 # Vault data (never commit)
 *.sqlite
 *.sqlite-journal
+/.claude/

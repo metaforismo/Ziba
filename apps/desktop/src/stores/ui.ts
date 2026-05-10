@@ -134,6 +134,13 @@ function savePersisted(p: Persisted): void {
 }
 
 type UiState = Persisted & {
+  /**
+   * Ephemeral flag set by the Cmd/Ctrl+N keyboard shortcut and
+   * consumed by `<NewNoteButton>` to open its prompt dialog.
+   * Deliberately NOT persisted — a "should be open" state surviving
+   * reloads would surprise the user.
+   */
+  newNotePromptOpen: boolean;
   setSidebarWidth(n: number): void;
   setBacklinksWidth(n: number): void;
   toggleBacklinks(): void;
@@ -143,6 +150,8 @@ type UiState = Persisted & {
   setRightPaneTab(tab: RightPaneTab): void;
   setMainView(view: MainView): void;
   setDatabaseViewMode(mode: DatabaseViewMode): void;
+  requestNewNotePrompt(): void;
+  closeNewNotePrompt(): void;
 };
 
 export const useUiStore = create<UiState>((set, get) => {
@@ -173,6 +182,13 @@ export const useUiStore = create<UiState>((set, get) => {
 
   return {
     ...initial,
+    newNotePromptOpen: false,
+    requestNewNotePrompt() {
+      set({ newNotePromptOpen: true });
+    },
+    closeNewNotePrompt() {
+      set({ newNotePromptOpen: false });
+    },
     setSidebarWidth(n) {
       set({ sidebarWidth: clamp(n, MIN_SIDEBAR, MAX_SIDEBAR) });
       persist();

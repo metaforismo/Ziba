@@ -66,6 +66,11 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
 
   const tree = useMemo(() => buildTree(visibleNotes), [visibleNotes]);
   const expandedSet = useMemo(() => new Set(expandedFolders), [expandedFolders]);
+  // Pre-flattened row list shared between <FileTree> and the keyboard
+  // handler. One walk per tree mutation instead of one per keystroke
+  // — matters at vault scale (~1000+ notes) where the recursive walk
+  // is no longer free.
+  const flatRows = useMemo(() => flattenTree(tree, expandedSet), [tree, expandedSet]);
 
   // Auto-expand the chain of folders that lead to the currently-open note,
   // so the active row is always visible after opening from another surface
@@ -212,27 +217,27 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
       ) {
         return;
       }
-      const flat = flattenTree(tree, expandedSet);
-      if (flat.length === 0) return;
+      if (flatRows.length === 0) return;
 
-      const currentIdx = focusedPath === null ? -1 : flat.findIndex((r) => r.path === focusedPath);
+      const currentIdx =
+        focusedPath === null ? -1 : flatRows.findIndex((r) => r.path === focusedPath);
 
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        const next = flat[Math.min(currentIdx + 1, flat.length - 1)] ?? flat[0];
+        const next = flatRows[Math.min(currentIdx + 1, flatRows.length - 1)] ?? flatRows[0];
         if (next !== undefined) setFocusedPath(next.path);
         return;
       }
       if (e.key === 'ArrowUp') {
         e.preventDefault();
-        const next = flat[Math.max(currentIdx - 1, 0)] ?? flat[0];
+        const next = flatRows[Math.max(currentIdx - 1, 0)] ?? flatRows[0];
         if (next !== undefined) setFocusedPath(next.path);
         return;
       }
 
       // Below this point we need a focused row.
       if (currentIdx === -1) return;
-      const row = flat[currentIdx];
+      const row = flatRows[currentIdx];
       if (row === undefined) return;
 
       if (e.key === 'Enter') {
@@ -272,7 +277,7 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
         }
       }
     },
-    [dialog.kind, contextMenu, tree, expandedSet, focusedPath, handleSelectFile, toggleFolder],
+    [dialog.kind, contextMenu, flatRows, focusedPath, handleSelectFile, toggleFolder],
   );
 
   const closeDialog = useCallback((): void => setDialog({ kind: 'none' }), []);
@@ -310,9 +315,8 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
 
       <div className="relative flex-1 overflow-y-auto">
         <FileTree
-          tree={tree}
+          rows={flatRows}
           currentPath={currentPath}
-          expanded={expandedSet}
           focusedPath={focusedPath}
           onToggleFolder={toggleFolder}
           onSelectFile={handleSelectFile}

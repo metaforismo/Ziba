@@ -1,5 +1,4 @@
 import type { NotePath } from '@ziba/core';
-import { useMemo } from 'react';
 import type { TreeNode } from '../../lib/tree';
 
 /**
@@ -13,17 +12,20 @@ export type TreeTarget =
   | { kind: 'empty' };
 
 export type FileTreeProps = {
-  /** Pre-built hierarchical tree from `buildTree(notes)`. */
-  tree: TreeNode[];
+  /**
+   * Pre-flattened, depth-aware row list. Computed by the parent (so
+   * keyboard nav and the rendered list share one walk per tree
+   * mutation instead of recomputing on every keystroke). Derive via
+   * `flattenTree(tree, expanded)`.
+   */
+  rows: ReadonlyArray<FlatRow>;
   /** Currently-open note path; used to highlight the active row. */
   currentPath: NotePath | null;
-  /** Set of expanded folder paths. */
-  expanded: ReadonlySet<string>;
-  /** Optional row that should appear focused (for keyboard nav). */
-  focusedPath: string | null;
   onToggleFolder(path: string): void;
   onSelectFile(path: NotePath): void;
   onContextMenu(target: TreeTarget, x: number, y: number): void;
+  /** Optional row that should appear focused (for keyboard nav). */
+  focusedPath: string | null;
   /** Called with the row path when the user clicks/focuses it. */
   onFocusPath(path: string): void;
 };
@@ -74,21 +76,14 @@ function flatten(
 const INDENT_PX = 12;
 
 export function FileTree({
-  tree,
+  rows,
   currentPath,
-  expanded,
   focusedPath,
   onToggleFolder,
   onSelectFile,
   onContextMenu,
   onFocusPath,
 }: FileTreeProps): JSX.Element {
-  const rows = useMemo<FlatRow[]>(() => {
-    const out: FlatRow[] = [];
-    flatten(tree, 0, expanded, out);
-    return out;
-  }, [tree, expanded]);
-
   if (rows.length === 0) {
     return (
       <div
