@@ -5,7 +5,12 @@
 // v0.1 we just walk the index and patch rows; we don't rewrite wikilinks
 // in other files that referenced the moved notes.
 
-import { loadNote as coreLoadNote, type NotePath, type OutgoingWikilink } from '@ziba/core';
+import {
+  extractAllRelations,
+  loadNote as coreLoadNote,
+  type NotePath,
+  type ResolvedRelation,
+} from '@ziba/core';
 import { getFilesystemAdapter } from '../adapters/filesystem.electron.js';
 import { assertResolvedWithinVault, assertVaultRelative, IpcError } from '../security.js';
 import { markSelfWrite, requireIndexStore, requireVault } from '../state.js';
@@ -70,14 +75,19 @@ export async function renameFolder(args: { from: NotePath; to: NotePath }): Prom
       wikilinks: reloaded.wikilinks,
       mtimeMs: reloaded.mtimeMs,
     });
-    // Re-resolve outgoing wikilinks (target paths might now be different
-    // if the moved note's title shadows or unshadows another note).
-    const links: OutgoingWikilink[] = [];
-    for (const target of reloaded.wikilinks) {
-      const resolved = await store.resolveTitleToPath(target);
-      links.push({ targetTitle: target, targetPath: resolved });
+    // Re-resolve outgoing relations (target paths might now be
+    // different if the moved note's title shadows or unshadows another
+    // note).
+    const allRelations = extractAllRelations({
+      frontmatter: reloaded.frontmatter,
+      content: reloaded.content,
+    });
+    const resolved: ResolvedRelation[] = [];
+    for (const r of allRelations) {
+      const targetPath = await store.resolveTitleToPath(r.targetTitle);
+      resolved.push({ kind: r.kind, targetTitle: r.targetTitle, targetPath });
     }
-    await store.replaceWikilinks(reloaded.path, links);
+    await store.replaceRelations(reloaded.path, resolved);
     // Re-resolve INBOUND wikilinks that pointed at the old path. Same
     // reasoning as renameNote: without this, backlinks + global graph
     // would silently drop every edge into a folder-renamed note.
