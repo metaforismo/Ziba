@@ -9,7 +9,7 @@
 // by deleting + regenerating the schema file.
 
 import { load as yamlLoad, YAMLException } from 'js-yaml';
-import type { PropertyType } from './frontmatter';
+import type { PropertyType } from '../query/index.js';
 
 /**
  * Spec for one property of an object type. Mirrors `PropertyType` from

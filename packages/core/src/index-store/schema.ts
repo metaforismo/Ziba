@@ -37,17 +37,38 @@ CREATE TABLE IF NOT EXISTS notes (
   mtime            INTEGER NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS wikilinks (
+-- v1.0: replaces \`wikilinks\`. The legacy table is dropped on first
+-- open of a v1.0 vault (see MIGRATION_DROP_SQL below) — index is a
+-- cache, no data loss.
+--
+-- \`kind\` is NOT NULL with a sentinel empty string for generic body
+-- wikilinks. SQLite PRIMARY KEY requires column references (not
+-- expressions), so we encode "untyped" as '' rather than NULL.
+CREATE TABLE IF NOT EXISTS relations (
   source_path  TEXT NOT NULL,
+  kind         TEXT NOT NULL DEFAULT '',
   target_title TEXT NOT NULL,
   target_path  TEXT,
-  PRIMARY KEY (source_path, target_title),
+  PRIMARY KEY (source_path, kind, target_title),
   FOREIGN KEY (source_path) REFERENCES notes(path) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_wikilinks_target_title ON wikilinks(target_title);
-CREATE INDEX IF NOT EXISTS idx_wikilinks_target_path  ON wikilinks(target_path);
+CREATE INDEX IF NOT EXISTS idx_relations_target_title ON relations(target_title);
+CREATE INDEX IF NOT EXISTS idx_relations_target_path  ON relations(target_path, kind);
+CREATE INDEX IF NOT EXISTS idx_relations_kind         ON relations(kind) WHERE kind <> '';
 CREATE INDEX IF NOT EXISTS idx_notes_title            ON notes(title);
+
+-- v1.0: schema cache mirroring \`<vault>/.ziba/schema/*.yml\`. Loaded on
+-- vault open; consumed by sidebar TypesSection counts and editor
+-- autocomplete.
+CREATE TABLE IF NOT EXISTS object_types (
+  id          TEXT PRIMARY KEY,
+  label       TEXT NOT NULL,
+  icon        TEXT,
+  color       TEXT,
+  schema_json TEXT NOT NULL,
+  mtime       INTEGER NOT NULL
+);
 
 -- Full-text search via FTS5 virtual table. Mirrors \`notes.path\`/\`title\`/\`body\`
 -- so wildcards like \`ziba\` or \`architecture OR design\` work.
@@ -96,4 +117,43 @@ CREATE INDEX IF NOT EXISTS idx_note_props_key    ON note_properties(prop_key);
 CREATE INDEX IF NOT EXISTS idx_note_props_text   ON note_properties(prop_key, text_value);
 CREATE INDEX IF NOT EXISTS idx_note_props_number ON note_properties(prop_key, number_value);
 CREATE INDEX IF NOT EXISTS idx_note_props_date   ON note_properties(prop_key, date_value);
+`.trim();
+
+/**
+ * Cache schema version. Bumping this triggers a one-shot drop+recreate
+ * of every cache-only table on next vault open, followed by an
+ * automatic full reindex (the index is derivable from disk).
+ *
+ * Bump rules:
+ *   - Adding a new column to an existing table → bump.
+ *   - Renaming a table → bump.
+ *   - Adding a new table only → no bump needed (`IF NOT EXISTS`
+ *     handles it).
+ *
+ * History:
+ *   v0.1 — v0.5: implicit version 1 (no `user_version` set).
+ *   v1.0 phase 1: bumps to 2 (introduces `relations`, drops legacy
+ *   `wikilinks`, introduces `object_types`).
+ */
+export const EXPECTED_USER_VERSION = 2;
+
+/**
+ * SQL run when `user_version` is below `EXPECTED_USER_VERSION`. Drops
+ * tables that changed shape AND every cache-only table — the latter
+ * because reindex is cheap and we'd rather rebuild than maintain
+ * piecemeal migrations. `notes`, `note_properties`, `tags`, `notes_fts`
+ * are also cache so they get rebuilt on the next reindex; dropping
+ * them here keeps the schema fresh.
+ *
+ * Run order matters: drop first, then `SCHEMA_SQL` recreates everything,
+ * then `PRAGMA user_version = N` lands the version.
+ */
+export const MIGRATION_DROP_SQL = `
+DROP TABLE IF EXISTS wikilinks;
+DROP TABLE IF EXISTS relations;
+DROP TABLE IF EXISTS object_types;
+DROP TABLE IF EXISTS notes_fts;
+DROP TABLE IF EXISTS note_properties;
+DROP TABLE IF EXISTS tags;
+DROP TABLE IF EXISTS notes;
 `.trim();

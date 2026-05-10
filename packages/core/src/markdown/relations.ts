@@ -1,6 +1,6 @@
 import { extractWikilinks } from './wikilinks.js';
 import { TYPE_SLUG_RE } from '../types/schema.js';
-import type { Frontmatter } from '../types/frontmatter.js';
+import type { Frontmatter } from '../types/note.js';
 
 /**
  * One observed relation between a source note and a target. The
