@@ -15,12 +15,15 @@ import type {
   Note,
   NotePath,
   NoteSummary,
+  ObjectTypeRow,
   PropertyType,
+  RelationRow,
   ScalarFilter,
 } from '@ziba/core';
 
-// Re-export the v0.3 query / graph types so renderers can keep a single
-// import surface (`'@shared/ipc'`) for everything they touch via IPC.
+// Re-export the v0.3 query / graph types + v1.0 object/relation types
+// so renderers can keep a single import surface (`'@shared/ipc'`) for
+// everything they touch via IPC.
 export type {
   DatabaseGroup,
   DatabaseQuery,
@@ -30,7 +33,9 @@ export type {
   FullGraph,
   GraphEdge,
   GraphNode,
+  ObjectTypeRow,
   PropertyType,
+  RelationRow,
   ScalarFilter,
 };
 
@@ -69,6 +74,13 @@ export const IpcChannels = {
   runDatabaseQuery: 'db:query',
   // Full graph (v0.3 Wave 1, used by Wave 2's global graph view)
   getFullGraph: 'graph:full',
+
+  // v1.0: typed object types + typed relations
+  listObjectTypes: 'types:list',
+  upsertObjectType: 'types:upsert',
+  deleteObjectType: 'types:delete',
+  getRelationsBySource: 'relations:bySource',
+  getRelationsByTarget: 'relations:byTarget',
 
   // Settings / persisted state
   getRecentVaults: 'settings:recentVaults',
@@ -150,6 +162,13 @@ export type IpcRequests = {
   [IpcChannels.runDatabaseQuery]: { query: DatabaseQuery };
   [IpcChannels.getFullGraph]: void;
 
+  // v1.0
+  [IpcChannels.listObjectTypes]: void;
+  [IpcChannels.upsertObjectType]: { row: ObjectTypeRow };
+  [IpcChannels.deleteObjectType]: { id: string };
+  [IpcChannels.getRelationsBySource]: { sourcePath: NotePath; kind?: string };
+  [IpcChannels.getRelationsByTarget]: { targetPath: NotePath; kind?: string };
+
   [IpcChannels.getRecentVaults]: void;
 };
 
@@ -204,6 +223,13 @@ export type IpcResponses = {
 
   [IpcChannels.runDatabaseQuery]: DatabaseResult;
   [IpcChannels.getFullGraph]: FullGraph;
+
+  // v1.0
+  [IpcChannels.listObjectTypes]: ObjectTypeRow[];
+  [IpcChannels.upsertObjectType]: void;
+  [IpcChannels.deleteObjectType]: void;
+  [IpcChannels.getRelationsBySource]: RelationRow[];
+  [IpcChannels.getRelationsByTarget]: RelationRow[];
 
   [IpcChannels.getRecentVaults]: VaultInfo[];
 };

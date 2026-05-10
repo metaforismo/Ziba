@@ -9,6 +9,8 @@ import type {
   DatabaseResult,
   FullGraph,
   IndexProgressPayload,
+  ObjectTypeRow,
+  RelationRow,
   SearchHit,
   TagSummary,
   VaultEventPayload,
@@ -107,6 +109,23 @@ export const ipc = {
   },
   getFullGraph(): Promise<FullGraph> {
     return api().invoke(IpcChannels.getFullGraph);
+  },
+
+  // v1.0: typed object types + typed relations
+  listObjectTypes(): Promise<ObjectTypeRow[]> {
+    return api().invoke(IpcChannels.listObjectTypes);
+  },
+  upsertObjectType(args: { row: ObjectTypeRow }): Promise<void> {
+    return api().invoke(IpcChannels.upsertObjectType, args);
+  },
+  deleteObjectType(args: { id: string }): Promise<void> {
+    return api().invoke(IpcChannels.deleteObjectType, args);
+  },
+  getRelationsBySource(args: { sourcePath: NotePath; kind?: string }): Promise<RelationRow[]> {
+    return api().invoke(IpcChannels.getRelationsBySource, args);
+  },
+  getRelationsByTarget(args: { targetPath: NotePath; kind?: string }): Promise<RelationRow[]> {
+    return api().invoke(IpcChannels.getRelationsByTarget, args);
   },
 
   // Settings

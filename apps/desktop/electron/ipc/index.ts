@@ -34,6 +34,13 @@ import { searchFullText } from './search.js';
 import { listTags, getNotesByTag } from './tags.js';
 import { runDatabaseQuery } from './database.js';
 import { getFullGraph } from './graph.js';
+import {
+  listObjectTypes,
+  upsertObjectType,
+  deleteObjectType,
+  getRelationsBySource,
+  getRelationsByTarget,
+} from './types.js';
 import { getRecentVaults } from './settings.js';
 
 type Handler<C extends keyof IpcRequests> = (
@@ -100,6 +107,13 @@ export function registerIpcHandlers(win: BrowserWindow): void {
   // Database queries / global graph (v0.3 Wave 1)
   handle(IpcChannels.runDatabaseQuery, (args) => runDatabaseQuery(args));
   handle(IpcChannels.getFullGraph, () => getFullGraph());
+
+  // v1.0: typed object types + typed relations
+  handle(IpcChannels.listObjectTypes, () => listObjectTypes());
+  handle(IpcChannels.upsertObjectType, (args) => upsertObjectType(args));
+  handle(IpcChannels.deleteObjectType, (args) => deleteObjectType(args));
+  handle(IpcChannels.getRelationsBySource, (args) => getRelationsBySource(args));
+  handle(IpcChannels.getRelationsByTarget, (args) => getRelationsByTarget(args));
 
   // Settings
   handle(IpcChannels.getRecentVaults, () => getRecentVaults());
