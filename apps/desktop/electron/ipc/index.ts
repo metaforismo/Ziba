@@ -21,6 +21,7 @@ import {
 } from './vault.js';
 import {
   listNotes,
+  getTypedPaths,
   loadNote,
   saveNote,
   createNote,
@@ -84,6 +85,7 @@ export function registerIpcHandlers(win: BrowserWindow): void {
 
   // Notes
   handle(IpcChannels.listNotes, () => listNotes());
+  handle(IpcChannels.getTypedPaths, () => getTypedPaths());
   handle(IpcChannels.loadNote, (args) => loadNote(args));
   handle(IpcChannels.saveNote, (args) => saveNote(args));
   handle(IpcChannels.createNote, (args) => createNote(args));

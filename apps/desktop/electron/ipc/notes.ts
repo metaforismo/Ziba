@@ -36,6 +36,11 @@ export async function listNotes(): Promise<NoteSummary[]> {
   return requireIndexStore().listNotes();
 }
 
+export async function getTypedPaths(): Promise<Array<[NotePath, string]>> {
+  const map = await requireIndexStore().getTypedPaths();
+  return Array.from(map.entries());
+}
+
 export async function loadNote(args: { path: NotePath }): Promise<Note> {
   assertVaultRelative(args.path);
   const vault = requireVault();

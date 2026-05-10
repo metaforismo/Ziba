@@ -51,6 +51,7 @@ export const IpcChannels = {
 
   // Note operations
   listNotes: 'notes:list',
+  getTypedPaths: 'notes:typedPaths',
   loadNote: 'notes:load',
   saveNote: 'notes:save',
   createNote: 'notes:create',
@@ -144,6 +145,7 @@ export type IpcRequests = {
   [IpcChannels.reindexVault]: void;
 
   [IpcChannels.listNotes]: void;
+  [IpcChannels.getTypedPaths]: void;
   [IpcChannels.loadNote]: { path: NotePath };
   [IpcChannels.saveNote]: { path: NotePath; body: string; frontmatter: Frontmatter };
   [IpcChannels.createNote]: { path: NotePath; initialBody?: string };
@@ -207,6 +209,10 @@ export type IpcResponses = {
   [IpcChannels.reindexVault]: { count: number };
 
   [IpcChannels.listNotes]: NoteSummary[];
+  // Tuples (not Map) so the contextBridge serializer round-trips
+  // cleanly across the renderer boundary. Renderer rebuilds the
+  // Map at the IPC client wrapper.
+  [IpcChannels.getTypedPaths]: Array<[NotePath, string]>;
   [IpcChannels.loadNote]: Note;
   [IpcChannels.saveNote]: { mtimeMs: number };
   [IpcChannels.createNote]: Note;
