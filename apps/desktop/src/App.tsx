@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { EmptyState } from './components/EmptyState';
 import { Layout } from './components/Layout';
 import { SearchPalette } from './components/SearchPalette';
+import { ToastStack } from './components/ToastStack';
 import { useEditorStore } from './stores/editor';
 import { useSearchStore } from './stores/search';
 import { useVaultStore } from './stores/vault';
@@ -60,11 +61,14 @@ export function App(): JSX.Element {
 
   if (current === null) {
     return (
-      <EmptyState
-        onOpenVault={async (): Promise<void> => {
-          await pickAndOpenVault();
-        }}
-      />
+      <>
+        <EmptyState
+          onOpenVault={async (): Promise<void> => {
+            await pickAndOpenVault();
+          }}
+        />
+        <ToastStack />
+      </>
     );
   }
 
@@ -72,6 +76,7 @@ export function App(): JSX.Element {
     <>
       <Layout />
       <SearchPalette />
+      <ToastStack />
     </>
   );
 }

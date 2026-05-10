@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ipc } from '../../lib/ipc';
 import { ipcErrorMessage } from '../../lib/ipc-error';
 import { useEditorStore } from '../../stores/editor';
+import { toast } from '../../stores/toast';
 import { useVaultStore } from '../../stores/vault';
 import { PromptDialog } from './PromptDialog';
 import { buildNotePath, validateRelativeNotePath } from './path-utils';
@@ -28,9 +29,7 @@ export function NewNoteButton(): JSX.Element {
       await openNote(notePath);
       setOpen(false);
     } catch (err: unknown) {
-      // Surface failures as alert for v0.1; richer toasts come later.
-      const message = ipcErrorMessage(err);
-      window.alert(`Impossibile creare la nota: ${message}`);
+      toast.error(ipcErrorMessage(err), 'Impossibile creare la nota');
     } finally {
       setSubmitting(false);
     }
