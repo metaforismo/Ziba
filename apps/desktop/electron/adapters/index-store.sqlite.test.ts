@@ -51,6 +51,7 @@ describe('getTypedPaths', () => {
         `SELECT source_path AS path, text_value AS type
          FROM note_properties
          WHERE prop_key = 'type'
+           AND prop_type = 'text'
            AND text_value IS NOT NULL
            AND text_value <> ''`,
       )
@@ -71,6 +72,7 @@ describe('getTypedPaths', () => {
         `SELECT source_path AS path, text_value AS type
          FROM note_properties
          WHERE prop_key = 'type'
+           AND prop_type = 'text'
            AND text_value IS NOT NULL
            AND text_value <> ''`,
       )
@@ -79,5 +81,29 @@ describe('getTypedPaths', () => {
     const got = new Map(rows.map((r) => [r.path, r.type]));
 
     expect(got.size).toBe(0);
+  });
+
+  it('excludes rows whose prop_type is not "text" even if text_value is set', () => {
+    setupNote('note.md');
+    // A note that wrote `type: https://foo.bar` — replaceProperties stores
+    // text_value='https://foo.bar' with prop_type='url'. getTypedPaths must
+    // exclude this; the type slug is reserved for prop_type='text' entries.
+    db.prepare(
+      `INSERT INTO note_properties (source_path, prop_key, prop_type, text_value)
+       VALUES (?, 'type', 'url', 'https://foo.bar')`,
+    ).run('note.md');
+
+    const rows = db
+      .prepare(
+        `SELECT source_path AS path, text_value AS type
+         FROM note_properties
+         WHERE prop_key = 'type'
+           AND prop_type = 'text'
+           AND text_value IS NOT NULL
+           AND text_value <> ''`,
+      )
+      .all();
+
+    expect(rows).toHaveLength(0);
   });
 });

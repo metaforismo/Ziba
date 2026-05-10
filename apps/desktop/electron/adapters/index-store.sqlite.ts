@@ -356,6 +356,7 @@ export class SqliteIndexStore implements IndexStoreAdapter {
         SELECT source_path AS path, text_value AS type
         FROM note_properties
         WHERE prop_key = 'type'
+          AND prop_type = 'text'
           AND text_value IS NOT NULL
           AND text_value <> ''
       `),
@@ -540,7 +541,7 @@ export class SqliteIndexStore implements IndexStoreAdapter {
     const rows = s.getTypedPaths.all() as Array<{ path: string; type: string }>;
     const out = new Map<NotePath, string>();
     for (const r of rows) out.set(r.path, r.type);
-    return out;
+    return Promise.resolve(out);
   }
 
   async listObjectTypes(): Promise<ObjectTypeRow[]> {
