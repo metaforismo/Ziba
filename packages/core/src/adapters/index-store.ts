@@ -70,6 +70,17 @@ export type ObjectTypeRow = {
 };
 
 /**
+ * v1.0: aggregated count of notes per `type:` slug. Drives the
+ * sidebar TypesSection. Includes ONLY types that appear in at least
+ * one note's frontmatter — types declared in `.ziba/schema/` but
+ * never used are absent (matches the Tag-counts behaviour).
+ */
+export type TypeCountRow = {
+  type: string;
+  count: number;
+};
+
+/**
  * Variant of the upsert payload that can additionally carry the body so the
  * SQLite adapter can keep the FTS5 mirror in sync. Body is optional to keep
  * existing call-sites compiling while we roll out FTS coverage.
@@ -180,6 +191,13 @@ export interface IndexStoreAdapter {
 
   /** v1.0: every cached object type, sorted by id. */
   listObjectTypes(): Promise<ObjectTypeRow[]>;
+
+  /**
+   * v1.0: aggregated count of notes per `type:` slug. Sorted by
+   * descending count, then ascending type for tiebreak (mirrors
+   * `listTags`).
+   */
+  getTypeCounts(): Promise<TypeCountRow[]>;
 
   /** v1.0: insert or replace a type's cached schema. */
   upsertObjectType(row: ObjectTypeRow): Promise<void>;

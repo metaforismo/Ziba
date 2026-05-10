@@ -11,6 +11,7 @@ import { NewNoteButton } from './NewNoteButton';
 import { stripMdExtension } from './path-utils';
 import { SidebarDialogs, type DialogState } from './SidebarDialogs';
 import { TagsSection } from './TagsSection';
+import { TypesSection } from './TypesSection';
 import { TreeContextMenu } from './TreeContextMenu';
 import { useSidebarMutations } from './useSidebarMutations';
 
@@ -43,13 +44,18 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
   const currentPath = useEditorStore((s) => s.currentPath);
   const expandedFolders = useUiStore((s) => s.expandedFolders);
   const toggleFolder = useUiStore((s) => s.toggleFolder);
-  // When a tag is selected, the file tree filters to only the notes that
-  // contain it. The filter happens here (rather than as a FileTree prop)
-  // so the tree component stays a pure visualizer and the tag store
-  // stays the single source of truth for "which paths are visible".
+  // Either a tag OR a type filter (mutually exclusive — see
+  // useTagsStore docstring) restricts the file tree to a subset of
+  // visible notes. The filter happens here (rather than as FileTree
+  // prop) so the tree component stays a pure visualizer and the
+  // taxonomy store stays the single source of truth for "which paths
+  // are visible".
   const selectedTag = useTagsStore((s) => s.selectedTag);
+  const selectedType = useTagsStore((s) => s.selectedType);
   const notesForSelectedTag = useTagsStore((s) => s.notesForSelectedTag);
+  const notesForSelectedType = useTagsStore((s) => s.notesForSelectedType);
   const clearSelectedTag = useTagsStore((s) => s.selectTag);
+  const clearSelectedType = useTagsStore((s) => s.selectType);
 
   const mutations = useSidebarMutations();
   const { refreshing } = mutations;
@@ -59,10 +65,18 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
   const [focusedPath, setFocusedPath] = useState<string | null>(null);
 
   const visibleNotes = useMemo(() => {
-    if (selectedTag === null) return notes;
-    const allowed = new Set(notesForSelectedTag.map((n) => n.path));
-    return notes.filter((n) => allowed.has(n.path));
-  }, [notes, selectedTag, notesForSelectedTag]);
+    // Tag wins if active. Type wins next. Otherwise show everything.
+    // Mutual exclusion enforced upstream means at most one is non-null.
+    if (selectedTag !== null) {
+      const allowed = new Set(notesForSelectedTag.map((n) => n.path));
+      return notes.filter((n) => allowed.has(n.path));
+    }
+    if (selectedType !== null) {
+      const allowed = new Set(notesForSelectedType.map((n) => n.path));
+      return notes.filter((n) => allowed.has(n.path));
+    }
+    return notes;
+  }, [notes, selectedTag, selectedType, notesForSelectedTag, notesForSelectedType]);
 
   const tree = useMemo(() => buildTree(visibleNotes), [visibleNotes]);
   const expandedSet = useMemo(() => new Set(expandedFolders), [expandedFolders]);
@@ -289,6 +303,7 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
       onKeyDown={handleKeyDown}
       aria-label="Esplora vault"
     >
+      <TypesSection />
       <TagsSection />
 
       <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2">
@@ -305,6 +320,23 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
             type="button"
             onClick={(): void => {
               void clearSelectedTag(null);
+            }}
+            className="shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium text-fg-subtle hover:bg-bg-muted hover:text-fg"
+          >
+            Mostra tutti i file
+          </button>
+        </div>
+      )}
+
+      {selectedType !== null && (
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border bg-bg-muted/40 px-3 py-1.5 text-xs text-fg-subtle">
+          <span className="truncate">
+            Tipo <span className="font-mono text-fg">{selectedType}</span>
+          </span>
+          <button
+            type="button"
+            onClick={(): void => {
+              void clearSelectedType(null);
             }}
             className="shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium text-fg-subtle hover:bg-bg-muted hover:text-fg"
           >

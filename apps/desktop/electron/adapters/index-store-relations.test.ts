@@ -133,6 +133,69 @@ describe('relations table — round-trip', () => {
   });
 });
 
+describe('getTypeCounts — type aggregation', () => {
+  it('counts notes per type, ordered by descending count then ascending type', () => {
+    setupNote('a.md');
+    setupNote('b.md');
+    setupNote('c.md');
+    setupNote('d.md');
+
+    const upsertProp = db.prepare(
+      `INSERT INTO note_properties (source_path, prop_key, prop_type, text_value)
+       VALUES (?, 'type', 'text', ?)`,
+    );
+    upsertProp.run('a.md', 'book');
+    upsertProp.run('b.md', 'book');
+    upsertProp.run('c.md', 'book');
+    upsertProp.run('d.md', 'person');
+
+    const rows = db
+      .prepare(
+        `SELECT text_value AS type, COUNT(*) AS count
+         FROM note_properties
+         WHERE prop_key = 'type'
+           AND prop_type = 'text'
+           AND text_value IS NOT NULL
+         GROUP BY text_value
+         ORDER BY count DESC, text_value ASC`,
+      )
+      .all() as { type: string; count: number }[];
+
+    expect(rows).toEqual([
+      { type: 'book', count: 3 },
+      { type: 'person', count: 1 },
+    ]);
+  });
+
+  it('skips numeric type values (only text-typed entries count)', () => {
+    setupNote('weird.md');
+    db.prepare(
+      `INSERT INTO note_properties (source_path, prop_key, prop_type, number_value)
+       VALUES (?, 'type', 'number', 42)`,
+    ).run('weird.md');
+
+    const rows = db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM note_properties
+         WHERE prop_key = 'type' AND prop_type = 'text' AND text_value IS NOT NULL`,
+      )
+      .get() as { c: number };
+    expect(rows.c).toBe(0);
+  });
+
+  it('returns [] for a vault with no typed notes', () => {
+    setupNote('a.md');
+    setupNote('b.md');
+    const rows = db
+      .prepare(
+        `SELECT text_value FROM note_properties
+         WHERE prop_key = 'type' AND prop_type = 'text' AND text_value IS NOT NULL`,
+      )
+      .all();
+    expect(rows).toEqual([]);
+  });
+});
+
 describe('object_types table — round-trip', () => {
   it('upsert + list returns ordered rows', () => {
     const upsert = db.prepare(`

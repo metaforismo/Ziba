@@ -223,3 +223,127 @@ describe('useTagsStore — module-level vault subscription', () => {
     void useTagsStore; // keep import live for typecheck
   });
 });
+
+describe('useTagsStore — types + mutual exclusion', () => {
+  it('refresh() merges getTypeCounts with listObjectTypes (label/icon/color)', async () => {
+    const { useTagsStore, useVaultStore } = await loadStores();
+    useVaultStore.setState({ current: VAULT_A });
+
+    mock.setHandler(IpcChannels.getTypeCounts, async () => [
+      { type: 'book', count: 5 },
+      { type: 'orphan', count: 2 }, // no schema
+    ]);
+    mock.setHandler(IpcChannels.listObjectTypes, async () => [
+      {
+        id: 'book',
+        label: 'Libro',
+        icon: '📖',
+        color: '#6366f1',
+        schema: { id: 'book', label: 'Libro', properties: {}, relations: {}, inverse: {} },
+        mtimeMs: 0,
+      },
+    ]);
+
+    await useTagsStore.getState().refresh();
+    const types = useTagsStore.getState().types;
+
+    expect(types).toEqual([
+      { id: 'book', label: 'Libro', icon: '📖', color: '#6366f1', count: 5 },
+      // Orphan type (no schema) — id used as label, icon/color null.
+      { id: 'orphan', label: 'orphan', icon: null, color: null, count: 2 },
+    ]);
+  });
+
+  it('selectType(non-null) clears selectedTag (mutual exclusion)', async () => {
+    const { useTagsStore, useVaultStore } = await loadStores();
+    // Set handlers BEFORE the vault flip — otherwise the
+    // subscribe-on-open `refresh()` races with our `selectTag` and
+    // resets `selectedTag` because `tags = []` from defaults.
+    mock.setHandler(IpcChannels.listTags, async () => [TAG_FOO]);
+    mock.setHandler(IpcChannels.getNotesByTag, async () => [NOTE_A]);
+    mock.setHandler(IpcChannels.runDatabaseQuery, async () => ({
+      rows: [{ path: 'b.md', title: 'B', mtimeMs: 0, properties: {} }],
+      groups: [],
+      totalCount: 1,
+    }));
+    mock.setHandler(IpcChannels.getTypeCounts, async () => [{ type: 'book', count: 1 }]);
+
+    useVaultStore.setState({ current: VAULT_A });
+    // Drain the in-flight refresh kicked by the vault subscriber.
+    await useTagsStore.getState().refresh();
+
+    await useTagsStore.getState().selectTag('foo');
+    expect(useTagsStore.getState().selectedTag).toBe('foo');
+    expect(useTagsStore.getState().notesForSelectedTag).toEqual([NOTE_A]);
+
+    await useTagsStore.getState().selectType('book');
+
+    expect(useTagsStore.getState().selectedType).toBe('book');
+    expect(useTagsStore.getState().selectedTag).toBeNull();
+    expect(useTagsStore.getState().notesForSelectedTag).toEqual([]);
+    expect(useTagsStore.getState().notesForSelectedType.map((n) => n.path)).toEqual(['b.md']);
+  });
+
+  it('selectTag(non-null) clears selectedType (mutual exclusion the other way)', async () => {
+    const { useTagsStore, useVaultStore } = await loadStores();
+    mock.setHandler(IpcChannels.listTags, async () => [TAG_FOO]);
+    mock.setHandler(IpcChannels.getNotesByTag, async () => [NOTE_A]);
+    mock.setHandler(IpcChannels.runDatabaseQuery, async () => ({
+      rows: [{ path: 'b.md', title: 'B', mtimeMs: 0, properties: {} }],
+      groups: [],
+      totalCount: 1,
+    }));
+    mock.setHandler(IpcChannels.getTypeCounts, async () => [{ type: 'book', count: 1 }]);
+
+    useVaultStore.setState({ current: VAULT_A });
+    await useTagsStore.getState().refresh();
+
+    await useTagsStore.getState().selectType('book');
+    expect(useTagsStore.getState().selectedType).toBe('book');
+
+    await useTagsStore.getState().selectTag('foo');
+
+    expect(useTagsStore.getState().selectedTag).toBe('foo');
+    expect(useTagsStore.getState().selectedType).toBeNull();
+    expect(useTagsStore.getState().notesForSelectedType).toEqual([]);
+  });
+
+  it('selectType(null) clears the type filter without touching selectedTag', async () => {
+    const { useTagsStore, useVaultStore } = await loadStores();
+    mock.setHandler(IpcChannels.listTags, async () => [TAG_FOO]);
+    mock.setHandler(IpcChannels.getNotesByTag, async () => [NOTE_A]);
+
+    useVaultStore.setState({ current: VAULT_A });
+    await useTagsStore.getState().refresh();
+
+    await useTagsStore.getState().selectTag('foo');
+    expect(useTagsStore.getState().selectedTag).toBe('foo');
+
+    await useTagsStore.getState().selectType(null);
+    expect(useTagsStore.getState().selectedTag).toBe('foo');
+    expect(useTagsStore.getState().selectedType).toBeNull();
+  });
+
+  it('refresh() drops a stale type filter when the type disappears from the vault', async () => {
+    const { useTagsStore, useVaultStore } = await loadStores();
+    useVaultStore.setState({ current: VAULT_A });
+
+    mock.setHandler(IpcChannels.getTypeCounts, async () => [{ type: 'book', count: 1 }]);
+    mock.setHandler(IpcChannels.runDatabaseQuery, async () => ({
+      rows: [{ path: 'b.md', title: 'B', mtimeMs: 0, properties: {} }],
+      groups: [],
+      totalCount: 1,
+    }));
+
+    await useTagsStore.getState().refresh();
+    await useTagsStore.getState().selectType('book');
+    expect(useTagsStore.getState().selectedType).toBe('book');
+
+    // Last book is deleted — refresh() must drop the filter.
+    mock.setHandler(IpcChannels.getTypeCounts, async () => []);
+    await useTagsStore.getState().refresh();
+
+    expect(useTagsStore.getState().selectedType).toBeNull();
+    expect(useTagsStore.getState().notesForSelectedType).toEqual([]);
+  });
+});
