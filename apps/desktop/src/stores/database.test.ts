@@ -104,16 +104,16 @@ describe('useDatabaseStore — filter mutators', () => {
 });
 
 describe('useDatabaseStore — debounce + IPC', () => {
-  it('rapid query edits coalesce into a single IPC call', async () => {
+  it('rapid filter edits coalesce into a single debounced IPC call', async () => {
     const { useDatabaseStore, useVaultStore } = await loadStores();
     useVaultStore.setState({ current: FAKE_VAULT });
     vi.useFakeTimers();
     mock.setHandler(IpcChannels.runDatabaseQuery, async () => makeResult([]));
 
-    useDatabaseStore.getState().setSort([{ key: 'title', direction: 'asc' }]);
+    // Text-input style mutations — these go through scheduleRun (debounced).
     useDatabaseStore.getState().setFolder('projects');
-    useDatabaseStore.getState().setGroupBy('status');
     useDatabaseStore.getState().addFilter(EQ_FILTER);
+    useDatabaseStore.getState().addFilter(CONTAINS_FILTER);
     expect(mock.getSpy(IpcChannels.runDatabaseQuery)).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(220);
@@ -121,6 +121,22 @@ describe('useDatabaseStore — debounce + IPC', () => {
 
     // 200ms trailing-edge debounce → exactly one query.
     expect(mock.getSpy(IpcChannels.runDatabaseQuery)).toHaveBeenCalledTimes(1);
+  });
+
+  it('discrete actions (setSort, setGroupBy, setType) bypass the debounce', async () => {
+    const { useDatabaseStore, useVaultStore } = await loadStores();
+    useVaultStore.setState({ current: FAKE_VAULT });
+    mock.setHandler(IpcChannels.runDatabaseQuery, async () => makeResult([]));
+
+    // Each discrete action fires runQuery immediately.
+    await useDatabaseStore.getState().setSort([{ key: 'title', direction: 'asc' }]);
+    expect(mock.getSpy(IpcChannels.runDatabaseQuery)).toHaveBeenCalledTimes(1);
+
+    await useDatabaseStore.getState().setGroupBy('status');
+    expect(mock.getSpy(IpcChannels.runDatabaseQuery)).toHaveBeenCalledTimes(2);
+
+    await useDatabaseStore.getState().setType('book');
+    expect(mock.getSpy(IpcChannels.runDatabaseQuery)).toHaveBeenCalledTimes(3);
   });
 
   it('runQuery populates result and derives availableProperties sorted', async () => {
@@ -250,6 +266,36 @@ describe('useDatabaseStore — vault subscription', () => {
     expect(s.result).toBeNull();
     expect(s.availableProperties).toEqual([]);
     expect(s.error).toBeNull();
+    unsub();
+  });
+
+  it('resets selectedType + query on vault switch (open A → open B)', async () => {
+    const { useDatabaseStore, useVaultStore } = await loadStores();
+    const VAULT_A: VaultInfo = { root: '/tmp/v1', name: 'v1', openedAt: 0 };
+    const VAULT_B: VaultInfo = { root: '/tmp/v2', name: 'v2', openedAt: 1 };
+    useVaultStore.setState({ current: VAULT_A, notes: [] });
+    mock.setHandler(IpcChannels.runDatabaseQuery, async () => ({
+      rows: [],
+      groups: [],
+      totalCount: 0,
+    }));
+
+    const unsub = useDatabaseStore.getState().subscribeToVaultEvents();
+
+    // Simulate: user has set a type filter + custom query in vault A.
+    const userFilter: ScalarFilter = { kind: 'eq', key: 'year', value: 1937 };
+    useDatabaseStore.setState({
+      selectedType: 'book',
+      query: { filters: [userFilter], limit: 1000 },
+    });
+
+    // Switch to vault B.
+    useVaultStore.setState({ current: VAULT_B, notes: [] });
+    // Subscription is sync for the state reset; runQuery is async — yield.
+    await Promise.resolve();
+
+    expect(useDatabaseStore.getState().selectedType).toBeNull();
+    expect(useDatabaseStore.getState().query.filters).toEqual([]);
     unsub();
   });
 });
