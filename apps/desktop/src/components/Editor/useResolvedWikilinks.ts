@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import type { Editor } from '@tiptap/core';
 import { ipc } from '../../lib/ipc';
-import type { WikilinkResolutionMap } from './extensions/Wikilink';
+import type { WikilinkResolution, WikilinkResolutionMap } from './extensions/Wikilink';
 
 /**
  * Walk the editor doc, collect every wikilink target, and resolve each
@@ -64,9 +64,9 @@ export function useResolvedWikilinks(editor: Editor | null, noteKey: string | nu
       let changed = false;
       for (const r of results) {
         if (r.status !== 'fulfilled') continue;
-        const exists = r.value.path !== null;
-        if (resolvedMap.get(r.value.title) !== exists) {
-          resolvedMap.set(r.value.title, exists);
+        const next: WikilinkResolution = r.value.path ?? false;
+        if (resolvedMap.get(r.value.title) !== next) {
+          resolvedMap.set(r.value.title, next);
           changed = true;
         }
       }

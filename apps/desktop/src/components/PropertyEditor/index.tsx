@@ -9,10 +9,17 @@ import { DateField } from './fields/DateField';
 import { UrlField } from './fields/UrlField';
 import { MultiSelectField } from './fields/MultiSelectField';
 import { UnsupportedField } from './fields/UnsupportedField';
+import { RelationsSection } from './RelationsSection';
 
 export type PropertyEditorProps = {
   frontmatter: Frontmatter;
   onChange: (next: Frontmatter) => void;
+  /**
+   * Relation kinds suggested for the current type, surfaced as an
+   * autocomplete in the "Aggiungi relazione" form. Empty array = no
+   * suggestions (untyped note or schema-less type).
+   */
+  suggestedRelationKinds?: ReadonlyArray<string>;
 };
 
 /**
@@ -91,7 +98,11 @@ function normalizeIncoming(value: unknown): unknown {
  * leaking into the on-disk frontmatter (gray-matter would happily round
  * the override away).
  */
-export function PropertyEditor({ frontmatter, onChange }: PropertyEditorProps): JSX.Element {
+export function PropertyEditor({
+  frontmatter,
+  onChange,
+  suggestedRelationKinds,
+}: PropertyEditorProps): JSX.Element {
   // Per-key type override: when the user clicks the type icon and picks
   // a different switchable type, we record it here. Detection still
   // runs first; the override only applies when present.
@@ -251,104 +262,111 @@ export function PropertyEditor({ frontmatter, onChange }: PropertyEditorProps): 
   const propertyCountLabel = isEmpty ? '' : ` (${entries.length})`;
 
   return (
-    <section className="shrink-0 border-b border-border bg-bg px-4 py-2">
-      <div className="mx-auto max-w-[720px]">
-        <button
-          type="button"
-          onClick={(): void => setCollapsed((v) => !v)}
-          className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-fg-muted hover:text-fg"
-        >
-          <span className="inline-block w-3" aria-hidden="true">
-            {collapsed ? '▸' : '▾'}
-          </span>
-          <span>Proprietà{propertyCountLabel}</span>
-        </button>
+    <>
+      <section className="shrink-0 border-b border-border bg-bg px-4 py-2">
+        <div className="mx-auto max-w-[720px]">
+          <button
+            type="button"
+            onClick={(): void => setCollapsed((v) => !v)}
+            className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-fg-muted hover:text-fg"
+          >
+            <span className="inline-block w-3" aria-hidden="true">
+              {collapsed ? '▸' : '▾'}
+            </span>
+            <span>Proprietà{propertyCountLabel}</span>
+          </button>
 
-        {!collapsed && (
-          <div className="flex flex-col gap-0.5">
-            {entries.map(([key, rawValue]) => {
-              const value = normalizeIncoming(rawValue);
-              const type = resolveType(key, value);
-              // The user can only switch INTO a type that's in
-              // SWITCHABLE_TYPES; we further hide the current type
-              // from its own menu so it doesn't act as a no-op entry.
-              // For non-switchable starting types (boolean,
-              // multi-select, tags, unsupported) we still let them
-              // pivot to text/number/date/url to recover.
-              const switchableTo = SWITCHABLE_TYPES.filter((t) => t !== type);
-              return (
-                <div
-                  key={key}
-                  className="group flex min-h-[28px] items-start gap-2 rounded hover:bg-bg-subtle"
-                >
-                  <PropertyHeader
-                    name={key}
-                    type={type}
-                    switchableTo={switchableTo}
-                    validateRename={validateRename(key)}
-                    onRename={(next): void => handleRename(key, next)}
-                    onSwitchType={(target): void => handleSwitchType(key, target)}
-                    onDelete={(): void => handleDelete(key)}
+          {!collapsed && (
+            <div className="flex flex-col gap-0.5">
+              {entries.map(([key, rawValue]) => {
+                const value = normalizeIncoming(rawValue);
+                const type = resolveType(key, value);
+                // The user can only switch INTO a type that's in
+                // SWITCHABLE_TYPES; we further hide the current type
+                // from its own menu so it doesn't act as a no-op entry.
+                // For non-switchable starting types (boolean,
+                // multi-select, tags, unsupported) we still let them
+                // pivot to text/number/date/url to recover.
+                const switchableTo = SWITCHABLE_TYPES.filter((t) => t !== type);
+                return (
+                  <div
+                    key={key}
+                    className="group flex min-h-[28px] items-start gap-2 rounded hover:bg-bg-subtle"
+                  >
+                    <PropertyHeader
+                      name={key}
+                      type={type}
+                      switchableTo={switchableTo}
+                      validateRename={validateRename(key)}
+                      onRename={(next): void => handleRename(key, next)}
+                      onSwitchType={(target): void => handleSwitchType(key, target)}
+                      onDelete={(): void => handleDelete(key)}
+                    />
+                    <div className="flex min-w-0 flex-1 items-center py-0.5">
+                      {renderField(key, type, value)}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {adding ? (
+                <div className="mt-1 flex flex-col gap-1 rounded border border-border bg-bg-subtle p-2">
+                  <input
+                    autoFocus
+                    type="text"
+                    value={newKeyDraft}
+                    placeholder="Nome proprietà"
+                    onChange={(e): void => {
+                      setNewKeyDraft(e.target.value);
+                      setAddError(null);
+                    }}
+                    onKeyDown={(e): void => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddProperty();
+                      } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        cancelAdd();
+                      }
+                    }}
+                    className="rounded border border-border bg-bg px-2 py-1 text-sm text-fg outline-none focus:border-accent"
                   />
-                  <div className="flex min-w-0 flex-1 items-center py-0.5">
-                    {renderField(key, type, value)}
+                  {addError !== null && <span className="text-xs text-red-500">{addError}</span>}
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={cancelAdd}
+                      className="rounded px-2 py-1 text-xs text-fg-subtle hover:bg-bg-muted hover:text-fg"
+                    >
+                      Annulla
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAddProperty}
+                      className="rounded bg-accent px-2 py-1 text-xs font-medium text-accent-fg hover:opacity-90"
+                    >
+                      Aggiungi
+                    </button>
                   </div>
                 </div>
-              );
-            })}
-
-            {adding ? (
-              <div className="mt-1 flex flex-col gap-1 rounded border border-border bg-bg-subtle p-2">
-                <input
-                  autoFocus
-                  type="text"
-                  value={newKeyDraft}
-                  placeholder="Nome proprietà"
-                  onChange={(e): void => {
-                    setNewKeyDraft(e.target.value);
-                    setAddError(null);
-                  }}
-                  onKeyDown={(e): void => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleAddProperty();
-                    } else if (e.key === 'Escape') {
-                      e.preventDefault();
-                      cancelAdd();
-                    }
-                  }}
-                  className="rounded border border-border bg-bg px-2 py-1 text-sm text-fg outline-none focus:border-accent"
-                />
-                {addError !== null && <span className="text-xs text-red-500">{addError}</span>}
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={cancelAdd}
-                    className="rounded px-2 py-1 text-xs text-fg-subtle hover:bg-bg-muted hover:text-fg"
-                  >
-                    Annulla
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleAddProperty}
-                    className="rounded bg-accent px-2 py-1 text-xs font-medium text-accent-fg hover:opacity-90"
-                  >
-                    Aggiungi
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={(): void => setAdding(true)}
-                className="mt-1 self-start rounded px-2 py-1 text-xs text-fg-muted hover:bg-bg-muted hover:text-fg"
-              >
-                + Aggiungi proprietà
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-    </section>
+              ) : (
+                <button
+                  type="button"
+                  onClick={(): void => setAdding(true)}
+                  className="mt-1 self-start rounded px-2 py-1 text-xs text-fg-muted hover:bg-bg-muted hover:text-fg"
+                >
+                  + Aggiungi proprietà
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
+      <RelationsSection
+        frontmatter={frontmatter}
+        suggestedKinds={suggestedRelationKinds ?? []}
+        onChange={onChange}
+      />
+    </>
   );
 }

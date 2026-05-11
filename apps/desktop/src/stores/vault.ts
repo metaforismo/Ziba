@@ -1,4 +1,4 @@
-import type { NoteSummary } from '@ziba/core';
+import type { NotePath, NoteSummary } from '@ziba/core';
 import { create } from 'zustand';
 import type { IndexProgressPayload, VaultEventPayload, VaultInfo } from '../../shared/ipc';
 import { debounce } from '../lib/debounce';
@@ -10,6 +10,13 @@ type IndexProgress = { processed: number; total: number | null };
 type VaultState = {
   current: VaultInfo | null;
   notes: NoteSummary[];
+  /**
+   * path → type slug for every note that declares `type:` in its frontmatter.
+   * Populated alongside `notes` on every refresh so the two are always in
+   * lockstep. Absent entries mean the note has no declared type — callers
+   * must treat a missing key the same as an empty/unknown type.
+   */
+  typedPaths: ReadonlyMap<NotePath, string>;
   recentVaults: VaultInfo[];
   indexProgress: IndexProgress | null;
 
@@ -34,19 +41,20 @@ export const useVaultStore = create<VaultState>((set, get) => {
   return {
     current: null,
     notes: [],
+    typedPaths: new Map(),
     recentVaults: [],
     indexProgress: null,
 
     async openVault(root) {
       const info = await ipc.openVault({ root });
-      set({ current: info, notes: [] });
+      set({ current: info, notes: [], typedPaths: new Map() });
       await get().refreshNotes();
       await get().loadRecentVaults();
     },
 
     async closeVault() {
       await ipc.closeVault();
-      set({ current: null, notes: [], indexProgress: null });
+      set({ current: null, notes: [], typedPaths: new Map(), indexProgress: null });
     },
 
     async pickAndOpenVault() {
@@ -59,8 +67,8 @@ export const useVaultStore = create<VaultState>((set, get) => {
     async refreshNotes() {
       const current = get().current;
       if (current === null) return;
-      const notes = await ipc.listNotes();
-      set({ notes });
+      const [notes, typedPaths] = await Promise.all([ipc.listNotes(), ipc.getTypedPaths()]);
+      set({ notes, typedPaths });
     },
 
     async loadRecentVaults() {

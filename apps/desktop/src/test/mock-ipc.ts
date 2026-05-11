@@ -129,6 +129,9 @@ function buildDefaultHandlers(): Required<MockHandlers> {
     [IpcChannels.getRelationsByTarget]: async () => [],
 
     [IpcChannels.getRecentVaults]: async () => [],
+
+    // v1.0 Phase 3 — typed-paths index
+    [IpcChannels.getTypedPaths]: async () => [],
   };
   return defaults as unknown as Required<MockHandlers>;
 }

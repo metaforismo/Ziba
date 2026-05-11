@@ -199,6 +199,16 @@ export interface IndexStoreAdapter {
    */
   getTypeCounts(): Promise<TypeCountRow[]>;
 
+  /**
+   * v1.0: all notes carrying a `type:` slug, returned as a path → type
+   * map. Reads from `note_properties` so the cost is one indexed scan
+   * on `prop_key = 'type'`. Untyped notes are absent from the map.
+   *
+   * Bounded cost: typed notes are a fraction of total notes for
+   * realistic vaults.
+   */
+  getTypedPaths(): Promise<Map<NotePath, string>>;
+
   /** v1.0: insert or replace a type's cached schema. */
   upsertObjectType(row: ObjectTypeRow): Promise<void>;
 

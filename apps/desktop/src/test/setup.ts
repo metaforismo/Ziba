@@ -1,4 +1,6 @@
 import { afterEach, vi } from 'vitest';
+import '@testing-library/jest-dom/vitest';
+import { cleanup } from '@testing-library/react';
 import type { ZibaApi } from '../../shared/ipc';
 
 // Vitest setup file — runs once per worker before any test in `src/**`.
@@ -83,6 +85,11 @@ window.ziba = makeFailingApi();
 installLocalStorage();
 
 afterEach(() => {
+  // Unmount all React trees rendered in the current test so portals
+  // mounted to document.body don't leak into subsequent tests.
+  // `@testing-library/react` normally auto-cleans via a global afterEach,
+  // but `globals: false` in vitest means that hook never runs.
+  cleanup();
   // Clear localStorage so the UI store can re-hydrate cleanly between
   // tests. The shim from `installLocalStorage()` exposes a real `clear`.
   window.localStorage.clear();

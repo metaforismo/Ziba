@@ -135,6 +135,7 @@ export class SqliteIndexStore implements IndexStoreAdapter {
     deleteObjectType: Database.Statement;
     listObjectTypes: Database.Statement;
     getTypeCounts: Database.Statement;
+    getTypedPaths: Database.Statement;
   } | null = null;
 
   async init(vaultRoot: string): Promise<void> {
@@ -348,6 +349,17 @@ export class SqliteIndexStore implements IndexStoreAdapter {
         GROUP BY text_value
         ORDER BY count DESC, text_value ASC
       `),
+      // Full path → type slug mapping. One indexed scan on prop_key = 'type';
+      // empty-string values are excluded (shouldn't occur via replaceProperties
+      // but guard against manual DB edits or future callers that skip validation).
+      getTypedPaths: db.prepare(`
+        SELECT source_path AS path, text_value AS type
+        FROM note_properties
+        WHERE prop_key = 'type'
+          AND prop_type = 'text'
+          AND text_value IS NOT NULL
+          AND text_value <> ''
+      `),
     };
   }
 
@@ -522,6 +534,14 @@ export class SqliteIndexStore implements IndexStoreAdapter {
     type R = { type: string; count: number };
     const rows = s.getTypeCounts.all() as R[];
     return Promise.resolve(rows.map((r) => ({ type: r.type, count: r.count })));
+  }
+
+  async getTypedPaths(): Promise<Map<NotePath, string>> {
+    const s = this.require();
+    const rows = s.getTypedPaths.all() as Array<{ path: string; type: string }>;
+    const out = new Map<NotePath, string>();
+    for (const r of rows) out.set(r.path, r.type);
+    return Promise.resolve(out);
   }
 
   async listObjectTypes(): Promise<ObjectTypeRow[]> {

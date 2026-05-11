@@ -51,6 +51,10 @@ export const ipc = {
   listNotes(): Promise<NoteSummary[]> {
     return api().invoke(IpcChannels.listNotes);
   },
+  async getTypedPaths(): Promise<Map<NotePath, string>> {
+    const tuples = await api().invoke(IpcChannels.getTypedPaths);
+    return new Map(tuples);
+  },
   loadNote(args: { path: NotePath }): Promise<Note> {
     return api().invoke(IpcChannels.loadNote, args);
   },

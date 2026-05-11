@@ -8,15 +8,19 @@ import { ipc } from '../../lib/ipc';
 import { ipcErrorMessage } from '../../lib/ipc-error';
 import { debounce } from '../../lib/debounce';
 import { AUTOSAVE_DEBOUNCE_MS, PROPERTY_AUTOSAVE_DEBOUNCE_MS } from '../../lib/timings';
+import { setRelationInFrontmatter } from '../../lib/relations-frontmatter';
+import { useTagsStore } from '../../stores/tags';
 import { PropertyEditor } from '../PropertyEditor';
-import { buildEditorExtensions } from './EditorExtensions';
+import { buildEditorExtensions, type BuildExtensionsOptions } from './EditorExtensions';
 import { type SlashCommandRenderer, type SlashMenuItem } from './extensions/SlashCommand';
 import {
   type WikilinkSuggestionItem,
   type WikilinkSuggestionRenderer,
 } from './extensions/WikilinkSuggestion';
+import { RelationPickerPopup } from './RelationPickerPopup';
 import { SlashMenuPopup } from './SlashMenuPopup';
 import { useResolvedWikilinks } from './useResolvedWikilinks';
+import { useWikilinkTypes } from './useWikilinkTypes';
 import { WikilinkPopup } from './WikilinkPopup';
 
 export type EditorProps = {
@@ -57,6 +61,18 @@ const INITIAL_SLASH_STATE: SlashState = {
   items: [],
   position: { top: 0, left: 0, bottom: 0 },
   selectedIndex: 0,
+};
+
+type RelationPickerState = {
+  open: boolean;
+  position: { top: number; left: number; bottom: number };
+  suggestedKinds: string[];
+};
+
+const INITIAL_RELATION_PICKER_STATE: RelationPickerState = {
+  open: false,
+  position: { top: 0, left: 0, bottom: 0 },
+  suggestedKinds: [],
 };
 
 /**
@@ -116,6 +132,15 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
   useEffect(() => {
     slashRef.current = slash;
   }, [slash]);
+
+  const [relationPicker, setRelationPicker] = useState<RelationPickerState>(
+    INITIAL_RELATION_PICKER_STATE,
+  );
+
+  // Mutable ref shared with the SlashCommand extension so the relation
+  // popover is anchored at the latest slash anchor (rather than where
+  // the cursor was when the command closure was created).
+  const slashLatestRect = useRef<{ top: number; left: number; bottom: number } | null>(null);
 
   // The `command` callback baked into the suggestion plugin captures the
   // initial reference. We keep the latest one in a ref so item-selection
@@ -206,6 +231,7 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
           props.command(item);
         };
         const rect = props.clientRect?.();
+        if (rect) slashLatestRect.current = { top: rect.top, left: rect.left, bottom: rect.bottom };
         setSlash({
           open: true,
           items: props.items,
@@ -220,6 +246,7 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
           props.command(item);
         };
         const rect = props.clientRect?.();
+        if (rect) slashLatestRect.current = { top: rect.top, left: rect.left, bottom: rect.bottom };
         setSlash((prev) => ({
           open: true,
           items: props.items,
@@ -273,11 +300,45 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
     };
   }, []);
 
+  const objectTypeSchemas = useTagsStore((s) => s.objectTypeSchemas);
+  const suggestedRelationKinds = useMemo<string[]>(() => {
+    if (currentNote === null) return [];
+    const t = currentNote.frontmatter.type;
+    if (typeof t !== 'string') return [];
+    const schema = objectTypeSchemas.find((s) => s.id === t);
+    if (schema === undefined) return [];
+    return Object.keys(schema.schema.relations);
+  }, [currentNote, objectTypeSchemas]);
+
+  const handleRelationRequested = useCallback<
+    NonNullable<BuildExtensionsOptions['onSlashRelationRequested']>
+  >(
+    ({ position }) => {
+      setRelationPicker({
+        open: true,
+        position,
+        suggestedKinds: suggestedRelationKinds,
+      });
+    },
+    [suggestedRelationKinds],
+  );
+
+  const handleRelationRequestedRef = useRef(handleRelationRequested);
+  useEffect(() => {
+    handleRelationRequestedRef.current = handleRelationRequested;
+  });
+
   // Build extensions once. The closure captures `createSuggestionRenderer`
   // which is stable across renders (it's wrapped in useCallback with no
   // deps). Recomputing extensions would force a full editor remount.
   const extensions = useMemo(
-    () => buildEditorExtensions({ createSuggestionRenderer, createSlashRenderer }),
+    () =>
+      buildEditorExtensions({
+        createSuggestionRenderer,
+        createSlashRenderer,
+        onSlashRelationRequested: (args) => handleRelationRequestedRef.current(args),
+        slashLatestRect,
+      }),
     [createSuggestionRenderer, createSlashRenderer],
   );
 
@@ -398,6 +459,7 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
   // Resolve wikilinks against the index so broken targets get the red
   // styling. Re-keyed on note path so the cache resets on navigation.
   useResolvedWikilinks(editor, currentNote?.path ?? null);
+  useWikilinkTypes(editor);
 
   // Click router: resolve the title; if it exists, open the note; if
   // not, create a `<title>.md` at the vault root and open that. The
@@ -535,7 +597,11 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
         // so we don't need a new CSS file. Tailwind utilities cover the
         // rest of the typography via `ziba-prose`.
       >
-        <PropertyEditor frontmatter={currentNote.frontmatter} onChange={handleFrontmatterChange} />
+        <PropertyEditor
+          frontmatter={currentNote.frontmatter}
+          onChange={handleFrontmatterChange}
+          suggestedRelationKinds={suggestedRelationKinds}
+        />
         <div className="mx-auto max-w-[720px]">
           <EditorContent editor={editor} />
         </div>
@@ -569,6 +635,24 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
           onHover={(idx): void => {
             setSlash((prev) => ({ ...prev, selectedIndex: idx }));
           }}
+        />
+      )}
+
+      {relationPicker.open && (
+        <RelationPickerPopup
+          position={relationPicker.position}
+          suggestedKinds={relationPicker.suggestedKinds}
+          onCommit={({ kind, target }): void => {
+            if (currentNote === null) {
+              setRelationPicker(INITIAL_RELATION_PICKER_STATE);
+              return;
+            }
+            const next = setRelationInFrontmatter(currentNote.frontmatter, kind, target);
+            setFrontmatterRef.current(next);
+            debouncedPropertySave();
+            setRelationPicker(INITIAL_RELATION_PICKER_STATE);
+          }}
+          onCancel={(): void => setRelationPicker(INITIAL_RELATION_PICKER_STATE)}
         />
       )}
     </section>
