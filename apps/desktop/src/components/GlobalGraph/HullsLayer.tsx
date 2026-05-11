@@ -4,8 +4,8 @@ import { convexHull } from './convexHull';
 import type { CanvasNode } from './Canvas';
 
 const MIN_NODES_FOR_HULL = 3;
-const HULL_FILL_OPACITY = 0.08;
-const HULL_STROKE_OPACITY = 0.25;
+const HULL_FILL_OPACITY = 0.15;
+const HULL_STROKE_OPACITY = 0.5;
 const HULL_PADDING = 24;
 
 type Props = {
