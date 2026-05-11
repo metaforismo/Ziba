@@ -174,9 +174,14 @@ export function GlobalGraph(): JSX.Element {
   const canvasNodes = useMemo<CanvasNode[]>(() => {
     if (layout === null) return [];
     const maxDegree = Array.from(degreeMap.values()).reduce((acc, v) => (v > acc ? v : acc), 0);
+    const nodeMeta = new Map<NotePath, { type: string | null; color: string | null }>();
+    if (load.kind === 'ready') {
+      for (const n of load.graph.nodes) nodeMeta.set(n.path, { type: n.type, color: n.color });
+    }
     return layout.map((p) => {
       const degree = degreeMap.get(p.id) ?? 0;
       const r = scaleRadius(degree, maxDegree);
+      const meta = nodeMeta.get(p.id);
       return {
         id: p.id,
         x: p.x,
@@ -184,13 +189,15 @@ export function GlobalGraph(): JSX.Element {
         r,
         degree,
         title: titleMap.get(p.id) ?? p.id,
+        type: meta?.type ?? null,
+        color: meta?.color ?? null,
       };
     });
-  }, [layout, degreeMap, titleMap]);
+  }, [layout, degreeMap, titleMap, load]);
 
   const canvasEdges = useMemo<CanvasEdge[]>(() => {
     if (load.kind !== 'ready') return [];
-    return load.graph.edges.map((e) => ({ source: e.source, target: e.target }));
+    return load.graph.edges.map((e) => ({ source: e.source, target: e.target, kind: e.kind }));
   }, [load]);
 
   // Search filter. Empty query disables filtering; otherwise we collect
@@ -502,6 +509,9 @@ export function GlobalGraph(): JSX.Element {
             onWheel={handleWheel}
             onBackgroundClick={handleBackgroundClick}
             panning={panning}
+            clusterOverlayOn={false}
+            highlightType={null}
+            highlightKinds={EMPTY_STRING_SET}
           />
         )}
       </div>
@@ -510,6 +520,7 @@ export function GlobalGraph(): JSX.Element {
 }
 
 const EMPTY_SET: ReadonlySet<NotePath> = new Set<NotePath>();
+const EMPTY_STRING_SET: ReadonlySet<string> = new Set<string>();
 
 function clamp(n: number, lo: number, hi: number): number {
   if (n < lo) return lo;
