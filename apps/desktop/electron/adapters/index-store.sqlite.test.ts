@@ -107,3 +107,100 @@ describe('getTypedPaths', () => {
     expect(rows).toHaveLength(0);
   });
 });
+
+describe('graph nodes — type + color join', () => {
+  it('returns null type/color for untyped notes', () => {
+    setupNote('untyped.md');
+    const rows = db
+      .prepare(
+        `SELECT n.path AS path, n.title AS title, np.text_value AS type, ot.color AS color
+         FROM notes n
+         LEFT JOIN note_properties np
+           ON np.source_path = n.path
+          AND np.prop_key = 'type'
+          AND np.prop_type = 'text'
+          AND np.text_value IS NOT NULL
+          AND np.text_value <> ''
+         LEFT JOIN object_types ot ON ot.id = np.text_value`,
+      )
+      .all() as Array<{ path: string; title: string; type: string | null; color: string | null }>;
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toEqual({ path: 'untyped.md', title: 'untyped', type: null, color: null });
+  });
+
+  it('returns the type slug + null color when no schema is cached for the type', () => {
+    setupNote('book.md');
+    db.prepare(
+      `INSERT INTO note_properties (source_path, prop_key, prop_type, text_value)
+       VALUES (?, 'type', 'text', 'book')`,
+    ).run('book.md');
+    const rows = db
+      .prepare(
+        `SELECT n.path AS path, np.text_value AS type, ot.color AS color
+         FROM notes n
+         LEFT JOIN note_properties np
+           ON np.source_path = n.path
+          AND np.prop_key = 'type'
+          AND np.prop_type = 'text'
+          AND np.text_value IS NOT NULL
+          AND np.text_value <> ''
+         LEFT JOIN object_types ot ON ot.id = np.text_value`,
+      )
+      .all() as Array<{ path: string; type: string | null; color: string | null }>;
+    expect(rows[0]?.type).toBe('book');
+    expect(rows[0]?.color).toBeNull();
+  });
+
+  it('returns type + color when a schema with a color is cached', () => {
+    setupNote('book.md');
+    db.prepare(
+      `INSERT INTO note_properties (source_path, prop_key, prop_type, text_value)
+       VALUES (?, 'type', 'text', 'book')`,
+    ).run('book.md');
+    db.prepare(
+      `INSERT INTO object_types (id, label, icon, color, schema_json, mtime)
+       VALUES ('book', 'Libro', '📖', '#6366f1', '{}', 0)`,
+    ).run();
+    const rows = db
+      .prepare(
+        `SELECT n.path AS path, np.text_value AS type, ot.color AS color
+         FROM notes n
+         LEFT JOIN note_properties np
+           ON np.source_path = n.path
+          AND np.prop_key = 'type'
+          AND np.prop_type = 'text'
+          AND np.text_value IS NOT NULL
+          AND np.text_value <> ''
+         LEFT JOIN object_types ot ON ot.id = np.text_value`,
+      )
+      .all() as Array<{ path: string; type: string | null; color: string | null }>;
+    expect(rows[0]?.type).toBe('book');
+    expect(rows[0]?.color).toBe('#6366f1');
+  });
+});
+
+describe('graph edges — kind passthrough', () => {
+  it('returns the kind column on every edge (empty string for generic body wikilinks)', () => {
+    setupNote('a.md');
+    setupNote('b.md');
+    db.prepare(
+      `INSERT INTO relations (source_path, kind, target_title, target_path)
+       VALUES (?, '', 'B', 'b.md')`,
+    ).run('a.md');
+    db.prepare(
+      `INSERT INTO relations (source_path, kind, target_title, target_path)
+       VALUES (?, 'author', 'B', 'b.md')`,
+    ).run('a.md');
+    const rows = db
+      .prepare(
+        `SELECT r.source_path AS source, r.target_path AS target,
+                n.title AS target_title, r.kind AS kind
+         FROM relations r
+         JOIN notes n ON n.path = r.target_path
+         WHERE r.target_path IS NOT NULL
+         ORDER BY r.kind`,
+      )
+      .all() as Array<{ source: string; target: string; target_title: string; kind: string }>;
+    expect(rows.map((r) => r.kind)).toEqual(['', 'author']);
+  });
+});

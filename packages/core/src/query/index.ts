@@ -166,12 +166,31 @@ export type DatabaseResult = {
 export type GraphNode = {
   path: NotePath;
   title: string;
+  /**
+   * v1.0 Phase 5: `type:` slug from the note's frontmatter, or null
+   * when the note is untyped. Drives the constellation graph's node
+   * tinting and cluster grouping.
+   */
+  type: string | null;
+  /**
+   * v1.0 Phase 5: hex color from the type's cached schema, when both
+   * the type slug and a matching `object_types` row with a non-null
+   * `color` exist. Null otherwise (no schema, or schema with no color
+   * declared).
+   */
+  color: string | null;
 };
 
 export type GraphEdge = {
   source: NotePath;
   target: NotePath;
   targetTitle: string;
+  /**
+   * v1.0 Phase 5: relation kind. The empty string `''` is the
+   * sentinel for generic body wikilinks; non-empty values match the
+   * frontmatter `relations:<kind>` key.
+   */
+  kind: string;
 };
 
 export type FullGraph = {
