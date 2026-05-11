@@ -3,16 +3,15 @@ import type { MarkdownSerializerState } from '@tiptap/pm/markdown';
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 
 /**
- * `WikilinkResolutionMap` lives in `editor.storage.wikilink.resolved` and
- * maps a target string (the inner text between `[[` and `]]`, no alias) to
- * `true` if the title resolves to an existing note, `false` if it's broken.
- *
- * The map is populated by the React layer (`useResolvedWikilinks`) which
- * batch-calls `ipc.resolveTitle` and writes back here. The decoration logic
- * doesn't need it — `renderHTML` reads from storage at render time and the
- * DOM is updated by Tiptap on every `update()` cycle.
+ * One entry per wikilink target the editor has tried to resolve. The
+ * value is either `false` (the title could not be resolved to a note)
+ * or the resolved note's vault-relative path. Storing the path lets
+ * downstream renderers chain `title → path → type` lookups without
+ * round-tripping IPC at render time. Treats an absent key as
+ * optimistically resolved (avoids a "broken" flash during async fill).
  */
-export type WikilinkResolutionMap = Map<string, boolean>;
+export type WikilinkResolution = string | false;
+export type WikilinkResolutionMap = Map<string, WikilinkResolution>;
 
 export interface WikilinkOptions {
   /**
