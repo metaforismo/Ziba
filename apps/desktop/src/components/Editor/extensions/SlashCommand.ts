@@ -39,6 +39,26 @@ export type SlashCommandOptions = {
    * the extension a no-op until the Editor wires up a real renderer.
    */
   createRenderer(): SlashCommandRenderer;
+  /**
+   * Callback invoked when the user picks the `relation` slash entry.
+   * The renderer is expected to surface a relation-picker popover
+   * anchored at `position`, then write into `frontmatter.relations`
+   * on commit. Omitted → the entry is a no-op (safe for headless /
+   * test usage).
+   */
+  onRelationRequested?: (args: {
+    editor: Editor;
+    range: Range;
+    position: { top: number; left: number; bottom: number };
+  }) => void;
+  /**
+   * The latest trigger-anchor rect, mutated by the renderer on every
+   * suggestion `onStart` / `onUpdate`. We use it inside `command` to
+   * anchor the relation popover at the slash position. A ref-like
+   * object is mutated in place by the renderer; cheaper than
+   * round-tripping through React state.
+   */
+  latestRect?: { current: { top: number; left: number; bottom: number } | null };
 };
 
 export const SlashCommandPluginKey = new PluginKey('slashCommand');
@@ -168,6 +188,13 @@ const SLASH_MENU_ITEMS: ReadonlyArray<SlashMenuItem> = [
     icon: '↪',
   },
   {
+    id: 'relation',
+    title: 'Aggiungi relazione',
+    description: 'Crea una relazione tipizzata nel frontmatter',
+    keywords: ['relation', 'relazione', 'rel', 'link'],
+    icon: '↗',
+  },
+  {
     id: 'math-block',
     title: 'Formula matematica',
     description: 'Blocco LaTeX `$$..$$` con rendering KaTeX',
@@ -243,7 +270,15 @@ function filterItems(query: string): SlashMenuItem[] {
  * is closed-set, so an unknown id is a programming error rather than a
  * user-facing failure.
  */
-function runSlashCommand(editor: Editor, id: string): void {
+function runSlashCommand(
+  editor: Editor,
+  id: string,
+  context: {
+    range: Range;
+    position: { top: number; left: number; bottom: number };
+    onRelationRequested?: SlashCommandOptions['onRelationRequested'];
+  },
+): void {
   switch (id) {
     case 'heading-1':
       editor.chain().focus().setNode('heading', { level: 1 }).run();
@@ -296,6 +331,15 @@ function runSlashCommand(editor: Editor, id: string): void {
         .focus()
         .insertContent({ type: 'mathInline', attrs: { formula: '' } })
         .run();
+      return;
+    case 'relation':
+      // Renderer handles the popover; the suggestion plugin already
+      // deleted the slash + query above us, so we just delegate.
+      context.onRelationRequested?.({
+        editor,
+        range: context.range,
+        position: context.position,
+      });
       return;
     default: {
       // Callout entries share the `callout-<kind>` id pattern. We map
@@ -385,8 +429,13 @@ export const SlashCommandExtension = Extension.create<SlashCommandOptions>({
           // them. We do this in a separate chain so the subsequent
           // node-mutating commands operate on a clean selection.
           editor.chain().focus().deleteRange(range).run();
-          // Step 2: insert the chosen block.
-          runSlashCommand(editor, props.id);
+          // Step 2: insert the chosen block (or delegate to the renderer
+          // for entries like `relation` that open a popover instead).
+          runSlashCommand(editor, props.id, {
+            range,
+            position: options.latestRect?.current ?? { top: 0, left: 0, bottom: 0 },
+            onRelationRequested: options.onRelationRequested,
+          });
         },
 
         render: () => options.createRenderer(),

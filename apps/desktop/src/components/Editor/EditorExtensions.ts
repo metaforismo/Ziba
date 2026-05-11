@@ -5,7 +5,11 @@ import { CalloutExtension } from './extensions/Callout';
 import { EmbedExtension } from './extensions/Embed';
 import { MathBlockExtension } from './extensions/MathBlock';
 import { MathInlineExtension } from './extensions/MathInline';
-import { SlashCommandExtension, type SlashCommandRenderer } from './extensions/SlashCommand';
+import {
+  SlashCommandExtension,
+  type SlashCommandRenderer,
+  type SlashCommandOptions,
+} from './extensions/SlashCommand';
 import { TagMarkExtension } from './extensions/TagMark';
 import { Wikilink } from './extensions/Wikilink';
 import {
@@ -27,6 +31,9 @@ export type BuildExtensionsOptions = {
    * headless/test setups that don't need slash UI.
    */
   createSlashRenderer?: () => SlashCommandRenderer;
+  /** Forwarded to `SlashCommandExtension.configure(...)`. */
+  onSlashRelationRequested?: SlashCommandOptions['onRelationRequested'];
+  slashLatestRect?: SlashCommandOptions['latestRect'];
 };
 
 /**
@@ -92,6 +99,10 @@ export function buildEditorExtensions(options: BuildExtensionsOptions): Extensio
           },
           onExit(): void {},
         })),
+      ...(options.onSlashRelationRequested !== undefined && {
+        onRelationRequested: options.onSlashRelationRequested,
+      }),
+      ...(options.slashLatestRect !== undefined && { latestRect: options.slashLatestRect }),
     }),
     Markdown.configure({
       html: false,
