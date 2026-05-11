@@ -40,6 +40,12 @@ describe('setRelationInFrontmatter', () => {
     expect(result.relations).toEqual({ author: '[[Tolkien]]' });
   });
 
+  it('is idempotent when the existing entry is a scalar wikilink', () => {
+    const start = { relations: { author: '[[Tolkien]]' } };
+    const result = setRelationInFrontmatter(start, 'author', 'Tolkien');
+    expect(result.relations).toEqual({ author: '[[Tolkien]]' });
+  });
+
   it('upgrades to a list when adding a second target of the same kind', () => {
     const start = { relations: { cites: '[[A]]' } };
     const result = setRelationInFrontmatter(start, 'cites', 'B');

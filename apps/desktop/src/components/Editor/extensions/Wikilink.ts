@@ -139,14 +139,16 @@ export const Wikilink = Node.create<WikilinkOptions>({
 
   addStorage() {
     const resolved: WikilinkResolutionMap = new Map();
-    // Keyed by vault-relative path; populated by useWikilinkTypes from the
-    // vault store's typedPaths slice × objectTypeSchemas icon fields.
+    // Path-keyed icon cache used by renderHTML to prepend the type icon
+    // without an extra IPC round-trip. Stays in lockstep with the
+    // vault's typed-paths slice through a renderer-side sync.
     const typeIconByPath: Map<string, string> = new Map();
     return {
       resolved,
       typeIconByPath,
-      // Hook consumed by tiptap-markdown's MarkdownSerializer (see
-      // packages/tiptap-markdown/src/util/extensions.js: getMarkdownSpec).
+      // The key `markdown` is a tiptap-markdown contract: the
+      // MarkdownSerializer discovers per-node serialize/parse hooks by
+      // scanning each extension's storage for this exact field.
       markdown: {
         serialize(state: MarkdownSerializerState, node: ProseMirrorNode): void {
           const target = String(node.attrs.target ?? '');
