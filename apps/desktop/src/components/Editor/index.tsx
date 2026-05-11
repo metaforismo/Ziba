@@ -597,7 +597,11 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
         // so we don't need a new CSS file. Tailwind utilities cover the
         // rest of the typography via `ziba-prose`.
       >
-        <PropertyEditor frontmatter={currentNote.frontmatter} onChange={handleFrontmatterChange} />
+        <PropertyEditor
+          frontmatter={currentNote.frontmatter}
+          onChange={handleFrontmatterChange}
+          suggestedRelationKinds={suggestedRelationKinds}
+        />
         <div className="mx-auto max-w-[720px]">
           <EditorContent editor={editor} />
         </div>
