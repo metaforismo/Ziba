@@ -23,6 +23,14 @@ type DatabaseState = {
   availableProperties: string[];
   /** Last-update timestamp (ms since epoch) of a successful query. */
   lastUpdatedAt: number | null;
+  /**
+   * v1.0 Phase 4: page-level type filter. When non-null, runQuery
+   * prepends `{ kind: 'eq', key: 'type', value: selectedType }` to
+   * the outgoing IPC filter list. Kept out of `query.filters` so the
+   * FilterBar doesn't render a redundant chip for the page-level
+   * scope.
+   */
+  selectedType: string | null;
 
   // ---- Filter actions ----------------------------------------------------
   setFilters(filters: ScalarFilter[]): void;
@@ -34,6 +42,8 @@ type DatabaseState = {
   setSort(sort: DatabaseQuery['sort']): void;
   setGroupBy(key: string | null): void;
   setFolder(folder: string | undefined): void;
+  /** v1.0 Phase 4: set or clear the page-level type filter. */
+  setType(type: string | null): void;
 
   // ---- Execution ---------------------------------------------------------
   /** Run the query immediately. Cancels any pending debounced run. */
@@ -87,6 +97,7 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => {
     error: null,
     availableProperties: [],
     lastUpdatedAt: null,
+    selectedType: null,
 
     setFilters(filters) {
       set({ query: { ...get().query, filters } });
@@ -149,6 +160,11 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => {
       scheduleRun();
     },
 
+    setType(type) {
+      set({ selectedType: type });
+      scheduleRun();
+    },
+
     async runQuery() {
       // Skip if no vault open — the IPC handler would throw and we'd have
       // to swallow it. Same guard as `useTagsStore`.
@@ -169,7 +185,14 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => {
       const seq = ++requestSeq;
       set({ loading: true, error: null });
       try {
-        const result = await ipc.runDatabaseQuery({ query: get().query });
+        const baseQuery = get().query;
+        const selectedType = get().selectedType;
+        const outgoingFilters: ScalarFilter[] =
+          selectedType === null
+            ? (baseQuery.filters ?? [])
+            : [{ kind: 'eq', key: 'type', value: selectedType }, ...(baseQuery.filters ?? [])];
+        const outgoing: DatabaseQuery = { ...baseQuery, filters: outgoingFilters };
+        const result = await ipc.runDatabaseQuery({ query: outgoing });
         if (seq !== requestSeq) return;
         set({
           result,
@@ -206,6 +229,7 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => {
             requestSeq++;
             set({
               query: INITIAL_QUERY,
+              selectedType: null,
               result: null,
               loading: false,
               error: null,

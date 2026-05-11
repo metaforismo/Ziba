@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { DatabaseResult, ScalarFilter, VaultInfo } from '../../shared/ipc';
+import type { DatabaseQuery, DatabaseResult, ScalarFilter, VaultInfo } from '../../shared/ipc';
 import { IpcChannels } from '../../shared/ipc';
 import { installMockIpc, type MockController } from '../test/mock-ipc';
 
@@ -251,5 +251,81 @@ describe('useDatabaseStore — vault subscription', () => {
     expect(s.availableProperties).toEqual([]);
     expect(s.error).toBeNull();
     unsub();
+  });
+});
+
+describe('useDatabaseStore — selectedType slice', () => {
+  it('initial state is null', async () => {
+    const { useDatabaseStore } = await loadStores();
+    expect(useDatabaseStore.getState().selectedType).toBeNull();
+  });
+
+  it('setType(value) stores the slug', async () => {
+    const { useDatabaseStore, useVaultStore } = await loadStores();
+    mock.setHandler(IpcChannels.runDatabaseQuery, async () => ({
+      rows: [],
+      groups: [],
+      totalCount: 0,
+    }));
+    useVaultStore.setState({ current: FAKE_VAULT });
+    useDatabaseStore.getState().setType('book');
+    expect(useDatabaseStore.getState().selectedType).toBe('book');
+  });
+
+  it('setType(null) clears the slug', async () => {
+    const { useDatabaseStore } = await loadStores();
+    useDatabaseStore.setState({ selectedType: 'book' });
+    useDatabaseStore.getState().setType(null);
+    expect(useDatabaseStore.getState().selectedType).toBeNull();
+  });
+
+  it('runQuery merges a {type=value} eq filter into the outgoing query when selectedType is set', async () => {
+    const { useDatabaseStore, useVaultStore } = await loadStores();
+    useVaultStore.setState({ current: FAKE_VAULT });
+    useDatabaseStore.setState({ selectedType: 'book' });
+    let observed: DatabaseQuery | null = null;
+    mock.setHandler(IpcChannels.runDatabaseQuery, async ({ query }) => {
+      observed = query;
+      return { rows: [], groups: [], totalCount: 0 };
+    });
+
+    await useDatabaseStore.getState().runQuery();
+
+    expect(observed).not.toBeNull();
+    expect(observed!.filters).toEqual([{ kind: 'eq', key: 'type', value: 'book' }]);
+  });
+
+  it('runQuery preserves user filters AND prepends the type filter', async () => {
+    const { useDatabaseStore, useVaultStore } = await loadStores();
+    useVaultStore.setState({ current: FAKE_VAULT });
+    const userFilter: ScalarFilter = { kind: 'eq', key: 'year', value: 1937 };
+    useDatabaseStore.setState({
+      selectedType: 'book',
+      query: { filters: [userFilter], limit: 1000 },
+    });
+    let observed: DatabaseQuery | null = null;
+    mock.setHandler(IpcChannels.runDatabaseQuery, async ({ query }) => {
+      observed = query;
+      return { rows: [], groups: [], totalCount: 0 };
+    });
+
+    await useDatabaseStore.getState().runQuery();
+
+    expect(observed!.filters).toEqual([{ kind: 'eq', key: 'type', value: 'book' }, userFilter]);
+  });
+
+  it('runQuery does NOT include a type filter when selectedType is null', async () => {
+    const { useDatabaseStore, useVaultStore } = await loadStores();
+    useVaultStore.setState({ current: FAKE_VAULT });
+    useDatabaseStore.setState({ selectedType: null });
+    let observed: DatabaseQuery | null = null;
+    mock.setHandler(IpcChannels.runDatabaseQuery, async ({ query }) => {
+      observed = query;
+      return { rows: [], groups: [], totalCount: 0 };
+    });
+
+    await useDatabaseStore.getState().runQuery();
+
+    expect(observed!.filters?.some((f) => f.key === 'type')).toBe(false);
   });
 });
