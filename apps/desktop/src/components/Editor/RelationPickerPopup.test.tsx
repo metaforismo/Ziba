@@ -25,8 +25,8 @@ describe('<RelationPickerPopup>', () => {
         onCancel={vi.fn()}
       />,
     );
-    expect(screen.getByRole('button', { name: 'author' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'cites' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Usa tipo author' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Usa tipo cites' })).toBeInTheDocument();
   });
 
   it('calls onCancel when Escape is pressed', () => {
@@ -93,7 +93,7 @@ describe('<RelationPickerPopup>', () => {
         onCancel={vi.fn()}
       />,
     );
-    fireEvent.click(screen.getByRole('button', { name: 'author' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Usa tipo author' }));
     expect((screen.getByPlaceholderText('Tipo di relazione') as HTMLInputElement).value).toBe(
       'author',
     );
@@ -117,5 +117,54 @@ describe('<RelationPickerPopup>', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Inserisci' }));
     expect(onCommit).toHaveBeenCalledWith({ kind: 'author', target: 'Tolkien' });
+  });
+
+  it('does not let Tab escape the dialog forward from the last focusable', () => {
+    render(
+      <RelationPickerPopup
+        position={{ top: 0, left: 0, bottom: 0 }}
+        suggestedKinds={[]}
+        onCommit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    // With empty fields, Inserisci is disabled; last enabled focusable is Annulla.
+    const annulla = screen.getByRole('button', { name: 'Annulla' });
+    annulla.focus();
+    // Simulate Tab on the last focusable; focus should cycle to the first.
+    fireEvent.keyDown(annulla, { key: 'Tab' });
+    // Focus moves to the first focusable, which is the kind input.
+    const kindInput = screen.getByPlaceholderText('Tipo di relazione');
+    expect(kindInput).toHaveFocus();
+  });
+
+  it('does not let Shift+Tab escape the dialog backward from the first focusable', () => {
+    render(
+      <RelationPickerPopup
+        position={{ top: 0, left: 0, bottom: 0 }}
+        suggestedKinds={[]}
+        onCommit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    const kindInput = screen.getByPlaceholderText('Tipo di relazione');
+    kindInput.focus();
+    fireEvent.keyDown(kindInput, { key: 'Tab', shiftKey: true });
+    // With empty fields, last enabled focusable is Annulla (Inserisci is disabled).
+    const annulla = screen.getByRole('button', { name: 'Annulla' });
+    expect(annulla).toHaveFocus();
+  });
+
+  it('has aria-modal="true"', () => {
+    render(
+      <RelationPickerPopup
+        position={{ top: 0, left: 0, bottom: 0 }}
+        suggestedKinds={[]}
+        onCommit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    const dialog = screen.getByRole('dialog', { name: 'Aggiungi relazione' });
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
   });
 });
