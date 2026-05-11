@@ -6,6 +6,8 @@ import { useDatabaseStore } from '../../stores/database';
 import { navigateToNote } from '../../lib/navigate';
 import { useUiStore, type DatabaseViewMode } from '../../stores/ui';
 import { useVaultStore } from '../../stores/vault';
+import { useTagsStore } from '../../stores/tags';
+import { TypeFilterDropdown } from './TypeFilterDropdown';
 import { BoardView } from './BoardView';
 import { CalendarView } from './CalendarView';
 import { ColumnPicker } from './ColumnPicker';
@@ -62,6 +64,11 @@ export function DatabaseView(): JSX.Element {
   const runQuery = useDatabaseStore((s) => s.runQuery);
   const subscribeToVaultEvents = useDatabaseStore((s) => s.subscribeToVaultEvents);
 
+  const selectedType = useDatabaseStore((s) => s.selectedType);
+  const setType = useDatabaseStore((s) => s.setType);
+  const tagTypes = useTagsStore((s) => s.types);
+  const tagSchemas = useTagsStore((s) => s.objectTypeSchemas);
+
   const currentVault = useVaultStore((s) => s.current);
   const databaseViewMode = useUiStore((s) => s.databaseViewMode);
   const setDatabaseViewMode = useUiStore((s) => s.setDatabaseViewMode);
@@ -113,6 +120,25 @@ export function DatabaseView(): JSX.Element {
   const sortDirection = sort?.[0]?.direction ?? 'asc';
 
   const filters = useMemo(() => query.filters ?? [], [query.filters]);
+
+  const suggestedColumnKeys = useMemo<string[]>(() => {
+    if (selectedType === null) return [];
+    const schema = tagSchemas.find((s) => s.id === selectedType);
+    if (schema === undefined) return [];
+    const propKeys = Object.keys(schema.schema.properties);
+    const relKeys = Object.keys(schema.schema.relations);
+    // Properties first, then relations. Dedup within the local
+    // accumulator only; overlap with availableProperties is handled
+    // in ColumnPicker.
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const k of [...propKeys, ...relKeys]) {
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(k);
+    }
+    return out;
+  }, [selectedType, tagSchemas]);
 
   const rows = result?.rows ?? EMPTY_ROWS;
   const groups = result?.groups ?? EMPTY_GROUPS;
@@ -174,11 +200,15 @@ export function DatabaseView(): JSX.Element {
               </span>
             )}
           </div>
-          <ColumnPicker
-            availableProperties={availableProperties}
-            visibleColumns={visibleColumns}
-            onChange={setVisibleColumns}
-          />
+          <div className="flex items-center gap-2">
+            <TypeFilterDropdown types={tagTypes} selectedType={selectedType} onChange={setType} />
+            <ColumnPicker
+              availableProperties={availableProperties}
+              suggestedKeys={suggestedColumnKeys}
+              visibleColumns={visibleColumns}
+              onChange={setVisibleColumns}
+            />
+          </div>
         </div>
 
         <div className="mt-2 flex flex-wrap items-center gap-2">
