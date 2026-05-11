@@ -32,9 +32,35 @@ export function RelationPickerPopup(props: RelationPickerPopupProps): JSX.Elemen
   const [kind, setKind] = useState('');
   const [target, setTarget] = useState('');
   const kindInputRef = useRef<HTMLInputElement | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     kindInputRef.current?.focus();
+  }, []);
+
+  // Focus trap: cycle Tab/Shift+Tab within the dialog so keyboard focus
+  // never escapes into the editor while the popup is open.
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (dialog === null) return;
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if (e.key !== 'Tab') return;
+      const focusable = dialog.querySelectorAll<HTMLElement>(
+        'input:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0]!;
+      const last = focusable[focusable.length - 1]!;
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    dialog.addEventListener('keydown', onKeyDown);
+    return (): void => dialog.removeEventListener('keydown', onKeyDown);
   }, []);
 
   useEffect(() => {
@@ -72,8 +98,10 @@ export function RelationPickerPopup(props: RelationPickerPopupProps): JSX.Elemen
 
   return createPortal(
     <div
+      ref={dialogRef}
       role="dialog"
       aria-label="Aggiungi relazione"
+      aria-modal="true"
       className="fixed z-50 w-72 rounded-md border border-border bg-bg-subtle p-3 shadow-lg"
       style={{ top: placement.top, left: placement.left }}
     >
@@ -100,7 +128,8 @@ export function RelationPickerPopup(props: RelationPickerPopupProps): JSX.Elemen
                 key={k}
                 type="button"
                 onClick={(): void => setKind(k)}
-                className="rounded border border-border bg-bg px-2 py-0.5 text-xs text-fg-subtle hover:bg-accent/10 hover:text-fg"
+                aria-label={`Usa tipo ${k}`}
+                className="rounded border border-border bg-bg px-2 py-0.5 text-xs text-fg-subtle hover:bg-accent/10 hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
               >
                 {k}
               </button>

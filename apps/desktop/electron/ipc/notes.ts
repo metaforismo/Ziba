@@ -8,6 +8,7 @@
 
 import { promises as fsp } from 'node:fs';
 import path from 'node:path';
+import { BrowserWindow } from 'electron';
 import {
   deriveTitleFromPath,
   extractAllRelations,
@@ -26,8 +27,27 @@ import {
   type ResolvedRelation,
 } from '@ziba/core';
 import { getFilesystemAdapter } from '../adapters/filesystem.electron.js';
+import { IpcChannels, type VaultEventPayload } from '../../shared/ipc.js';
 import { assertResolvedWithinVault, assertVaultRelative, IpcError } from '../security.js';
 import { markSelfWrite, requireIndexStore, requireVault } from '../state.js';
+
+/**
+ * Push a synthetic 'change' vault event to the renderer after a
+ * renderer-initiated write. The chokidar watcher suppresses its own echo
+ * for self-writes via `consumeIfSelfWrite`, so without this push the stores
+ * that depend on `onVaultEvent` (typedPaths, tags, database) would stay
+ * stale until the next external filesystem event.
+ */
+function pushSyntheticChangeEvent(notePath: NotePath, mtimeMs: number): void {
+  const win = BrowserWindow.getAllWindows()[0];
+  if (win !== undefined && !win.isDestroyed()) {
+    win.webContents.send(IpcChannels.vaultEvent, {
+      type: 'change',
+      path: notePath,
+      mtimeMs,
+    } satisfies VaultEventPayload);
+  }
+}
 
 const SEARCH_LIMIT_DEFAULT = 20;
 const SEARCH_LIMIT_MAX = 100;
@@ -126,6 +146,11 @@ export async function saveNote(args: {
 
   await reindexSingle(args.path, args.body, args.frontmatter, st.mtimeMs);
 
+  // The watcher suppressed its own echo for this write. Push a synthetic
+  // change event so the renderer's onVaultEvent fires and refreshes
+  // typedPaths, tags, and the database store.
+  pushSyntheticChangeEvent(args.path, st.mtimeMs);
+
   return { mtimeMs: st.mtimeMs };
 }
 
@@ -153,6 +178,10 @@ export async function createNote(args: { path: NotePath; initialBody?: string })
 
   const st = await fs.stat(abs);
   await reindexSingle(args.path, body, frontmatter, st.mtimeMs);
+
+  // Watcher echo suppressed for this write. Push a synthetic add/change
+  // event so the renderer learns about the new file immediately.
+  pushSyntheticChangeEvent(args.path, st.mtimeMs);
 
   const title = parseMarkdown(body).headingTitle ?? deriveTitleFromPath(args.path);
 

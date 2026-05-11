@@ -135,7 +135,10 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => {
         next.sort = sort;
       }
       set({ query: next });
-      scheduleRun();
+      // Discrete action (dropdown / column header click) — run immediately
+      // rather than waiting out the keystroke debounce window.
+      debouncedRun.cancel();
+      void get().runQuery();
     },
 
     setGroupBy(key) {
@@ -146,7 +149,9 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => {
         next.groupBy = key;
       }
       set({ query: next });
-      scheduleRun();
+      // Discrete action — run immediately, cancel any pending debounced run.
+      debouncedRun.cancel();
+      void get().runQuery();
     },
 
     setFolder(folder) {
@@ -162,7 +167,10 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => {
 
     setType(type) {
       set({ selectedType: type });
-      scheduleRun();
+      // Discrete action (sidebar / TypeChip click) — run immediately rather
+      // than waiting out the keystroke debounce window.
+      debouncedRun.cancel();
+      void get().runQuery();
     },
 
     async runQuery() {
@@ -238,8 +246,20 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => {
             });
             return;
           }
-          // Vault opened or switched — fire an immediate query so the
-          // table is populated by the time the user clicks "Database".
+          // Vault switched (A → B) or freshly opened. Reset the page-level
+          // type filter and user filters so they don't bleed across vaults —
+          // the stale scope would silently hide rows in the new vault.
+          debouncedRun.cancel();
+          requestSeq++;
+          set({
+            selectedType: null,
+            query: INITIAL_QUERY,
+            result: null,
+            loading: false,
+            error: null,
+            availableProperties: [],
+            lastUpdatedAt: null,
+          });
           void get().runQuery();
           return;
         }

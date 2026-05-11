@@ -1,7 +1,7 @@
 {
   "name": "ziba",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "description": "Open-source second brain: Notion DB + Obsidian local-first markdown + graph + AI-native",
   "homepage": "https://github.com/metaforismo/Ziba",

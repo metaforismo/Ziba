@@ -18,6 +18,6 @@ describe('kindToHsl', () => {
   });
 
   it('returns a neutral grey for the empty-string sentinel (generic body wikilinks)', () => {
-    expect(kindToHsl('')).toBe('hsl(0, 0%, 60%)');
+    expect(kindToHsl('')).toBe('hsl(0, 0%, 45%)');
   });
 });

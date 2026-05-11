@@ -13,9 +13,10 @@ Documento ad alto livello per chi vuole contribuire o capire come è strutturato
 │   │ Zustand stores     │  ◄── invoke ──►   │ ├─ vault              │       │
 │   │ lib/ipc (typed)    │   contextBridge   │ ├─ notes              │       │
 │   │                    │                   │ ├─ folder             │       │
-│   │ window.ziba   │  ──►  preload  ◄──│ ├─ links              │       │
+│   │ window.ziba        │  ──►  preload  ◄──│ ├─ links              │       │
 │   └────────────────────┘                   │ ├─ search / tags      │       │
 │                                            │ ├─ database / graph   │       │
+│                                            │ ├─ types / relations  │       │
 │                                            │ └─ settings           │       │
 │           ▲                                │                       │       │
 │           │ webContents.send               │ adapters              │       │
@@ -35,8 +36,11 @@ Documento ad alto livello per chi vuole contribuire o capire come è strutturato
             │                              │ Filesystem (vault/)           │
             │                              │  ├─ note1.md                  │
             │                              │  ├─ folder/note2.md           │
-            │                              │  └─ .ziba/index.db       │
-            │                              │     (SQLite cache, ricostr.)  │
+            │                              │  └─ .ziba/                    │
+            │                              │      ├─ index.db  (cache SQL) │
+            │                              │      └─ schema/               │
+            │                              │          ├─ book.yml          │
+            │                              │          └─ person.yml        │
             │                              └───────────────────────────────┘
             │
             │                              ┌───────────────────────────────┐
@@ -47,7 +51,8 @@ Documento ad alto livello per chi vuole contribuire o capire come è strutturato
                                            │  ├─ markdown/ (+ tags)        │
                                            │  ├─ query/ (DB query AST)     │
                                            │  ├─ vault/                    │
-                                           │  └─ index-store/ (schema SQL) │
+                                           │  ├─ index-store/ (schema SQL) │
+                                           │  └─ seed-schemas/             │
                                            └───────────────────────────────┘
 ```
 
@@ -122,11 +127,13 @@ Main: openVault()
    ├─ teardown() del vault precedente (se esiste)
    ├─ stat-check sul path (no filesystem root, deve essere directory)
    ├─ inizializza FilesystemAdapter, IndexStore (apre/crea index.db)
+   ├─ carica schemi da .ziba/schema/*.yml → popola object_types
    ├─ indexVault() ── push progress eventi ──► renderer
    ├─ avvia ChokidarWatcher ── eventi (filtrati per self-write) ──► renderer
    └─ persiste in recent-vaults.json
    ▼
 Renderer riceve VaultInfo, popola sidebar via listNotes()
+Renderer riceve typedPaths + objectTypeSchemas via types:list
 ```
 
 ### Scrittura di una nota
@@ -140,7 +147,7 @@ Main: saveNote()
    ├─ markSelfWrite(path)        ← previene self-watcher echo
    ├─ coreSaveNote() scrive il file (.md) sul disco
    ├─ stat() per leggere il vero mtime
-   └─ reindexSingle() aggiorna l'index (note + wikilinks)
+   └─ reindexSingle() aggiorna l'index (note + relations + object_types)
    ▼
 Watcher emette `change` per il path
 Main: consumeIfSelfWrite(path) → true → evento NON forwardato al renderer
@@ -168,6 +175,7 @@ Tiptap inserisce il custom Wikilink node (target = "Foo")
 useResolvedWikilinks hook: ipc.resolveTitle({ title }) per ogni link
    → aggiorna editor.storage.wikilink.resolved (true | false)
    → renderHTML stila link rotti diversamente
+   → legge editor.storage.wikilink.typeIconByPath per mostrare icona tipo
 ```
 
 ### Database query (v0.3)
@@ -179,7 +187,7 @@ Renderer (DatabaseView)
 useDatabaseStore.{addFilter|setSort|setGroupBy|...}
    │ debounced 200ms
    ▼
-ipc.runDatabaseQuery({ query: { filters, sort, groupBy, folder, limit } })
+ipc.runDatabaseQuery({ query: { filters, sort, groupBy, folder, typeFilter, limit } })
    ▼
 Main: runDatabaseQuery() in electron/ipc/database.ts
    ├─ valida filter keys non-empty (errore INVALID_QUERY)
@@ -187,6 +195,7 @@ Main: runDatabaseQuery() in electron/ipc/database.ts
    └─ store.runQuery(query) → SQL builder
        ├─ EXISTS subquery per ogni filter su note_properties
        ├─ LEFT JOIN per ogni sort key (mixed-type COALESCE)
+       ├─ JOIN su notes.path con relations per typeFilter (v1.0)
        └─ GROUP BY + COUNT su prop_value (se groupBy set)
    ▼
 Renderer riceve DatabaseResult { rows, groups, totalCount }
@@ -194,7 +203,7 @@ Renderer riceve DatabaseResult { rows, groups, totalCount }
 Table.tsx renderizza rows con cell type-aware
 ```
 
-### Grafo globale (v0.3)
+### Grafo globale (v0.3 + constellation mode v1.0)
 
 ```
 Renderer (GlobalGraph), su mount o vault event:
@@ -202,16 +211,20 @@ Renderer (GlobalGraph), su mount o vault event:
    ▼
 Main: getFullGraph()
    └─ store.getFullGraph() →
-       SELECT path, title FROM notes
-       SELECT source_path, target_path, target_title FROM wikilinks
+       SELECT path, title, frontmatter_json FROM notes
+       SELECT source_path, target_path, target_title, kind FROM relations
               WHERE target_path IS NOT NULL    ← solo edge risolti
    ▼
 Renderer riceve { nodes, edges }
    │ runGlobalLayout() — riusa simulateLayout di MiniGraph/layout.ts
-   │   con tuning vault-scale (n→iterations: 200/400/600/800)
+   │   con cluster bias per tipo (v1.0): nodi dello stesso tipo
+   │   partono vicini via forza attrattiva aggiuntiva
    ▼
 Canvas.tsx renderizza SVG con <g transform> imperativo
    pan/zoom non ri-rendera React → 1000+ nodi reggono
+   ▼
+HullsLayer.tsx disegna un convex hull per tipo (colore da schema)
+KindFilterDropdown + Legend filtrano gli edge per kind
 ```
 
 ### Callout block (v0.3)
@@ -247,70 +260,171 @@ type Note = {
   title: string;          // frontmatter.title > primo H1 > basename
   frontmatter: Record<string, unknown>;
   content: string;        // body markdown senza frontmatter
-  wikilinks: string[];    // target raw da [[...]]
+  wikilinks: string[];    // target raw da [[...]] (generico)
   mtimeMs: number;
 };
 ```
+
+### Frontmatter v1.0
+
+Con v1.0 una nota può dichiarare:
+
+```yaml
+---
+type: book          # slug che referenzia .ziba/schema/book.yml
+title: The Hobbit
+year: 1937
+relations:
+  author: "[[Tolkien]]"        # relazione scalare
+  genres:                      # relazione multipla
+    - "[[Fantasy]]"
+    - "[[Adventure]]"
+---
+```
+
+Il campo `type:` è opzionale. Se assente, la nota è indicizzata normalmente e i suoi wikilink nel body diventano relazioni di `kind = ''`.
+
+Il campo `relations:` è opzionale. I wikilink nel body (al di fuori di `relations:`) vengono anch'essi indicizzati come relazioni untyped per mantenere la backward-compat con i vault v0.x.
 
 ### Schema SQLite (cache)
 
 ```sql
 -- v0.1
-CREATE TABLE notes (
-  path TEXT PRIMARY KEY,
-  title TEXT NOT NULL,
+CREATE TABLE IF NOT EXISTS notes (
+  path             TEXT PRIMARY KEY,
+  title            TEXT NOT NULL,
   frontmatter_json TEXT NOT NULL DEFAULT '{}',
-  mtime INTEGER NOT NULL
+  mtime            INTEGER NOT NULL
 );
 
-CREATE TABLE wikilinks (
-  source_path TEXT NOT NULL,
+-- v1.0: sostituisce `wikilinks`. La tabella legacy viene droppata
+-- alla prima apertura di un vault v1.0 (MIGRATION_DROP_SQL).
+-- `kind` è NOT NULL con sentinel '' per wikilink generici del body.
+-- SQLite PRIMARY KEY richiede riferimenti a colonne (non espressioni),
+-- quindi "untyped" è codificato come '' anziché NULL.
+CREATE TABLE IF NOT EXISTS relations (
+  source_path  TEXT NOT NULL,
+  kind         TEXT NOT NULL DEFAULT '',
   target_title TEXT NOT NULL,
-  target_path TEXT,                   -- NULL se "broken" (titolo non trovato)
-  PRIMARY KEY (source_path, target_title)
+  target_path  TEXT,
+  PRIMARY KEY (source_path, kind, target_title),
+  FOREIGN KEY (source_path) REFERENCES notes(path) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_notes_title ON notes(LOWER(title));
-CREATE INDEX idx_wikilinks_target ON wikilinks(LOWER(target_title));
-CREATE INDEX idx_wikilinks_target_path ON wikilinks(target_path);
+CREATE INDEX IF NOT EXISTS idx_relations_target_title ON relations(target_title);
+CREATE INDEX IF NOT EXISTS idx_relations_target_path  ON relations(target_path, kind);
+CREATE INDEX IF NOT EXISTS idx_relations_kind         ON relations(kind) WHERE kind <> '';
 
--- v0.2 — full-text search (FTS5) + tags
-CREATE VIRTUAL TABLE notes_fts USING fts5(
-  path UNINDEXED, title, body,
+CREATE INDEX IF NOT EXISTS idx_notes_title ON notes(title);
+
+-- v1.0: cache degli schemi da <vault>/.ziba/schema/*.yml.
+-- Caricata all'apertura del vault; aggiornata in-place da hot-reload.
+-- Consumata da sidebar TypesSection (counts) e autocomplete editor.
+CREATE TABLE IF NOT EXISTS object_types (
+  id          TEXT PRIMARY KEY,
+  label       TEXT NOT NULL,
+  icon        TEXT,
+  color       TEXT,
+  schema_json TEXT NOT NULL,
+  mtime       INTEGER NOT NULL
+);
+
+-- Full-text search via FTS5
+CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
+  path UNINDEXED,
+  title,
+  body,
   tokenize = 'unicode61 remove_diacritics 2'
 );
 
-CREATE TABLE tags (
+-- Tags (una riga per nota × tag)
+CREATE TABLE IF NOT EXISTS tags (
   source_path TEXT NOT NULL,
-  tag TEXT NOT NULL,                  -- canonical lowercase
+  tag         TEXT NOT NULL,        -- canonical lowercase
   display_tag TEXT NOT NULL,
   PRIMARY KEY (source_path, tag),
   FOREIGN KEY (source_path) REFERENCES notes(path) ON DELETE CASCADE
 );
-CREATE INDEX idx_tags_tag ON tags(tag);
+CREATE INDEX IF NOT EXISTS idx_tags_tag ON tags(tag);
 
--- v0.3 — typed property index per query database view
-CREATE TABLE note_properties (
-  source_path TEXT NOT NULL,
-  prop_key TEXT NOT NULL,
-  prop_type TEXT NOT NULL,            -- text|number|boolean|date|url|string-array
-  text_value TEXT,
+-- v0.3: property index tipizzato per query database view
+CREATE TABLE IF NOT EXISTS note_properties (
+  source_path  TEXT NOT NULL,
+  prop_key     TEXT NOT NULL,
+  prop_type    TEXT NOT NULL,       -- text|number|boolean|date|url|string-array
+  text_value   TEXT,
   number_value REAL,
   boolean_value INTEGER,
-  date_value TEXT,                    -- ISO YYYY-MM-DD
-  array_value TEXT,                   -- JSON-encoded string[]
+  date_value   TEXT,               -- ISO YYYY-MM-DD
+  array_value  TEXT,               -- JSON-encoded string[]
   PRIMARY KEY (source_path, prop_key),
   FOREIGN KEY (source_path) REFERENCES notes(path) ON DELETE CASCADE
 );
-CREATE INDEX idx_note_props_key    ON note_properties(prop_key);
-CREATE INDEX idx_note_props_text   ON note_properties(prop_key, text_value);
-CREATE INDEX idx_note_props_number ON note_properties(prop_key, number_value);
-CREATE INDEX idx_note_props_date   ON note_properties(prop_key, date_value);
+CREATE INDEX IF NOT EXISTS idx_note_props_key    ON note_properties(prop_key);
+CREATE INDEX IF NOT EXISTS idx_note_props_text   ON note_properties(prop_key, text_value);
+CREATE INDEX IF NOT EXISTS idx_note_props_number ON note_properties(prop_key, number_value);
+CREATE INDEX IF NOT EXISTS idx_note_props_date   ON note_properties(prop_key, date_value);
 ```
 
-Tutti gli statement usano `IF NOT EXISTS` (omesso sopra per leggibilità) — vault esistenti aggiungono le nuove tabelle on-open senza migration script. La popolazione iniziale di `notes_fts`/`tags`/`note_properties` per vault già aperti avviene lazy: la prossima save di una nota popola la sua riga, oppure si esegue `vault:reindex` (IPC esistente) per ricostruire tutto.
+Tutti gli statement usano `IF NOT EXISTS` (omesso sopra per leggibilità) — vault esistenti aggiungono le nuove tabelle on-open senza migration script esplicito. Quando la versione dello schema (`EXPECTED_USER_VERSION`) sale, `MIGRATION_DROP_SQL` droppa e ricostruisce le tabelle cache — i file `.md` sul disco sono l'autorità, quindi nessun dato viene perso.
 
 Lo schema è in `packages/core/src/index-store/schema.ts` come stringa SQL pura — `packages/core` non importa `better-sqlite3`. Il binding al driver vive in `apps/desktop/electron/adapters/index-store.sqlite.ts`.
+
+## Schema files (.ziba/schema/*.yml)
+
+Ogni tipo di oggetto è descritto da un file YAML in `<vault>/.ziba/schema/<id>.yml`. Il ciclo di vita è:
+
+1. **Vault open**: il main process legge tutti i file `.yml` in `.ziba/schema/`, li parsa con `parseSchemaYaml` (da `packages/core/src/types/schema.ts`), e fa upsert in `object_types`.
+2. **Hot-reload**: chokidar watch su `.ziba/schema/`. Quando un file cambia, solo quel tipo viene ricaricato e `object_types` aggiornato in-place — niente full reindex.
+3. **Vault nuovo / schema assenti**: se `.ziba/schema/` è vuota, i sette seed schemas vengono copiati dal bundle (`packages/core/src/seed-schemas/`).
+4. **Errori**: `parseSchemaYaml` restituisce `{ ok: false, errors }` invece di lanciare — il loader segnala ogni schema rotto in un singolo pass invece di fermarsi al primo.
+
+La forma YAML valida:
+
+```yaml
+id: book            # slug ^[a-z][a-z0-9-]*$, obbligatorio
+label: Libro        # display name, obbligatorio
+icon: 📖            # emoji o stringa ≤ 2 char, opzionale
+color: "#6366f1"    # hex CSS #RRGGBB, opzionale
+properties:
+  year:
+    type: number    # text|number|boolean|date|url|string-array
+    required: true  # opzionale — avvisa ma non blocca il salvataggio
+    label: Anno     # opzionale — label nell'ObjectPanel
+relations:
+  author:
+    target: person  # id del tipo atteso (soft — non validato a salvataggio)
+    multiple: false # default false — accetta lista se true
+    label: Autore
+inverse:
+  cited_by:
+    reverse_of: cites  # kind su cui fare la join inversa
+    label: Citato da
+```
+
+## Renderer caches (v1.0)
+
+Tre cache nel renderer evitano round-trip IPC ridondanti:
+
+| Cache | Dove vive | Cosa contiene | Quando si aggiorna |
+|---|---|---|---|
+| `useVaultStore.typedPaths` | `stores/vault.ts` | Set di `NotePath` per le note che hanno `type:` | Al vault open via `notes:typedPaths`; su vault event debounced |
+| `useTagsStore.objectTypeSchemas` | `stores/tags.ts` | `Map<id, ObjectTypeSchema>` di tutti i tipi caricati | Al vault open via `types:list`; su hot-reload schema (vault event) |
+| `editor.storage.wikilink.typeIconByPath` | Tiptap extension `Wikilink.ts` | `Map<NotePath, string>` path → icona tipo | Aggiornato dalla extension dopo ogni risoluzione wikilink |
+
+## Canali IPC (v1.0 additions)
+
+Oltre ai canali esistenti (vault/notes/folder/links/search/tags/database/graph), v1.0 aggiunge:
+
+| Canale | Direzione | Descrizione |
+|---|---|---|
+| `notes:typedPaths` | main → renderer | Array di `NotePath` per le note con `type:` nel frontmatter |
+| `types:list` | renderer → main | Ritorna tutti gli `ObjectTypeSchema` caricati |
+| `types:counts` | renderer → main | Mappa `id → count` delle note per tipo |
+| `types:upsert` | renderer → main | Salva o aggiorna uno schema (interno, usato da hot-reload) |
+| `types:delete` | renderer → main | Rimuove un tipo dall'index (quando il file schema viene cancellato) |
+| `relations:bySource` | renderer → main | Tutte le relazioni partenti da `source_path` |
+| `relations:byTarget` | renderer → main | Tutte le relazioni in arrivo su `target_path` (backlinks tipizzati) |
 
 ## State management nel renderer
 
@@ -318,14 +432,26 @@ Sei store Zustand, ognuno con una sola responsabilità:
 
 | Store | File | Cosa contiene |
 |---|---|---|
-| `useVaultStore` | `stores/vault.ts` | Vault corrente, lista note, recent vaults, progresso indicizzazione. Coalesce gli eventi watcher in refresh debouncing (`VAULT_EVENT_REFRESH_MS`). |
+| `useVaultStore` | `stores/vault.ts` | Vault corrente, lista note, recent vaults, progresso indicizzazione, `typedPaths`. Coalesce gli eventi watcher in refresh debouncing (`VAULT_EVENT_REFRESH_MS`). |
 | `useEditorStore` | `stores/editor.ts` | Path/Note correnti aperti, dirty flag, errore di save. Gestisce l'apply degli external change. |
 | `useUiStore` | `stores/ui.ts` | Larghezza pannelli, backlinks aperto/chiuso, cartelle espanse, `mainView` (editor/database/graph), `rightPaneTab`, `tagsExpanded`. Persistito in localStorage chiave `ziba.ui.v1`. |
 | `useSearchStore` | `stores/search.ts` | Cmd+K palette: open/query/results/selectedIndex/loading. Debounce 150ms (`SEARCH_DEBOUNCE_MS`), sequence-number guard. |
-| `useTagsStore` | `stores/tags.ts` | Lista tag + count, tag selezionato, note del tag. Module-level subscribe a `useVaultStore` per refresh on vault switch e watcher events. |
-| `useDatabaseStore` | `stores/database.ts` | DatabaseView: query state (filters/sort/groupBy/folder), `result`, `loading`, `error`, `availableProperties`. Auto-debounced run su ogni mutation (`DATABASE_QUERY_DEBOUNCE_MS=200`). |
+| `useTagsStore` | `stores/tags.ts` | Lista tag + count, tag selezionato, note del tag, `objectTypeSchemas`. Module-level subscribe a `useVaultStore` per refresh on vault switch e watcher events. |
+| `useDatabaseStore` | `stores/database.ts` | DatabaseView: query state (filters/sort/groupBy/folder/typeFilter), `result`, `loading`, `error`, `availableProperties`. Auto-debounced run su ogni mutation (`DATABASE_QUERY_DEBOUNCE_MS=200`). |
 
 Niente Redux, niente Context grandi. Un componente che ha bisogno di stato ne sottoscrive un selettore preciso e si re-renderizza solo quando quel pezzo cambia.
+
+## Superfici UI aggiunte in v1.0
+
+| Componente | Dove | Cosa fa |
+|---|---|---|
+| `ObjectPanel` | Right pane, tab "Oggetto" | Mostra properties schema + relazioni inverse della nota corrente |
+| `TypesSection` | Sidebar | Sezione collapsible con counts per tipo; click filtra la file tree |
+| `TypeFilterDropdown` | DatabaseView header | Filtro per `type:` applicato prima della query |
+| `TypeChips` | GlobalGraph overlay | Chips per tipo visibile; toggle per mostrare/nascondere gli hull |
+| `KindFilterDropdown` | GlobalGraph toolbar | Multi-select per kind di relazione nel grafo |
+| `Legend` | GlobalGraph overlay | Legenda colori tipo + kind |
+| `HullsLayer` | GlobalGraph canvas | Convex hull SVG colorati per tipo, disegnati sotto i nodi |
 
 ## Fonti di verità per le timing constants
 
@@ -334,14 +460,15 @@ Tutti i debounce / throttle UI vivono in `apps/desktop/src/lib/timings.ts` con u
 ## Cosa NON c'è (per ora)
 
 Per evitare di reinventare la ruota:
-- **Niente plugin system.** v1.0+. Per estendere ora, fork.
-- **Niente sync server.** v1.0+. Per ora si usa Dropbox/iCloud/Drive sopra il vault.
-- **Niente AI nativa.** v1.x. La struttura `packages/core` è pronta a ospitare embeddings, ma non li implementiamo finché v0.3 non è stabile.
+- **Niente plugin system.** v1.x. L'object model fornisce ora la base strutturale.
+- **Niente sync server.** v1.x. Per ora si usa Dropbox/iCloud/Drive sopra il vault.
+- **Niente AI nativa.** v1.x. La struttura `packages/core` è pronta a ospitare embeddings.
 - **Niente i18n.** L'app parla italiano. Quando serve i18n, apriamo una Discussion.
+- **Niente filter unification.** v1.1. Sidebar, DatabaseView e GlobalGraph hanno `selectedType` store indipendenti — refactor pianificato.
 
 ## Decision log riassunto
 
-Le decisioni grosse vissute durante v0.1-v0.3, riassunte:
+Le decisioni grosse vissute durante v0.1-v1.0, riassunte:
 
 **v0.1**
 - **Electron, non Tauri.** Ecosistema npm completo, AI futura facile via Node, contributor pool ampio. Costo accettato: binary più grande.
@@ -356,9 +483,16 @@ Le decisioni grosse vissute durante v0.1-v0.3, riassunte:
 
 **v0.3**
 - **Property index in colonne tipizzate, non JSON.** `note_properties` ha `text_value`/`number_value`/`boolean_value`/`date_value`/`array_value` separate. Permette query veloci tramite indici dedicati per tipo. JSON sarebbe più flessibile ma forzerebbe scan O(n) su query range.
-- **Database view come overlay sul mainView, non come "view file".** Niente file `.ziba/views/*.json` — la query è in-memory nel renderer. Più semplice per v0.3; salvabili come "saved queries" in v0.4 se serve.
+- **Database view come overlay sul mainView, non come "view file".** Niente file `.ziba/views/*.json` — la query è in-memory nel renderer. Più semplice per v0.3; salvabili come "saved queries" in v1.x se serve.
 - **Global graph riusa MiniGraph layout, non Barnes-Hut.** Il simulatore O(n²) basta fino a ~1000 nodi. Sopra emette `console.warn`. Quando un vault reale lo richiede, sostituiamo con BH dietro la stessa interfaccia `simulateLayout`.
 - **Callout markdown roundtrip via markdown-it core ruler.** Convertiamo `> [!kind]\n> body` ↔ Tiptap node senza modificare il body markdown stesso. Compatibilità completa con Obsidian e GitHub (entrambi rendono `> [!tip]`).
+
+**v1.0**
+- **`relations` sostituisce `wikilinks`, non la affianca.** Un'unica tabella con `kind = ''` per i wikilink generici è più pulita di due tabelle + join. La migration è uno drop + reindex — la cache è ricostruibile, nessun dato perso.
+- **Schema soft, non hard.** Gli schemi descrivono l'intenzione + guidano la UI ma non bloccano il salvataggio. Rifiutare un salvataggio per schema invalido romperebbe il principio "source of truth = filesystem".
+- **Object types come YAML, non come note speciali.** `.ziba/schema/book.yml` è separato dal vault content — un file `.md` con `type: schema` avrebbe creato ambiguità nell'indexer e nella search.
+- **Seed schemas copiati su prima apertura, non hardcoded nel binary.** L'utente può editarli, cancellarli o sostituirli liberamente. Il binary non li "sa" — li legge da disco come qualsiasi altro schema.
+- **Hull convex nel grafo, non clustering algoritmico.** Il convex hull sui nodi dello stesso tipo è O(n log n) e visivamente chiaro. Un clustering algoritmico (k-means, DBSCAN) aggiungerebbe complessità senza benefici apprezzabili a scala vault.
 
 Per un decision log strutturato (ADR style) potremmo aggiungere `docs/adr/` se la complessità cresce.
 
@@ -376,5 +510,8 @@ Quando devi capire come funziona qualcosa, parti da questi file:
 - "Come funziona la query database (v0.3)?" → `packages/core/src/query/index.ts` (AST + detectProperty) + SQL builder in `apps/desktop/electron/adapters/index-store.sqlite.ts:runQuery`
 - "Come renderizza il grafo globale (v0.3)?" → `apps/desktop/src/components/GlobalGraph/index.tsx` (orchestration) + `Canvas.tsx` (SVG + pan/zoom imperativo) + `layout.ts` (riusa MiniGraph simulator)
 - "Come fa il callout markdown roundtrip (v0.3)?" → `apps/desktop/src/components/Editor/extensions/Callout.ts` (markdown-it core ruler + custom serialize)
+- "Come funzionano gli oggetti tipizzati (v1.0)?" → `packages/core/src/types/schema.ts` (forma YAML) + `apps/desktop/electron/ipc/types.ts` (IPC handlers) + `stores/tags.ts` (cache renderer)
+- "Come si popola la tabella relations?" → `apps/desktop/electron/adapters/index-store-relations.ts` + `packages/core/src/markdown/relations.ts` (extractor)
+- "Come funziona il grafo constellation (v1.0)?" → `apps/desktop/src/components/GlobalGraph/HullsLayer.tsx` (hull SVG) + `Canvas.tsx` (cluster bias nel layout) + `KindFilterDropdown.tsx`
 - "Dove vivono le decisioni di sicurezza?" → `apps/desktop/electron/security.ts`
 - "Dove sono i tipi del contratto IPC?" → `apps/desktop/shared/ipc.ts`
