@@ -1,5 +1,5 @@
-const SATURATION_PCT = 55;
-const LIGHTNESS_PCT = 55;
+const SATURATION_PCT = 60;
+const LIGHTNESS_PCT = 42;
 
 /**
  * Deterministic kind → HSL color. The empty-string sentinel (generic
@@ -12,7 +12,7 @@ const LIGHTNESS_PCT = 55;
  * fixed so the palette stays visually coherent across kinds.
  */
 export function kindToHsl(kind: string): string {
-  if (kind === '') return 'hsl(0, 0%, 60%)';
+  if (kind === '') return 'hsl(0, 0%, 45%)';
   let hash = 5381;
   for (let i = 0; i < kind.length; i++) {
     hash = ((hash << 5) + hash + kind.charCodeAt(i)) | 0;

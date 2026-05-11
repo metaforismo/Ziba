@@ -7,13 +7,14 @@
 Markdown locale come fonte unica di verità, database strutturati come Notion, grafo di connessioni come Obsidian. In futuro: AI-native (semantic search, auto-link, agent organizzativi).
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-alpha%20%E2%80%94%20v0.5-orange)](#stato)
+[![Status](https://img.shields.io/badge/status-v1.0-blue)](#stato)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-[Filosofia](#filosofia--perché-Ziba) ·
+[Filosofia](#filosofia--perché-ziba) ·
 [Funzionalità](#funzionalità) ·
 [Architettura](#architettura) ·
 [Quick start](#quick-start) ·
+[Formato vault](#formato-vault) ·
 [Roadmap](#roadmap) ·
 [Contribuire](CONTRIBUTING.md)
 
@@ -28,10 +29,11 @@ Notion e Obsidian sono entrambi strumenti eccellenti, ma costringono a scegliere
 |  | **Notion** | **Obsidian** | **Ziba** |
 |---|---|---|---|
 | Storage | Cloud proprietario | File markdown locali | File markdown locali |
-| Block editor con `/` menu | ✅ | ❌ | ✅ (in roadmap) |
-| Database con property tipizzate | ✅ | Limitato | ✅ (in roadmap) |
+| Block editor con `/` menu | ✅ | ❌ | ✅ |
+| Database con property tipizzate | ✅ | Limitato | ✅ |
 | Wikilinks `[[...]]` + backlink | Limitato | ✅ | ✅ |
-| Knowledge graph | ❌ | ✅ | ✅ (in roadmap) |
+| Knowledge graph | ❌ | ✅ | ✅ (constellation mode v1.0) |
+| Oggetti tipizzati + relazioni | ❌ | ❌ | ✅ (v1.0) |
 | Lock-in | Sì | No | No |
 | Open source | No | No | ✅ |
 | AI nativa | Limitata | Plugin | In roadmap |
@@ -42,50 +44,59 @@ I tuoi dati restano file `.md` con frontmatter YAML sul tuo disco. Sincronizzabi
 
 ## Stato
 
-> **Alpha — v0.5 shipped, v0.6 in progettazione.** Non è ancora installabile come bundle distribuito. Funziona solo in modalità sviluppo (`pnpm dev`), ma il core è completo end-to-end: vault locale, editor a blocchi con wikilink/backlink, search FTS5, database con vista tabella/kanban/calendario, grafo globale, callout, embed `![[]]`, math LaTeX, IPC error surface tipizzato, toast UI. La base test è 340+ casi (140 core + 200 desktop) con typecheck e lint puliti.
+> **v1.0 — Object-Relational Foundation.** Non è ancora installabile come bundle distribuito; funziona in modalità sviluppo (`pnpm dev`). Il core è completo end-to-end: vault locale, editor a blocchi con wikilink/backlink, search FTS5, database con vista tabella/kanban/calendario, grafo globale con constellation mode (hull colorati per tipo, filtro per kind di relazione), oggetti tipizzati con schemi `.ziba/schema/*.yml`, ObjectPanel, TypesSection sidebar, IPC error surface tipizzato, toast UI.
 
 ## Funzionalità
 
 ### v0.1 — Foundation (✅ shipped)
 
-- 📂 **Vault locale** — scegli una cartella, è il tuo workspace. Source of truth = file `.md` sul disco.
-- 📝 **Editor Tiptap** con markdown shortcut nativi: `# ` → heading, `**testo**` → bold, `> ` → quote, `- ` → lista, ecc.
-- 🔗 **Wikilink `[[Nota]]`** con autocomplete su `[[`, click per navigare, link rotti evidenziati, creazione automatica della nota mancante
-- 🌳 **Sidebar** con file tree annidato, CRUD via context menu, navigazione completa da tastiera
-- 🔄 **Pannello backlink** che si aggiorna live al variare del vault
-- 👀 **Watcher su disco** con detection conflitti (vim, altri editor)
-- 💾 Autosave debounced
+- **Vault locale** — scegli una cartella, è il tuo workspace. Source of truth = file `.md` sul disco.
+- **Editor Tiptap** con markdown shortcut nativi: `# ` → heading, `**testo**` → bold, `> ` → quote, `- ` → lista, ecc.
+- **Wikilink `[[Nota]]`** con autocomplete su `[[`, click per navigare, link rotti evidenziati, creazione automatica della nota mancante.
+- **Sidebar** con file tree annidato, CRUD via context menu, navigazione completa da tastiera.
+- **Pannello backlink** che si aggiorna live al variare del vault.
+- **Watcher su disco** con detection conflitti (vim, altri editor).
+- Autosave debounced.
 
 ### v0.2 — Power editing (✅ shipped)
 
-- 🔍 **Search palette `Cmd/Ctrl+K`** — full-text search via SQLite FTS5 con sintassi booleana (`foo OR bar`, `"frase esatta"`, `-escludi`)
-- 🏷️ **Tag system** — `#tag` nel body o `tags: []` in frontmatter. Sidebar mostra Tag section con count, click filtra il file tree
-- 📊 **Property editor** — frontmatter come property tipizzate (text/number/date/boolean/url/multi-select) sopra l'editor
-- ⚡ **Slash menu `/`** — popup blocchi inseribili (heading, list, quote, code, hr, callout)
-- 🕸️ **Mini-graph** locale alla nota corrente (1-hop) nel right pane (tab "Grafo")
+- **Search palette `Cmd/Ctrl+K`** — full-text search via SQLite FTS5 con sintassi booleana (`foo OR bar`, `"frase esatta"`, `-escludi`).
+- **Tag system** — `#tag` nel body o `tags: []` in frontmatter. Sidebar mostra Tag section con count, click filtra il file tree.
+- **Property editor** — frontmatter come property tipizzate (text/number/date/boolean/url/multi-select) sopra l'editor.
+- **Slash menu `/`** — popup blocchi inseribili (heading, list, quote, code, hr, callout).
+- **Mini-graph** locale alla nota corrente (1-hop) nel right pane.
 
 ### v0.3 — Database & graph (✅ shipped)
 
-- 🗄️ **Database view** — vista tabellare di tutto il vault con FilterBar tipizzata (eq/contains/has/lacks/lt/gt/lte/gte), sort multi-key, group-by su qualsiasi property, ColumnPicker. Triggered dal pulsante "Database" in TopBar.
-- 🌐 **Grafo globale** — vista force-directed dell'intero vault con pan/zoom (anchora sul cursore), search, click highlight 1-hop neighbors, double-click apre. Triggered dal pulsante "Grafo" in TopBar.
-- 💡 **Callout block** — Tiptap node con 6 kinds (note, info, tip, warning, danger, success). Markdown roundtrip Obsidian-compatible (`> [!kind]`).
-- 🔢 **Typed property index** — ogni frontmatter property estratta in colonne SQLite tipizzate per query veloci
+- **Database view** — vista tabellare di tutto il vault con FilterBar tipizzata (eq/contains/has/lacks/lt/gt/lte/gte), sort multi-key, group-by su qualsiasi property, ColumnPicker.
+- **Grafo globale** — vista force-directed con pan/zoom, search, click highlight 1-hop neighbors, double-click apre.
+- **Callout block** — Tiptap node con 6 kinds (note, info, tip, warning, danger, success). Markdown roundtrip Obsidian-compatible (`> [!kind]`).
+- **Typed property index** — ogni frontmatter property estratta in colonne SQLite tipizzate per query veloci.
 
 ### v0.4 — DB sub-views + blocchi avanzati (✅ shipped)
 
-- 📋 **Board view (kanban)** — sub-mode del Database: colonne raggruppate per property, drag-and-drop per spostare le note tra colonne. Aggiorna direttamente il frontmatter sul disco. Multi-select friendly (string-array).
-- 🗓️ **Calendar view** — sub-mode del Database: griglia mensile italiana (Lun-Dom), navigazione prev/next/oggi, note posizionate nel giorno della loro property data. Click → apre.
-- ↪️ **Embed block** — `![[Nota]]` mostra il contenuto di un'altra nota inline (read-only). Markdown roundtrip Obsidian-compatible. Lazy-load del target.
-- ∑ **Math (KaTeX)** — formule LaTeX con `$$..$$` block e `$..$` inline. Click sul rendering → editor LaTeX live preview. Markdown roundtrip nativo.
+- **Board view (kanban)** — colonne raggruppate per property, drag-and-drop per spostare le note tra colonne. Aggiorna direttamente il frontmatter sul disco.
+- **Calendar view** — griglia mensile italiana (Lun-Dom), navigazione prev/next/oggi.
+- **Embed block** — `![[Nota]]` mostra il contenuto inline. Markdown roundtrip Obsidian-compatible.
+- **Math (KaTeX)** — formule LaTeX con `$$..$$` block e `$..$` inline. Click → editor LaTeX live preview.
 
 ### v0.5 — Hardening + UX polish (✅ shipped)
 
-- 🛡️ **IPC error surface tipizzato** — `IpcErrorCode` derivato dal type union, `extractIpcErrorCode` / `ipcErrorMessage` helper round-trippano `code` su due path indipendenti (own property + `[CODE]` message prefix). Defense-in-depth contro structured-clone changes futuri di Electron.
-- 🍞 **Toast surface globale** — sostituisce `window.alert` ovunque. Non-blocking, color-coded per kind (info/success/warning/error), auto-dismiss configurabile, `role="alert"` per gli errori. Tutte le mutazioni della sidebar passano attraverso il toast.
-- ⚙️ **Two-stage error split nelle mutazioni** — IPC failure dice "Impossibile X"; refresh/follow-up failure dice "X riuscito ma aggiornamento fallito" (truthful — l'azione È accaduta sul disco). Pinned da test dedicati.
-- ⌨️ **Keyboard shortcuts** — `Cmd/Ctrl+S` salva, `Cmd/Ctrl+N` apre la prompt nuova nota, `Cmd/Ctrl+K` (già v0.2) apre la search palette.
-- 🏗️ **Refactor**: Sidebar 553 → ~340 righe (`useSidebarMutations` hook + `<SidebarDialogs>` component); `index-store.sqlite.ts` 882 → 745 con query-builder estratto come modulo puro; `Fragment` discriminated union (`predicate / always-false / always-true`) consente short-circuit della query quando un filtro è unsatisfiable.
-- 🎨 **DST anchor**, **KaTeX LRU cache**, **scanInlineMath** Pandoc-style guards, **CalendarView/BoardView memo stability** con `EMPTY_ROWS` frozen const.
+- **IPC error surface tipizzato** — `IpcErrorCode` derivato dal type union, helper `extractIpcErrorCode` / `ipcErrorMessage`.
+- **Toast surface globale** — sostituisce `window.alert`. Non-blocking, color-coded, auto-dismiss.
+- **Two-stage error split nelle mutazioni** — IPC failure vs refresh failure: messaggi distinti e truthful.
+- **Keyboard shortcuts** — `Cmd/Ctrl+S` salva, `Cmd/Ctrl+N` nuova nota.
+- **Refactor**: Sidebar split, query-builder estratto come modulo puro, `Fragment` discriminated union.
+
+### v1.0 — Typed objects + relations (✅ shipped)
+
+Ogni nota può dichiararsi un oggetto tipizzato (`type:`) e dichiarare relazioni tipizzate (`relations:`) verso altri oggetti. Lo schema per ogni tipo vive in `.ziba/schema/<type>.yml`.
+
+- **Schema + indexer + relations table** — sette schemi seed, tabella SQLite `relations` con `kind` tipizzato. Backward-compatible: wikilink generici restano nel grafo come `kind = ''`.
+- **ObjectPanel + sidebar TypesSection** — pannello relazioni sulla nota corrente; contatori per tipo in sidebar.
+- **Editor type-icon + slash relation** — icona di tipo nei wikilink; slash menu `/relazione` per inserire relazioni tipizzate.
+- **Database view type filter** — filtro per tipo; colonne suggerite seguono lo schema.
+- **Constellation graph** — hull colorati per tipo, filtro multi-select per kind di relazione, leggenda in overlay.
 
 ### In arrivo
 
@@ -96,7 +107,7 @@ Vedi la [roadmap](#roadmap).
 ```
 ziba/
 ├── apps/
-│   └── desktop/              # App Electron (l'unica nell'MVP v0.1)
+│   └── desktop/              # App Electron
 │       ├── electron/         # Main process: IPC, fs, SQLite, watcher
 │       ├── src/              # Renderer: React + Tiptap + Tailwind + Zustand
 │       └── shared/           # Contratto IPC tipizzato (main ↔ renderer)
@@ -107,7 +118,8 @@ ziba/
     │       ├── markdown/     # Parser, serializer, wikilink extractor
     │       ├── vault/        # Scan, indicizzazione, load/save note
     │       ├── index-store/  # Schema SQLite condiviso
-    │       └── types/        # Tipi domain (Note, Frontmatter, NotePath)
+    │       ├── seed-schemas/ # Sette schemi seed (note, person, book, …)
+    │       └── types/        # Tipi domain (Note, Frontmatter, ObjectTypeSchema)
     └── tsconfig/             # Config TypeScript condivisa
 ```
 
@@ -179,7 +191,7 @@ Per provare le funzionalità senza preparare un vault da zero:
 node scripts/seed-vault.mjs ./sample-vault
 ```
 
-Genera 6 note interconnesse via wikilink (idee, progetti, persone, libri, daily). Poi apri `./sample-vault` da Ziba e clicca tra le note per vedere il funzionamento di autocomplete, navigazione e backlink.
+Genera 6 note interconnesse via wikilink (idee, progetti, persone, libri, daily). Poi apri `./sample-vault` da Ziba.
 
 ### Verifica
 
@@ -196,23 +208,96 @@ pnpm --filter ziba-desktop run dist:win     # NSIS installer
 pnpm --filter ziba-desktop run dist:linux   # AppImage + .deb
 ```
 
-> ⚠️ Non c'è ancora code signing. Su macOS l'app non firmata richiede "Apri" dal menu contestuale del Finder la prima volta.
+> Non c'è ancora code signing. Su macOS l'app non firmata richiede "Apri" dal menu contestuale del Finder la prima volta.
+
+## Formato vault
+
+Un vault Ziba è una directory di file markdown. Ziba aggiunge una sola sottodirectory `.ziba/` per i propri dati:
+
+```
+my-vault/
+├── tolkien.md
+├── projects/
+│   └── ziba.md
+└── .ziba/
+    ├── index.db          # cache SQLite (rigenerabile, mai autoritativa)
+    └── schema/
+        ├── book.yml
+        ├── person.yml
+        └── note.yml
+```
+
+### Oggetti tipizzati (v1.0)
+
+Aggiungi `type:` al frontmatter di una nota per dichiararla un oggetto tipizzato. Le relazioni verso altri oggetti vanno sotto `relations:`:
+
+```markdown
+---
+type: book
+title: The Hobbit
+year: 1937
+relations:
+  author: "[[Tolkien]]"
+---
+
+Il libro che ha…
+```
+
+Lo schema del tipo — che definisce quali property e relazioni ha senso aspettarsi — vive in `.ziba/schema/book.yml`:
+
+```yaml
+# .ziba/schema/book.yml
+id: book
+label: Libro
+icon: 📖
+color: "#6366f1"
+properties:
+  title:
+    type: text
+    required: true
+  year:
+    type: number
+relations:
+  author:
+    target: person
+    label: Autore
+  in_series:
+    target: book
+    label: Serie
+inverse:
+  cited_by:
+    reverse_of: cites
+    label: Citato da
+```
+
+Gli schemi sono **soft**: documentano l'intenzione + guidano la UI (property panel, relation picker, colori del grafo), ma non bloccano il salvataggio di valori fuori-spec.
+
+I wikilink nel body senza `type:` e `relations:` continuano a funzionare come prima (relazioni untyped, `kind = ''`).
+
+Per la specifica completa del formato vault (layout directory, campi schema, tipi di property, slug convention) vedi [`docs/vault-format.md`](docs/vault-format.md).
 
 ## Roadmap
 
-| Versione | Tema | Funzionalità chiave |
-|---|---|---|
-| ✅ v0.1 | Foundation desktop | Vault + editor + wikilink + backlink + watcher |
-| ✅ v0.2 | Power editing | Search FTS5 (Cmd+K), property editor, tag system, slash menu, mini-graph |
-| ✅ v0.3 | Database & graph | Database table view, grafo globale interattivo, callout block proper |
-| ✅ v0.4 | DB sub-views + blocchi | Kanban view, calendar view, embed `![[...]]`, math (KaTeX) `$$...$$` |
-| ✅ v0.5 | Hardening + UX polish | IPC error surface, toast UI, two-stage error split, Cmd+S/Cmd+N shortcuts, Sidebar refactor, query-builder split |
-| v0.6 (next) | Plugin system foundation | Manifest + capabilities + lifecycle, sandboxed plugin contexts, first-party plugin examples |
-| v1.0 | Web build + sync | Web app via OPFS / remote sync, plugin marketplace, theme switcher, multi-vault |
-| v1.x | AI-native | Semantic search, auto-link, agent organizzativi |
-| v1.0 | Multi-piattaforma | Web app, plugin system, sync via filesystem-cloud (Dropbox/iCloud/Drive) |
-| v1.x | AI native | Embeddings locali, semantic search, auto-link suggestions, Q&A sul vault, agent organizzativi |
-| v1.5+ | Mobile | Expo app (iOS/Android), sync server custom |
+### Fatto
+
+- **v0.x** — vault open, editor, properties, tags, backlinks, full-text search,
+  database view (table/board/calendar), global graph, embed, math (KaTeX),
+  IPC error surface, toast UI, keyboard shortcuts.
+- **v1.0** — typed objects + relations, ObjectPanel, TypesSection sidebar,
+  type-filtered database, constellation graph (hull colorati, kind filter,
+  leggenda).
+
+### Next (v1.x)
+
+- **Filter unification**: un singolo `selectedType` condiviso tra Sidebar,
+  DatabaseView e GlobalGraph (attualmente store indipendenti).
+- **Aliased relations** nei popup di inserimento (`[[Target|Display]]`).
+- **Plugin system foundation** — l'object model offre la base strutturale.
+- **Performance**: Web Worker per il layout del grafo; batch IPC per la
+  risoluzione wikilink.
+- **Web port** — multi-fase; `packages/core` è già pure TS.
+- **Mobile** — read-only client Expo, futuro più lontano.
+- **AI-native** — semantic search, auto-link, agent organizzativi.
 
 Le issue del repository taggano la versione obiettivo. La roadmap è indicativa, non promessa di delivery.
 
