@@ -106,23 +106,30 @@ export const Wikilink = Node.create<WikilinkOptions>({
 
     const iconMap = this.storage?.typeIconByPath as Map<string, string> | undefined;
     const icon = resolvedPath !== null ? iconMap?.get(resolvedPath) : undefined;
-    const labelText = icon !== undefined ? `${icon} ${display}` : display;
 
     const baseClass = 'ziba-wikilink';
     const stateClass = isResolved ? 'ziba-wikilink--resolved' : 'ziba-wikilink--broken';
 
-    return [
-      'span',
-      mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
-        'data-wikilink': '',
-        'data-target': target,
-        class: `${baseClass} ${stateClass}`,
-        // Allow the click handler in <Editor /> to find the node attribute
-        // without inspecting the ProseMirror state. Also useful for
-        // copy-paste fallback: the inner text round-trips as the alias.
-      }),
-      labelText,
-    ];
+    const attrs = mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
+      'data-wikilink': '',
+      'data-target': target,
+      class: `${baseClass} ${stateClass}`,
+      // Allow the click handler in <Editor /> to find the node attribute
+      // without inspecting the ProseMirror state. Also useful for
+      // copy-paste fallback: the inner text round-trips as the alias.
+    });
+
+    // Render the type icon inside an aria-hidden span so screen readers
+    // announce the link target text without reading out the emoji glyph.
+    if (icon !== undefined) {
+      return [
+        'span',
+        attrs,
+        ['span', { 'aria-hidden': 'true', class: 'ziba-wikilink__icon' }, `${icon} `],
+        display,
+      ];
+    }
+    return ['span', attrs, display];
   },
 
   /**
