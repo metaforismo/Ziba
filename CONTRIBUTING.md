@@ -9,6 +9,7 @@ Grazie per l'interesse. Ziba è un progetto open-source in fase **alpha** — og
 - [Setup ambiente](#setup-ambiente)
 - [Workflow di sviluppo](#workflow-di-sviluppo)
 - [Convenzioni di codice](#convenzioni-di-codice)
+- [Convenzioni del progetto](#convenzioni-del-progetto)
 - [Convenzioni dei commit](#convenzioni-dei-commit)
 - [Apertura di una PR](#apertura-di-una-pr)
 - [Decisioni architetturali](#decisioni-architetturali)
@@ -64,7 +65,7 @@ HMR sul renderer è attivo. Modifiche al main process richiedono un reload (elec
 pnpm typecheck   # tipi su tutto il monorepo
 pnpm lint        # ESLint su tutto il codice
 pnpm format:check
-pnpm test        # 85 test su packages/core
+pnpm test        # ~490 test (167 core + 326 desktop)
 pnpm build       # build di produzione
 ```
 
@@ -72,7 +73,7 @@ Tutti devono passare prima di aprire una PR.
 
 ### Pre-commit hook
 
-`pnpm install` configura automaticamente husky. Su ogni commit, lint-staged esegue `eslint --fix` + `prettier --write` solo sui file staged — tipicamente sotto un secondo. Se hai bisogno di skipparlo in un'emergenza: `git commit --no-verify`.
+`pnpm install` configura automaticamente husky. Su ogni commit, lint-staged esegue `eslint --fix` + `prettier --write` solo sui file staged — tipicamente sotto un secondo. Se l'hook fallisce, correggi la causa a monte invece di usare `--no-verify`.
 
 ## Workflow di sviluppo
 
@@ -104,7 +105,12 @@ Per qualsiasi cambiamento UI:
 
 ### 4. Test automatici
 
-Per `packages/core`, scrivi test (Vitest, in arrivo). Per ora siamo prevalentemente type-driven + manual smoke testing. Le PR di test setup sono benvenute.
+La suite usa Vitest in tutto il monorepo. La piramide attuale:
+
+- **Unit test per funzioni pure** (`packages/core`): parser, serializer, extractor frontmatter, helper relazioni, seed schemas. Non dipendono da Electron né da React — veloci, facili da scrivere.
+- **Integration test per adapter e IPC** (`apps/desktop/electron/adapters/`): usano SQLite in-memory (`:memory:`) su SQL puro, senza istanziare `SqliteIndexStore`. Il pattern è deliberato: `SqliteIndexStore` accoppia al path dell'app Electron e renderebbe i test dipendenti dall'ambiente. Vedi il commento di testa in `apps/desktop/electron/adapters/index-store-relations.test.ts` per la rationale documentata.
+- **Component test per React** (`apps/desktop/src/`): Vitest + jsdom + Testing Library. Coprono store Zustand (debounce, sequence-number guard, vault switch), componenti UI (PropertyEditor, RelationPickerPopup, DatabaseView helpers). Mockano `window.ziba` via `installMockIpc()`.
+- **Niente E2E per ora.** I test Playwright arriveranno quando ci sarà un bundle distribuito stabile. Per ora il smoke test manuale è sufficiente (vedi sezione sopra).
 
 ## Convenzioni di codice
 
@@ -137,6 +143,36 @@ Per `packages/core`, scrivi test (Vitest, in arrivo). Per ora siamo prevalenteme
 ### Stile
 
 ESLint + Prettier sono configurati. Esegui `pnpm lint --fix` e `pnpm format` prima di committare.
+
+## Convenzioni del progetto
+
+### Lingua
+
+- **UI in italiano.** Labels, placeholder, messaggi di errore → italiano.
+- **Commenti in inglese** (o italiano nei file `.md`). Il codice sorgente è internazionale; i commenti nel codice sono english per standard open-source.
+- **Commenti solo sul "perché"**, non sul "cosa". Un commento che descrive cosa fa una funzione è ridondante se il codice è leggibile. Documenta l'intenzione, il trade-off scelto, o il caso d'angolo non ovvio. Evita commenti stile "used by X" o "added for Y" — non reggono ai refactor.
+
+### TDD per funzioni pure
+
+Per ogni parser, serializer, extractor, helper frontmatter o funzione pura in `packages/core`: scrivi il test prima dell'implementazione. I test in `packages/core` non dipendono da niente di platform-specific e si scrivono in pochi minuti.
+
+### Adapter test con SQL puro in `:memory:`
+
+I test degli adapter (`apps/desktop/electron/adapters/`) instanziano `better-sqlite3` direttamente con `:memory:`, eseguono lo schema SQL da `packages/core/src/index-store/schema.ts` e poi testano le query SQL a basso livello. **Non** importano `SqliteIndexStore` perché quella classe accoppia ai path dell'app Electron e richiederebbe un ambiente Electron per girare. Il trade-off è documentato nel commento di testa di ogni file `*.test.ts` negli adapter.
+
+### Pre-commit hooks
+
+`pnpm install` configura husky automaticamente. Su ogni commit, `lint-staged` esegue `eslint --fix` + `prettier --write` solo sui file staged. Se un hook fallisce, **si risolve la causa** — non si usa `--no-verify`.
+
+### Phase pattern per feature complesse
+
+Le feature grandi seguono questo ciclo:
+
+1. **Spec** (`docs/superpowers/specs/`) — descrive il "cosa" e il "perché".
+2. **Plan** (`docs/superpowers/plans/`) — suddivide in task implementativi con ordine e dipendenze.
+3. **Implement** — TDD per la logica pura, smoke test manuale per l'UI.
+4. **Review** — almeno un maintainer; le PR che saltano i passaggi 1-2 per feature grandi vengono rispedite indietro.
+5. **Merge** — squash and merge su `main`.
 
 ## Convenzioni dei commit
 
