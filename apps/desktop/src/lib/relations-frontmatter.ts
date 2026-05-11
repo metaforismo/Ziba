@@ -52,8 +52,19 @@ export function setRelationInFrontmatter(
   fm: Frontmatter,
   kind: string,
   target: string,
+  options?: { alias?: string | null; heading?: string | null },
 ): Frontmatter {
-  const link = `[[${target}]]`;
+  // Build the wikilink inner text: [[target#heading|alias]] when provided.
+  // Callers that omit `options` get plain [[target]] — backward compatible.
+  const alias = options?.alias ?? null;
+  const heading = options?.heading ?? null;
+  const inner = (() => {
+    let base = target;
+    if (heading !== null && heading !== '') base = `${target}#${heading}`;
+    if (alias !== null && alias !== '') return `${base}|${alias}`;
+    return base;
+  })();
+  const link = `[[${inner}]]`;
   const relsSource = isPlainObject(fm.relations) ? fm.relations : {};
   const existing = relsSource[kind];
 

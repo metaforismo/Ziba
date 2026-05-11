@@ -66,6 +66,21 @@ describe('setRelationInFrontmatter', () => {
       cites: '[[A]]',
     });
   });
+
+  it('preserves alias when provided', () => {
+    const result = setRelationInFrontmatter({}, 'author', 'Tolkien', { alias: 'JRR' });
+    expect(result.relations).toEqual({ author: '[[Tolkien|JRR]]' });
+  });
+
+  it('preserves heading when provided', () => {
+    const result = setRelationInFrontmatter({}, 'cites', 'Book', { heading: 'chapter-3' });
+    expect(result.relations).toEqual({ cites: '[[Book#chapter-3]]' });
+  });
+
+  it('preserves both alias and heading', () => {
+    const result = setRelationInFrontmatter({}, 'cites', 'Book', { heading: 'ch3', alias: 'Ch3' });
+    expect(result.relations).toEqual({ cites: '[[Book#ch3|Ch3]]' });
+  });
 });
 
 describe('removeRelationFromFrontmatter', () => {
