@@ -17,6 +17,7 @@ import {
 } from './extensions/WikilinkSuggestion';
 import { SlashMenuPopup } from './SlashMenuPopup';
 import { useResolvedWikilinks } from './useResolvedWikilinks';
+import { useWikilinkTypes } from './useWikilinkTypes';
 import { WikilinkPopup } from './WikilinkPopup';
 
 export type EditorProps = {
@@ -398,6 +399,7 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
   // Resolve wikilinks against the index so broken targets get the red
   // styling. Re-keyed on note path so the cache resets on navigation.
   useResolvedWikilinks(editor, currentNote?.path ?? null);
+  useWikilinkTypes(editor);
 
   // Click router: resolve the title; if it exists, open the note; if
   // not, create a `<title>.md` at the vault root and open that. The

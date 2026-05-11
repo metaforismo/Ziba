@@ -100,7 +100,13 @@ export const Wikilink = Node.create<WikilinkOptions>({
     // "valid" (optimistic) so we don't flash red while resolution is in
     // flight; `useResolvedWikilinks` will repaint shortly after.
     const resolvedMap = this.storage?.resolved as WikilinkResolutionMap | undefined;
-    const isResolved = resolvedMap === undefined ? true : resolvedMap.get(target) !== false;
+    const resolution = resolvedMap?.get(target);
+    const isResolved = resolution !== false;
+    const resolvedPath = typeof resolution === 'string' ? resolution : null;
+
+    const iconMap = this.storage?.typeIconByPath as Map<string, string> | undefined;
+    const icon = resolvedPath !== null ? iconMap?.get(resolvedPath) : undefined;
+    const labelText = icon !== undefined ? `${icon} ${display}` : display;
 
     const baseClass = 'ziba-wikilink';
     const stateClass = isResolved ? 'ziba-wikilink--resolved' : 'ziba-wikilink--broken';
@@ -115,7 +121,7 @@ export const Wikilink = Node.create<WikilinkOptions>({
         // without inspecting the ProseMirror state. Also useful for
         // copy-paste fallback: the inner text round-trips as the alias.
       }),
-      display,
+      labelText,
     ];
   },
 
@@ -133,8 +139,12 @@ export const Wikilink = Node.create<WikilinkOptions>({
 
   addStorage() {
     const resolved: WikilinkResolutionMap = new Map();
+    // Keyed by vault-relative path; populated by useWikilinkTypes from the
+    // vault store's typedPaths slice × objectTypeSchemas icon fields.
+    const typeIconByPath: Map<string, string> = new Map();
     return {
       resolved,
+      typeIconByPath,
       // Hook consumed by tiptap-markdown's MarkdownSerializer (see
       // packages/tiptap-markdown/src/util/extensions.js: getMarkdownSpec).
       markdown: {
