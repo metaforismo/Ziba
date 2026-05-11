@@ -24,6 +24,7 @@ import {
   type LayoutEdge,
   type LayoutNode,
 } from '../MiniGraph/layout';
+import { GRAPH_CLUSTER_STRENGTH } from '../../lib/graph-tuning';
 
 export type { LayoutEdge, LayoutNode };
 
@@ -81,7 +82,12 @@ function defaultIterations(nodeCount: number): number {
  * "explosion" you sometimes get when two random points start on top of
  * each other.
  */
-export function initializePositions(ids: string[], width: number, height: number): LayoutNode[] {
+export function initializePositions(
+  ids: string[],
+  width: number,
+  height: number,
+  typeById?: ReadonlyMap<string, string | null>,
+): LayoutNode[] {
   // Radius scales with sqrt(n) so a denser graph gets a wider initial
   // ring — keeps the average per-node distance roughly constant at t=0
   // and the simulator doesn't have to spend its first dozen ticks just
@@ -89,7 +95,13 @@ export function initializePositions(ids: string[], width: number, height: number
   const radius = Math.min(width, height) / 2 - 24;
   const seedRadius = Math.max(60, Math.min(radius, 30 + Math.sqrt(ids.length) * 8));
   return miniInitializeOnCircle(
-    ids.map((id) => ({ id, kind: 'outbound' as const })),
+    ids.map((id) => {
+      const t = typeById?.get(id);
+      const base: { id: string; kind: 'outbound' } = { id, kind: 'outbound' };
+      // Only attach nodeType when it's a non-empty string. `exactOptionalPropertyTypes`
+      // forbids `nodeType: undefined`, so we conditionally spread.
+      return t !== undefined && t !== null && t !== '' ? { ...base, nodeType: t } : base;
+    }),
     width,
     height,
     seedRadius,
@@ -120,6 +132,7 @@ export function runGlobalLayout(
     restLen: GLOBAL_DEFAULTS.restLen,
     damping: GLOBAL_DEFAULTS.damping,
     kCenter: GLOBAL_DEFAULTS.kCenter,
+    kClusterStrength: GRAPH_CLUSTER_STRENGTH,
   });
 }
 
