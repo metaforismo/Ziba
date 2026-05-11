@@ -229,6 +229,7 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => {
             requestSeq++;
             set({
               query: INITIAL_QUERY,
+              selectedType: null,
               result: null,
               loading: false,
               error: null,

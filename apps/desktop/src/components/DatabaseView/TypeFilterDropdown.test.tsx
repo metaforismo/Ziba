@@ -3,8 +3,8 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { TypeFilterDropdown } from './TypeFilterDropdown';
 
 const TYPES = [
-  { id: 'book', label: 'Libro', icon: '📖', color: null, count: 12 },
-  { id: 'person', label: 'Persona', icon: '👤', color: null, count: 8 },
+  { id: 'book', label: 'Libro', icon: '📖', count: 12 },
+  { id: 'person', label: 'Persona', icon: '👤', count: 8 },
 ];
 
 describe('<TypeFilterDropdown>', () => {

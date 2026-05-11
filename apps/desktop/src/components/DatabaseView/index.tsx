@@ -152,6 +152,7 @@ export function DatabaseView(): JSX.Element {
   const clearAllFilters = (): void => {
     setFilters([]);
     setFolder(undefined);
+    setType(null);
   };
 
   const onRowClick = (path: NotePath): void => {
@@ -167,7 +168,8 @@ export function DatabaseView(): JSX.Element {
   //   2. empty result — distinguish "vault is empty" vs "filters are too
   //      narrow" so the empty-state copy is actionable.
   //   3. populated table.
-  const hasFilterOrFolder = filters.length > 0 || (query.folder ?? '') !== '';
+  const hasFilterOrFolder =
+    filters.length > 0 || (query.folder ?? '') !== '' || selectedType !== null;
   const isEmpty = result !== null && result.rows.length === 0;
   const emptyDueToFilters = isEmpty && hasFilterOrFolder;
   const emptyDueToVault = isEmpty && !hasFilterOrFolder;

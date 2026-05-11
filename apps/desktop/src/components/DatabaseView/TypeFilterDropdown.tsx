@@ -8,8 +8,6 @@ export type TypeFilterOption = {
   label: string;
   /** Optional emoji / glyph from the schema. */
   icon: string | null;
-  /** Kept for parity with `useTagsStore.types`; unused in the dropdown. */
-  color: string | null;
   /** Number of notes carrying this type. */
   count: number;
 };
