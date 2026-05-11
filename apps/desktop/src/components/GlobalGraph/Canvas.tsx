@@ -193,6 +193,16 @@ export const Canvas = memo(
       [],
     );
 
+    // O(N) Map built once per nodes reference change. Edges reference nodes
+    // by id for every render; without this Map each edge lookup would be
+    // O(N), making edge rendering O(E·N) — ~5M comparisons at 1000 nodes /
+    // 5000 edges. The Map keeps it O(E).
+    const nodeById = useMemo(() => {
+      const m = new Map<NotePath, CanvasNode>();
+      for (const n of nodes) m.set(n.id, n);
+      return m;
+    }, [nodes]);
+
     // Degree threshold for showing labels. Recomputed on every render but
     // it's a single pass over `nodes` and the parent already memoised the
     // degree value into each CanvasNode.
@@ -271,8 +281,8 @@ export const Canvas = memo(
           {/* Edges first so node circles paint on top. */}
           <g pointerEvents="none">
             {edges.map((e, i) => {
-              const a = nodeIndex(nodes, e.source);
-              const b = nodeIndex(nodes, e.target);
+              const a = nodeById.get(e.source) ?? null;
+              const b = nodeById.get(e.target) ?? null;
               if (a === null || b === null) return null;
               const highlight =
                 hasSelection && (e.source === selectedId || e.target === selectedId);
@@ -377,17 +387,6 @@ export const Canvas = memo(
 
 function nodeMatchesType(n: CanvasNode, type: string): boolean {
   return n.type === type;
-}
-
-// Linear scan because for n < 1000 it is faster than building a Map
-// (the constant factor of the hash function dominates), and we already
-// pay an O(n) reconcile pass over `nodes` in JSX. If we ever push past
-// 5000 we should swap this for a Map computed once per layout settle.
-function nodeIndex(nodes: CanvasNode[], id: NotePath): CanvasNode | null {
-  for (const n of nodes) {
-    if (n.id === id) return n;
-  }
-  return null;
 }
 
 function labelDegreeAtQuantile(nodes: CanvasNode[], q: number): number {
