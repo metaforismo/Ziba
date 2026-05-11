@@ -68,4 +68,20 @@ describe('<RelationsSection>', () => {
     expect(onChange).not.toHaveBeenCalled();
     expect(screen.getByText('Tipo e destinazione sono entrambi obbligatori.')).toBeInTheDocument();
   });
+
+  it('the delete button is keyboard-focusable and visible when focused', () => {
+    render(
+      <RelationsSection
+        frontmatter={{ relations: { author: '[[Tolkien]]' } }}
+        suggestedKinds={[]}
+        onChange={vi.fn()}
+      />,
+    );
+    const btn = screen.getByRole('button', { name: 'Rimuovi relazione author → Tolkien' });
+    btn.focus();
+    expect(btn).toHaveFocus();
+    // Tailwind utilities — we can't trivially inspect computed opacity in jsdom,
+    // but we can assert the class is present so the focus state has its hook.
+    expect(btn.className).toMatch(/focus.*opacity-100/);
+  });
 });

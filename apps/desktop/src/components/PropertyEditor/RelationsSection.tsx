@@ -68,7 +68,7 @@ export function RelationsSection({
             {rows.map((r) => (
               <li
                 key={`${r.kind}|${r.target}`}
-                className="group flex min-h-[28px] items-center gap-2 rounded px-1 hover:bg-bg-subtle"
+                className="group flex min-h-[28px] items-center gap-2 rounded px-1 hover:bg-bg-subtle focus-within:bg-bg-subtle"
               >
                 <span className="shrink-0 font-mono text-xs uppercase tracking-wide text-fg-muted">
                   {r.kind}
@@ -83,7 +83,7 @@ export function RelationsSection({
                   onClick={(): void =>
                     onChange(removeRelationFromFrontmatter(frontmatter, r.kind, r.target))
                   }
-                  className="rounded px-1 text-fg-muted opacity-0 group-hover:opacity-100 hover:bg-bg-muted hover:text-fg"
+                  className="rounded px-1 text-fg-muted opacity-0 transition-opacity group-hover:opacity-100 hover:bg-bg-muted hover:text-fg focus:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                 >
                   ×
                 </button>
