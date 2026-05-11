@@ -21,10 +21,10 @@ export type LayoutNode = {
   vy: number;
   kind: LayoutNodeKind;
   /**
-   * v1.0 Phase 5: optional type slug. When set on a subset of nodes,
-   * `simulateLayout`'s cluster-bias term pulls same-type nodes toward
-   * each other (with weight `kClusterStrength`). Mini-graph callers
-   * don't set this; the cluster term is a no-op for them.
+   * Optional type slug for cluster-bias grouping. When set, pairs of
+   * nodes with the same slug attract each other (weight `kClusterStrength`).
+   * Optional so the field is absent rather than null on untyped nodes,
+   * which keeps it out of the cluster loop without an extra runtime check.
    */
   nodeType?: string | null;
 };
@@ -49,10 +49,10 @@ export type LayoutOptions = {
   /** Pull strength toward canvas center. Keeps the graph from drifting. */
   kCenter?: number;
   /**
-   * v1.0 Phase 5: coefficient for the same-type cluster bias. When
-   * `> 0`, pairs of nodes with matching `nodeType` exert a linear
-   * attractive force `f = kClusterStrength * distance`. Default 0 →
-   * loop is skipped → mini-graph behaviour unchanged.
+   * Coefficient for the same-type cluster bias: `f = k * distance`
+   * applied to pairs of matching-type nodes. Defaults to 0 (no
+   * clustering) so the loop is a provable no-op when the caller does
+   * not opt in.
    */
   kClusterStrength?: number;
 };

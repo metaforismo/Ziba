@@ -314,6 +314,10 @@ export const Canvas = memo(
               // When highlightType is null the filter is inactive — no node should be dimmed
               // purely because of type. When non-null, only nodes of that type stay bright.
               const isHighlightedByType = highlightType === null || n.type === highlightType;
+              // Type filter takes unconditional precedence: even a
+              // neighbour of the selected node is dimmed when it sits
+              // outside the active type scope. This keeps node dimming
+              // visually consistent with the hull visibility rule.
               const dim =
                 (hasSelection && !isSelected && !isNeighbor) ||
                 (isFiltered && !matchesFilter) ||
