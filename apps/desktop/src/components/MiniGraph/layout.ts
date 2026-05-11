@@ -20,6 +20,13 @@ export type LayoutNode = {
   vx: number;
   vy: number;
   kind: LayoutNodeKind;
+  /**
+   * Optional type slug for cluster-bias grouping. When set, pairs of
+   * nodes with the same slug attract each other (weight `kClusterStrength`).
+   * Optional so the field is absent rather than null on untyped nodes,
+   * which keeps it out of the cluster loop without an extra runtime check.
+   */
+  nodeType?: string | null;
 };
 
 export type LayoutEdge = {
@@ -41,6 +48,13 @@ export type LayoutOptions = {
   damping?: number;
   /** Pull strength toward canvas center. Keeps the graph from drifting. */
   kCenter?: number;
+  /**
+   * Coefficient for the same-type cluster bias: `f = k * distance`
+   * applied to pairs of matching-type nodes. Defaults to 0 (no
+   * clustering) so the loop is a provable no-op when the caller does
+   * not opt in.
+   */
+  kClusterStrength?: number;
 };
 
 const DEFAULTS = {
@@ -132,6 +146,35 @@ export function simulateLayout(
       b.vy -= fy;
     }
 
+    // Cluster bias: same-type nodes attract each other linearly with
+    // distance. Off by default (kCluster = 0) so mini-graph callers
+    // see no change; global-graph callers opt in via `kClusterStrength`.
+    // Skips nodes whose `nodeType` is undefined or null so untyped
+    // notes float freely between clusters.
+    const kCluster = opts.kClusterStrength ?? 0;
+    if (kCluster > 0) {
+      for (let i = 0; i < nodes.length; i++) {
+        const a = nodes[i];
+        if (a === undefined || a.nodeType === undefined || a.nodeType === null) continue;
+        for (let j = i + 1; j < nodes.length; j++) {
+          const b = nodes[j];
+          if (b === undefined || b.nodeType !== a.nodeType) continue;
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const dist2 = dx * dx + dy * dy;
+          if (dist2 < 0.01) continue;
+          const dist = Math.sqrt(dist2);
+          const f = kCluster * dist;
+          const ux = dx / dist;
+          const uy = dy / dist;
+          a.vx += f * ux;
+          a.vy += f * uy;
+          b.vx -= f * ux;
+          b.vy -= f * uy;
+        }
+      }
+    }
+
     // Centering: gentle pull toward the canvas center for non-self nodes.
     for (const n of nodes) {
       if (n.kind === 'self') continue;
@@ -184,7 +227,7 @@ export function simulateLayout(
  * each other.
  */
 export function initializeOnCircle(
-  ids: { id: string; kind: LayoutNodeKind }[],
+  ids: { id: string; kind: LayoutNodeKind; nodeType?: string | null }[],
   width: number,
   height: number,
   radius: number,
@@ -196,7 +239,12 @@ export function initializeOnCircle(
   const result: LayoutNode[] = [];
 
   if (self !== undefined) {
-    result.push({ id: self.id, kind: 'self', x: cx, y: cy, vx: 0, vy: 0 });
+    const selfBase = { id: self.id, kind: 'self' as const, x: cx, y: cy, vx: 0, vy: 0 };
+    result.push(
+      self.nodeType !== undefined && self.nodeType !== null
+        ? { ...selfBase, nodeType: self.nodeType }
+        : selfBase,
+    );
   }
 
   const n = others.length;
@@ -206,14 +254,17 @@ export function initializeOnCircle(
     // Start at the top (-π/2) and walk clockwise so layouts feel stable
     // when the same node set re-renders.
     const angle = (i / Math.max(n, 1)) * Math.PI * 2 - Math.PI / 2;
-    result.push({
+    const base = {
       id: o.id,
       kind: o.kind,
       x: cx + Math.cos(angle) * radius,
       y: cy + Math.sin(angle) * radius,
       vx: 0,
       vy: 0,
-    });
+    };
+    result.push(
+      o.nodeType !== undefined && o.nodeType !== null ? { ...base, nodeType: o.nodeType } : base,
+    );
   }
 
   return result;

@@ -14,6 +14,10 @@ import {
   type CanvasView,
 } from './Canvas';
 import { computeBounds, initializePositions, runGlobalLayout } from './layout';
+import { TypeChips, type TypeChip } from './TypeChips';
+import { KindFilterDropdown } from './KindFilterDropdown';
+import { Legend } from './Legend';
+import { useTagsStore } from '../../stores/tags';
 
 // Logical canvas the simulation runs on. The SVG `viewBox` matches
 // these numbers; on screen we just stretch to fill the container, with
@@ -45,6 +49,9 @@ export function GlobalGraph(): JSX.Element {
   const [load, setLoad] = useState<LoadState>({ kind: 'idle' });
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<NotePath | null>(null);
+  const [selectedType, setSelectedType] = useState<string | null>(null);
+  const [selectedKinds, setSelectedKinds] = useState<ReadonlySet<string>>(EMPTY_STRING_SET);
+  const [clusterOverlayOn, setClusterOverlayOn] = useState(false);
   // We bump `viewVersion` whenever we want to force the canvas to apply
   // a fresh `initialView` (fit-to-screen, +/- zoom button). Pan/wheel
   // gestures bypass this and write directly into the canvas via its
@@ -53,6 +60,8 @@ export function GlobalGraph(): JSX.Element {
   const [panning, setPanning] = useState(false);
   const requestSeq = useRef(0);
   const canvasRef = useRef<CanvasHandle | null>(null);
+
+  const objectTypeSchemas = useTagsStore((s) => s.objectTypeSchemas);
 
   // Initial fetch + watcher-driven refetch.
   useEffect(() => {
@@ -116,6 +125,49 @@ export function GlobalGraph(): JSX.Element {
     return m;
   }, [load]);
 
+  // Chip list for the type filter row. Sources from the graph nodes so
+  // only types actually present in this vault appear.
+  const typeChips = useMemo<TypeChip[]>(() => {
+    if (load.kind !== 'ready') return [];
+    const seen = new Set<string>();
+    const byType = new Map<
+      string,
+      { id: string; label: string; icon: string | null; color: string | null }
+    >();
+    for (const n of load.graph.nodes) {
+      if (n.type === null || n.type === '') continue;
+      if (seen.has(n.type)) continue;
+      seen.add(n.type);
+      const schema = objectTypeSchemas.find((s) => s.id === n.type);
+      byType.set(n.type, {
+        id: n.type,
+        label: schema?.label ?? n.type,
+        icon: schema?.icon ?? null,
+        // Node color wins over schema color because that's what the Canvas renders.
+        color: n.color ?? schema?.color ?? null,
+      });
+    }
+    return Array.from(byType.values()).sort((a, b) => a.label.localeCompare(b.label));
+  }, [load, objectTypeSchemas]);
+
+  // Distinct relation kinds present in the graph (empty-string sentinel excluded).
+  const kindOptions = useMemo<string[]>(() => {
+    if (load.kind !== 'ready') return [];
+    const seen = new Set<string>();
+    for (const e of load.graph.edges) {
+      if (e.kind !== '') seen.add(e.kind);
+    }
+    return Array.from(seen).sort();
+  }, [load]);
+
+  // path → type slug; feeds initializePositions for cluster-bias seeding.
+  const typeById = useMemo<ReadonlyMap<NotePath, string | null>>(() => {
+    const m = new Map<NotePath, string | null>();
+    if (load.kind !== 'ready') return m;
+    for (const n of load.graph.nodes) m.set(n.path, n.type);
+    return m;
+  }, [load]);
+
   // Degree counts (in + out). Used to scale node radius and decide
   // which nodes get labels at high zoom.
   const degreeMap = useMemo<Map<NotePath, number>>(() => {
@@ -159,6 +211,7 @@ export function GlobalGraph(): JSX.Element {
       nodes.map((n) => n.path),
       CANVAS_W,
       CANVAS_H,
+      typeById,
     );
     runGlobalLayout(
       positioned,
@@ -166,7 +219,7 @@ export function GlobalGraph(): JSX.Element {
       { width: CANVAS_W, height: CANVAS_H },
     );
     return positioned;
-  }, [load]);
+  }, [load, typeById]);
 
   // Build the canvas-level node list. Memoised so the Canvas's
   // `memo()` shallow comparison sees a stable reference unless the
@@ -174,9 +227,14 @@ export function GlobalGraph(): JSX.Element {
   const canvasNodes = useMemo<CanvasNode[]>(() => {
     if (layout === null) return [];
     const maxDegree = Array.from(degreeMap.values()).reduce((acc, v) => (v > acc ? v : acc), 0);
+    const nodeMeta = new Map<NotePath, { type: string | null; color: string | null }>();
+    if (load.kind === 'ready') {
+      for (const n of load.graph.nodes) nodeMeta.set(n.path, { type: n.type, color: n.color });
+    }
     return layout.map((p) => {
       const degree = degreeMap.get(p.id) ?? 0;
       const r = scaleRadius(degree, maxDegree);
+      const meta = nodeMeta.get(p.id);
       return {
         id: p.id,
         x: p.x,
@@ -184,13 +242,15 @@ export function GlobalGraph(): JSX.Element {
         r,
         degree,
         title: titleMap.get(p.id) ?? p.id,
+        type: meta?.type ?? null,
+        color: meta?.color ?? null,
       };
     });
-  }, [layout, degreeMap, titleMap]);
+  }, [layout, degreeMap, titleMap, load]);
 
   const canvasEdges = useMemo<CanvasEdge[]>(() => {
     if (load.kind !== 'ready') return [];
-    return load.graph.edges.map((e) => ({ source: e.source, target: e.target }));
+    return load.graph.edges.map((e) => ({ source: e.source, target: e.target, kind: e.kind }));
   }, [load]);
 
   // Search filter. Empty query disables filtering; otherwise we collect
@@ -211,6 +271,37 @@ export function GlobalGraph(): JSX.Element {
     const set = adjacency.get(selectedId);
     return set ?? EMPTY_SET;
   }, [selectedId, adjacency]);
+
+  // Legend data: when a type chip is active show only that type; otherwise all.
+  const legendTypes = useMemo(() => {
+    if (selectedType === null)
+      return typeChips.map((t) => ({ id: t.id, label: t.label, color: t.color }));
+    const active = typeChips.find((t) => t.id === selectedType);
+    if (active === undefined) return [];
+    return [{ id: active.id, label: active.label, color: active.color }];
+  }, [typeChips, selectedType]);
+
+  const legendKinds = useMemo(() => {
+    if (selectedKinds.size === 0) return [];
+    return Array.from(selectedKinds).sort();
+  }, [selectedKinds]);
+
+  // Clear stale selections when a vault switch brings in a new graph that
+  // no longer contains the previously selected type or kinds.
+  useEffect(() => {
+    if (load.kind !== 'ready') return;
+    if (selectedType !== null && !typeChips.some((t) => t.id === selectedType)) {
+      setSelectedType(null);
+    }
+    if (selectedKinds.size > 0) {
+      const validKinds = new Set(kindOptions);
+      const stale = Array.from(selectedKinds).some((k) => !validKinds.has(k));
+      if (stale) {
+        const next = new Set(Array.from(selectedKinds).filter((k) => validKinds.has(k)));
+        setSelectedKinds(next);
+      }
+    }
+  }, [load, typeChips, kindOptions, selectedType, selectedKinds]);
 
   // Compute fit-to-screen view. Called once when the layout is ready
   // and again whenever the user clicks the "fit" button.
@@ -415,56 +506,77 @@ export function GlobalGraph(): JSX.Element {
 
   return (
     <div className="flex h-full w-full flex-col bg-bg">
-      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-bg-subtle px-3 py-2">
-        <div className="flex min-w-0 items-baseline gap-3">
-          <h1 className="truncate text-sm font-semibold text-fg">Grafo globale</h1>
-          {isReady && (
-            <span className="truncate text-xs text-fg-muted">
-              {nodeCount} {nodeCount === 1 ? 'nodo' : 'nodi'} · {edgeCount}{' '}
-              {edgeCount === 1 ? 'arco' : 'archi'}
-            </span>
-          )}
+      <header className="flex shrink-0 flex-col gap-2 border-b border-border bg-bg-subtle px-3 py-2">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-baseline gap-3">
+            <h1 className="truncate text-sm font-semibold text-fg">Grafo globale</h1>
+            {isReady && (
+              <span className="truncate text-xs text-fg-muted">
+                {nodeCount} {nodeCount === 1 ? 'nodo' : 'nodi'} · {edgeCount}{' '}
+                {edgeCount === 1 ? 'arco' : 'archi'}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={search}
+              onChange={(e): void => setSearch(e.target.value)}
+              placeholder="Filtra per titolo…"
+              className="w-48 rounded border border-border bg-bg px-2 py-1 text-xs text-fg outline-none placeholder:text-fg-muted focus:border-fg-muted"
+              spellCheck={false}
+              autoComplete="off"
+              autoCorrect="off"
+              aria-label="Filtra nodi per titolo"
+            />
+            <div className="flex items-center gap-0.5">
+              <button
+                type="button"
+                onClick={(): void => handleZoom(1 / ZOOM_STEP)}
+                className="rounded px-2 py-1 text-xs text-fg-subtle hover:bg-bg-muted hover:text-fg"
+                title="Zoom out"
+                aria-label="Diminuisci zoom"
+              >
+                −
+              </button>
+              <button
+                type="button"
+                onClick={(): void => handleZoom(ZOOM_STEP)}
+                className="rounded px-2 py-1 text-xs text-fg-subtle hover:bg-bg-muted hover:text-fg"
+                title="Zoom in"
+                aria-label="Aumenta zoom"
+              >
+                +
+              </button>
+              <button
+                type="button"
+                onClick={fitToScreen}
+                className="rounded px-2 py-1 text-xs text-fg-subtle hover:bg-bg-muted hover:text-fg"
+                title="Adatta alla finestra"
+                aria-label="Adatta alla finestra"
+              >
+                Adatta
+              </button>
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={search}
-            onChange={(e): void => setSearch(e.target.value)}
-            placeholder="Filtra per titolo…"
-            className="w-48 rounded border border-border bg-bg px-2 py-1 text-xs text-fg outline-none placeholder:text-fg-muted focus:border-fg-muted"
-            spellCheck={false}
-            autoComplete="off"
-            autoCorrect="off"
-            aria-label="Filtra nodi per titolo"
-          />
-          <div className="flex items-center gap-0.5">
-            <button
-              type="button"
-              onClick={(): void => handleZoom(1 / ZOOM_STEP)}
-              className="rounded px-2 py-1 text-xs text-fg-subtle hover:bg-bg-muted hover:text-fg"
-              title="Zoom out"
-              aria-label="Diminuisci zoom"
-            >
-              −
-            </button>
-            <button
-              type="button"
-              onClick={(): void => handleZoom(ZOOM_STEP)}
-              className="rounded px-2 py-1 text-xs text-fg-subtle hover:bg-bg-muted hover:text-fg"
-              title="Zoom in"
-              aria-label="Aumenta zoom"
-            >
-              +
-            </button>
-            <button
-              type="button"
-              onClick={fitToScreen}
-              className="rounded px-2 py-1 text-xs text-fg-subtle hover:bg-bg-muted hover:text-fg"
-              title="Adatta alla finestra"
-              aria-label="Adatta alla finestra"
-            >
-              Adatta
-            </button>
+        <div className="flex items-center justify-between gap-2">
+          <TypeChips types={typeChips} selectedType={selectedType} onChange={setSelectedType} />
+          <div className="flex items-center gap-2">
+            <KindFilterDropdown
+              kinds={kindOptions}
+              selectedKinds={selectedKinds}
+              onChange={setSelectedKinds}
+            />
+            <label className="flex items-center gap-1 text-xs text-fg-subtle">
+              <input
+                type="checkbox"
+                checked={clusterOverlayOn}
+                onChange={(e): void => setClusterOverlayOn(e.target.checked)}
+                className="h-3 w-3"
+              />
+              Mostra cluster
+            </label>
           </div>
         </div>
       </header>
@@ -502,7 +614,13 @@ export function GlobalGraph(): JSX.Element {
             onWheel={handleWheel}
             onBackgroundClick={handleBackgroundClick}
             panning={panning}
+            clusterOverlayOn={clusterOverlayOn}
+            highlightType={selectedType}
+            highlightKinds={selectedKinds}
           />
+        )}
+        {load.kind === 'ready' && nodeCount > 0 && (
+          <Legend visibleTypes={legendTypes} visibleKinds={legendKinds} />
         )}
       </div>
     </div>
@@ -510,6 +628,7 @@ export function GlobalGraph(): JSX.Element {
 }
 
 const EMPTY_SET: ReadonlySet<NotePath> = new Set<NotePath>();
+const EMPTY_STRING_SET: ReadonlySet<string> = new Set<string>();
 
 function clamp(n: number, lo: number, hi: number): number {
   if (n < lo) return lo;

@@ -57,3 +57,12 @@ export const GRAPH_LABEL_TOP_DEGREE_QUANTILE = 0.85;
  * competing with the highlighted neighbours.
  */
 export const GRAPH_DIM_OPACITY = 0.18;
+
+/**
+ * v1.0 Phase 5: same-type cluster bias coefficient for the global
+ * graph. Larger = tighter type clusters, smaller = clusters loosen
+ * and node positions are dominated by edges + repulsion. 0.3 was
+ * tuned against a synthetic 2-type / 20-node graph: visible
+ * clustering without nodes piling on top of each other.
+ */
+export const GRAPH_CLUSTER_STRENGTH = 0.3;

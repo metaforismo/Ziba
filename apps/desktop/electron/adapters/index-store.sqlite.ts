@@ -309,7 +309,21 @@ export class SqliteIndexStore implements IndexStoreAdapter {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `),
       clearProps: db.prepare(`DELETE FROM note_properties`),
-      graphNodes: db.prepare(`SELECT path, title FROM notes`),
+      graphNodes: db.prepare(`
+        SELECT
+          n.path  AS path,
+          n.title AS title,
+          np.text_value AS type,
+          ot.color      AS color
+        FROM notes n
+        LEFT JOIN note_properties np
+          ON np.source_path = n.path
+         AND np.prop_key = 'type'
+         AND np.prop_type = 'text'
+         AND np.text_value IS NOT NULL
+         AND np.text_value <> ''
+        LEFT JOIN object_types ot ON ot.id = np.text_value
+      `),
       graphEdges: db.prepare(`
         SELECT r.source_path AS source,
                r.target_path  AS target,
@@ -858,16 +872,29 @@ export class SqliteIndexStore implements IndexStoreAdapter {
 
   async getFullGraph(): Promise<FullGraph> {
     const s = this.require();
-    type NodeRow = { path: string; title: string };
-    type EdgeRow = { source: string; target: string; target_title: string };
+    type NodeRow = {
+      path: string;
+      title: string;
+      type: string | null;
+      color: string | null;
+    };
+    type EdgeRow = {
+      source: string;
+      target: string;
+      target_title: string;
+      kind: string;
+    };
     const nodes = (s.graphNodes.all() as NodeRow[]).map((r) => ({
       path: r.path,
       title: r.title,
+      type: r.type,
+      color: r.color,
     }));
     const edges = (s.graphEdges.all() as EdgeRow[]).map((r) => ({
       source: r.source,
       target: r.target,
       targetTitle: r.target_title,
+      kind: r.kind,
     }));
     return Promise.resolve({ nodes, edges });
   }

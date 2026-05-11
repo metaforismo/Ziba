@@ -1,9 +1,19 @@
-import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef } from 'react';
+import {
+  forwardRef,
+  memo,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+} from 'react';
 import type { NotePath } from '@ziba/core';
 import {
   GRAPH_DIM_OPACITY as DIM_OPACITY,
   GRAPH_LABEL_TOP_DEGREE_QUANTILE as LABEL_TOP_DEGREE_QUANTILE,
 } from '../../lib/graph-tuning';
+import { kindToHsl } from '../../lib/kind-color';
+import { HullsLayer } from './HullsLayer';
 
 /**
  * Stylable graph node with the bits the canvas needs to render. We keep
@@ -20,11 +30,17 @@ export type CanvasNode = {
   title: string;
   /** Pre-computed degree so the canvas can decide whether to label it. */
   degree: number;
+  /** v1.0 Phase 5: type slug (null = untyped). */
+  type: string | null;
+  /** v1.0 Phase 5: hex color from the type's schema; canvas tints the fill. */
+  color: string | null;
 };
 
 export type CanvasEdge = {
   source: NotePath;
   target: NotePath;
+  /** v1.0 Phase 5: relation kind. `''` = generic body wikilink. */
+  kind: string;
 };
 
 /** Initial transform handed to the canvas. */
@@ -75,6 +91,15 @@ type Props = {
   onBackgroundClick(): void;
   /** True while a pan gesture is in progress; switches to grabbing cursor. */
   panning: boolean;
+  /** v1.0 Phase 5: when true, render convex-hull overlays per type. */
+  clusterOverlayOn: boolean;
+  /** v1.0 Phase 5: when non-null, fade nodes/edges not matching this type. */
+  highlightType: string | null;
+  /**
+   * v1.0 Phase 5: when non-empty, only edges whose `kind` is in this
+   * set render at full opacity. Empty set means "all kinds shown".
+   */
+  highlightKinds: ReadonlySet<string>;
 };
 
 // Below this scale we hide labels entirely — they pile up and become
@@ -89,11 +114,13 @@ const NODE_FILL = 'rgb(var(--accent) / 0.18)';
 const NODE_STROKE = 'rgb(var(--accent))';
 const NODE_FILL_DIM = 'rgb(var(--bg-muted))';
 const NODE_STROKE_DIM = 'rgb(var(--border))';
-const EDGE_STROKE = 'rgb(var(--fg-muted) / 0.4)';
+// EDGE_STROKE removed: edges now use kindToHsl() for per-kind color.
 const EDGE_STROKE_HIGHLIGHT = 'rgb(var(--accent))';
 const LABEL_FILL = 'rgb(var(--fg))';
 
 const FULL_OPACITY = 1;
+
+const EMPTY_STRING_SET: ReadonlySet<string> = new Set();
 
 function transformString(view: CanvasView): string {
   return `translate(${view.tx} ${view.ty}) scale(${view.scale})`;
@@ -127,6 +154,9 @@ export const Canvas = memo(
       onWheel,
       onBackgroundClick,
       panning,
+      clusterOverlayOn,
+      highlightType,
+      highlightKinds,
     } = props;
 
     // The single source of truth for the live transform. We mirror it
@@ -177,6 +207,19 @@ export const Canvas = memo(
     const isFiltered = matchedIds.size > 0;
     const hasSelection = selectedId !== null;
 
+    // When a specific type is highlighted, hide every other type's hull
+    // so the visual focus matches the dimmed nodes.
+    const hiddenHullTypes = useMemo<ReadonlySet<string>>(() => {
+      if (highlightType === null) return EMPTY_STRING_SET;
+      const set = new Set<string>();
+      for (const n of nodes) {
+        if (n.type !== null && n.type !== '' && n.type !== highlightType) {
+          set.add(n.type);
+        }
+      }
+      return set;
+    }, [nodes, highlightType]);
+
     const handleNodeClick = useCallback(
       (e: React.MouseEvent<SVGGElement>, id: NotePath) => {
         e.stopPropagation();
@@ -224,6 +267,7 @@ export const Canvas = memo(
         </defs>
 
         <g ref={transformRef} transform={transformString(initialView)}>
+          {clusterOverlayOn && <HullsLayer nodes={nodes} hiddenTypes={hiddenHullTypes} />}
           {/* Edges first so node circles paint on top. */}
           <g pointerEvents="none">
             {edges.map((e, i) => {
@@ -232,7 +276,17 @@ export const Canvas = memo(
               if (a === null || b === null) return null;
               const highlight =
                 hasSelection && (e.source === selectedId || e.target === selectedId);
+              // When a node is selected (highlight), use accent color regardless of kind —
+              // the selection visual takes precedence over kind information.
+              const kindColor = kindToHsl(e.kind);
+              const stroke = highlight ? EDGE_STROKE_HIGHLIGHT : kindColor;
+              const dimByKindFilter = highlightKinds.size > 0 && !highlightKinds.has(e.kind);
+              const dimByTypeFilter =
+                highlightType !== null &&
+                !(nodeMatchesType(a, highlightType) && nodeMatchesType(b, highlightType));
               const dim =
+                dimByKindFilter ||
+                dimByTypeFilter ||
                 (hasSelection && !highlight) ||
                 (isFiltered && !(matchedIds.has(e.source) && matchedIds.has(e.target)));
               return (
@@ -242,7 +296,7 @@ export const Canvas = memo(
                   y1={a.y}
                   x2={b.x}
                   y2={b.y}
-                  stroke={highlight ? EDGE_STROKE_HIGHLIGHT : EDGE_STROKE}
+                  stroke={stroke}
                   strokeWidth={highlight ? 1.2 : 0.8}
                   opacity={dim ? DIM_OPACITY : FULL_OPACITY}
                   markerEnd="url(#global-graph-arrow)"
@@ -257,8 +311,17 @@ export const Canvas = memo(
               const isSelected = selectedId === n.id;
               const isNeighbor = neighborIds.has(n.id);
               const matchesFilter = !isFiltered || matchedIds.has(n.id);
+              // When highlightType is null the filter is inactive — no node should be dimmed
+              // purely because of type. When non-null, only nodes of that type stay bright.
+              const isHighlightedByType = highlightType === null || n.type === highlightType;
+              // Type filter takes unconditional precedence: even a
+              // neighbour of the selected node is dimmed when it sits
+              // outside the active type scope. This keeps node dimming
+              // visually consistent with the hull visibility rule.
               const dim =
-                (hasSelection && !isSelected && !isNeighbor) || (isFiltered && !matchesFilter);
+                (hasSelection && !isSelected && !isNeighbor) ||
+                (isFiltered && !matchesFilter) ||
+                !isHighlightedByType;
               const opacity = dim ? DIM_OPACITY : FULL_OPACITY;
               const labelEligible = showLabels && n.degree >= labelDegreeThreshold;
               return (
@@ -278,7 +341,15 @@ export const Canvas = memo(
                   <title>{n.title}</title>
                   <circle
                     r={n.r}
-                    fill={dim ? NODE_FILL_DIM : isSelected ? NODE_STROKE : NODE_FILL}
+                    fill={
+                      dim
+                        ? NODE_FILL_DIM
+                        : isSelected
+                          ? NODE_STROKE
+                          : n.color !== null
+                            ? n.color
+                            : NODE_FILL
+                    }
                     stroke={dim ? NODE_STROKE_DIM : NODE_STROKE}
                     strokeWidth={isSelected ? 2 : 1}
                   />
@@ -303,6 +374,10 @@ export const Canvas = memo(
     );
   }),
 );
+
+function nodeMatchesType(n: CanvasNode, type: string): boolean {
+  return n.type === type;
+}
 
 // Linear scan because for n < 1000 it is faster than building a Map
 // (the constant factor of the hash function dominates), and we already
