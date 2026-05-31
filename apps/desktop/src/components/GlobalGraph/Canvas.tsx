@@ -100,6 +100,15 @@ type Props = {
    * set render at full opacity. Empty set means "all kinds shown".
    */
   highlightKinds: ReadonlySet<string>;
+  /** Display controls. Defaults keep the graph fully visible. */
+  showLinks?: boolean;
+  showNodes?: boolean;
+  showText?: boolean;
+  showArrows?: boolean;
+  /** Base opacity for non-highlighted links. */
+  linkOpacity?: number;
+  /** When true, dimmed graph elements recede harder so the focus pops. */
+  focusMode?: boolean;
 };
 
 // Below this scale we hide labels entirely — they pile up and become
@@ -123,6 +132,7 @@ const CANVAS_GRID = 'rgb(var(--border) / 0.32)';
 const CANVAS_HALO = 'rgb(var(--accent) / 0.08)';
 
 const FULL_OPACITY = 1;
+const DEFAULT_LINK_OPACITY = 0.32;
 
 const EMPTY_STRING_SET: ReadonlySet<string> = new Set();
 
@@ -161,6 +171,12 @@ export const Canvas = memo(
       clusterOverlayOn,
       highlightType,
       highlightKinds,
+      showLinks = true,
+      showNodes = true,
+      showText = true,
+      showArrows = true,
+      linkOpacity = DEFAULT_LINK_OPACITY,
+      focusMode = false,
     } = props;
 
     // The single source of truth for the live transform. We mirror it
@@ -220,6 +236,7 @@ export const Canvas = memo(
 
     const isFiltered = matchedIds.size > 0;
     const hasSelection = selectedId !== null;
+    const dimOpacity = focusMode ? Math.max(0.08, DIM_OPACITY * 0.55) : DIM_OPACITY;
 
     // When a specific type is highlighted, hide every other type's hull
     // so the visual focus matches the dimmed nodes.
@@ -302,106 +319,125 @@ export const Canvas = memo(
         <g ref={transformRef} transform={transformString(initialView)}>
           {clusterOverlayOn && <HullsLayer nodes={nodes} hiddenTypes={hiddenHullTypes} />}
           {/* Edges first so node circles paint on top. */}
-          <g pointerEvents="none">
-            {edges.map((e, i) => {
-              const a = nodeById.get(e.source) ?? null;
-              const b = nodeById.get(e.target) ?? null;
-              if (a === null || b === null) return null;
-              const highlight =
-                hasSelection && (e.source === selectedId || e.target === selectedId);
-              // When a node is selected (highlight), use accent color regardless of kind —
-              // the selection visual takes precedence over kind information.
-              const kindColor = kindToHsl(e.kind);
-              const stroke = highlight ? EDGE_STROKE_HIGHLIGHT : kindColor;
-              const dimByKindFilter = highlightKinds.size > 0 && !highlightKinds.has(e.kind);
-              const dimByTypeFilter =
-                highlightType !== null &&
-                !(nodeMatchesType(a, highlightType) && nodeMatchesType(b, highlightType));
-              const dim =
-                dimByKindFilter ||
-                dimByTypeFilter ||
-                (hasSelection && !highlight) ||
-                (isFiltered && !(matchedIds.has(e.source) && matchedIds.has(e.target)));
-              return (
-                <line
-                  key={`${e.source}->${e.target}-${i}`}
-                  x1={a.x}
-                  y1={a.y}
-                  x2={b.x}
-                  y2={b.y}
-                  stroke={stroke}
-                  strokeWidth={highlight ? 1.2 : 0.8}
-                  opacity={dim ? DIM_OPACITY : FULL_OPACITY}
-                  markerEnd="url(#global-graph-arrow)"
-                />
-              );
-            })}
-          </g>
+          {showLinks && (
+            <g pointerEvents="none">
+              {edges.map((e, i) => {
+                const a = nodeById.get(e.source) ?? null;
+                const b = nodeById.get(e.target) ?? null;
+                if (a === null || b === null) return null;
+                const highlight =
+                  hasSelection && (e.source === selectedId || e.target === selectedId);
+                // When a node is selected (highlight), use accent color regardless of kind —
+                // the selection visual takes precedence over kind information.
+                const kindColor = kindToHsl(e.kind);
+                const stroke = highlight ? EDGE_STROKE_HIGHLIGHT : kindColor;
+                const dimByKindFilter = highlightKinds.size > 0 && !highlightKinds.has(e.kind);
+                const dimByTypeFilter =
+                  highlightType !== null &&
+                  !(nodeMatchesType(a, highlightType) && nodeMatchesType(b, highlightType));
+                const dim =
+                  dimByKindFilter ||
+                  dimByTypeFilter ||
+                  (hasSelection && !highlight) ||
+                  (isFiltered && !(matchedIds.has(e.source) && matchedIds.has(e.target)));
+                const opacity = dim
+                  ? Math.min(linkOpacity, dimOpacity)
+                  : highlight
+                    ? Math.min(FULL_OPACITY, linkOpacity * 2.4)
+                    : linkOpacity;
+                const d = curvedEdgePath(a, b, i);
+                return (
+                  <path
+                    key={`${e.source}->${e.target}-${i}`}
+                    data-graph-edge="true"
+                    d={d}
+                    fill="none"
+                    stroke={stroke}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={highlight ? 1.8 : 1}
+                    opacity={opacity}
+                    markerEnd={showArrows ? 'url(#global-graph-arrow)' : undefined}
+                  />
+                );
+              })}
+            </g>
+          )}
 
           {/* Nodes. */}
-          <g>
-            {nodes.map((n) => {
-              const isSelected = selectedId === n.id;
-              const isNeighbor = neighborIds.has(n.id);
-              const matchesFilter = !isFiltered || matchedIds.has(n.id);
-              // When highlightType is null the filter is inactive — no node should be dimmed
-              // purely because of type. When non-null, only nodes of that type stay bright.
-              const isHighlightedByType = highlightType === null || n.type === highlightType;
-              // Type filter takes unconditional precedence: even a
-              // neighbour of the selected node is dimmed when it sits
-              // outside the active type scope. This keeps node dimming
-              // visually consistent with the hull visibility rule.
-              const dim =
-                (hasSelection && !isSelected && !isNeighbor) ||
-                (isFiltered && !matchesFilter) ||
-                !isHighlightedByType;
-              const opacity = dim ? DIM_OPACITY : FULL_OPACITY;
-              const labelEligible = showLabels && n.degree >= labelDegreeThreshold;
-              return (
-                <g
-                  key={n.id}
-                  transform={`translate(${n.x},${n.y})`}
-                  className="cursor-pointer"
-                  onClick={(e): void => handleNodeClick(e, n.id)}
-                  onDoubleClick={(e): void => handleNodeDoubleClick(e, n.id)}
-                  opacity={opacity}
-                >
-                  {/*
+          {showNodes && (
+            <g>
+              {nodes.map((n) => {
+                const isSelected = selectedId === n.id;
+                const isNeighbor = neighborIds.has(n.id);
+                const matchesFilter = !isFiltered || matchedIds.has(n.id);
+                // When highlightType is null the filter is inactive — no node should be dimmed
+                // purely because of type. When non-null, only nodes of that type stay bright.
+                const isHighlightedByType = highlightType === null || n.type === highlightType;
+                // Type filter takes unconditional precedence: even a
+                // neighbour of the selected node is dimmed when it sits
+                // outside the active type scope. This keeps node dimming
+                // visually consistent with the hull visibility rule.
+                const dim =
+                  (hasSelection && !isSelected && !isNeighbor) ||
+                  (isFiltered && !matchesFilter) ||
+                  !isHighlightedByType;
+                const opacity = dim ? dimOpacity : FULL_OPACITY;
+                const labelEligible = showText && showLabels && n.degree >= labelDegreeThreshold;
+                return (
+                  <g
+                    key={n.id}
+                    transform={`translate(${n.x},${n.y})`}
+                    className="cursor-pointer"
+                    onClick={(e): void => handleNodeClick(e, n.id)}
+                    onDoubleClick={(e): void => handleNodeDoubleClick(e, n.id)}
+                    opacity={opacity}
+                  >
+                    {/*
                     Native browser tooltip — cheap, accessible, and
                     avoids re-mounting an HTML overlay on hover. For
                     1000 nodes that matters.
                   */}
-                  <title>{n.title}</title>
-                  <circle
-                    r={n.r}
-                    fill={
-                      dim
-                        ? NODE_FILL_DIM
-                        : isSelected
-                          ? NODE_STROKE
-                          : n.color !== null
-                            ? n.color
-                            : NODE_FILL
-                    }
-                    stroke={dim ? NODE_STROKE_DIM : NODE_STROKE}
-                    strokeWidth={isSelected ? 2 : 1}
-                  />
-                  {labelEligible && (
-                    <text
-                      x={n.r + 3}
-                      y={3}
-                      fontSize={9}
-                      fontWeight={500}
-                      fill={LABEL_FILL}
-                      pointerEvents="none"
-                    >
-                      {truncate(n.title, 24)}
-                    </text>
-                  )}
-                </g>
-              );
-            })}
-          </g>
+                    <title>{n.title}</title>
+                    {isSelected && (
+                      <circle
+                        r={n.r + 8}
+                        fill="rgb(var(--accent) / 0.12)"
+                        stroke="rgb(var(--accent) / 0.28)"
+                        strokeWidth={1}
+                      />
+                    )}
+                    <circle
+                      r={n.r}
+                      fill={
+                        dim
+                          ? NODE_FILL_DIM
+                          : isSelected
+                            ? NODE_STROKE
+                            : n.color !== null
+                              ? n.color
+                              : NODE_FILL
+                      }
+                      stroke={dim ? NODE_STROKE_DIM : NODE_STROKE}
+                      strokeWidth={isSelected ? 2 : 1}
+                    />
+                    {labelEligible && (
+                      <text
+                        x={n.r + 3}
+                        y={3}
+                        fontSize={9}
+                        fontWeight={500}
+                        fill={LABEL_FILL}
+                        pointerEvents="none"
+                      >
+                        {truncate(n.title, 24)}
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
+            </g>
+          )}
         </g>
       </svg>
     );
@@ -410,6 +446,21 @@ export const Canvas = memo(
 
 function nodeMatchesType(n: CanvasNode, type: string): boolean {
   return n.type === type;
+}
+
+function curvedEdgePath(a: CanvasNode, b: CanvasNode, index: number): string {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const distance = Math.hypot(dx, dy) || 1;
+  const midpointX = (a.x + b.x) / 2;
+  const midpointY = (a.y + b.y) / 2;
+  const normalX = -dy / distance;
+  const normalY = dx / distance;
+  const direction = index % 2 === 0 ? 1 : -1;
+  const curve = Math.min(42, Math.max(10, distance * 0.08)) * direction;
+  const controlX = midpointX + normalX * curve;
+  const controlY = midpointY + normalY * curve;
+  return `M ${a.x} ${a.y} Q ${controlX} ${controlY} ${b.x} ${b.y}`;
 }
 
 function labelDegreeAtQuantile(nodes: CanvasNode[], q: number): number {

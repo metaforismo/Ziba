@@ -17,10 +17,10 @@ describe('<GraphSettingsPanel>', () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { name: 'Filters' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Groups' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Display' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Forces' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Filtri' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Gruppi colore' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Aspetto' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Fisica' })).toBeInTheDocument();
   });
 
   it('emits real setting updates from filters, display, and forces controls', () => {
@@ -40,16 +40,16 @@ describe('<GraphSettingsPanel>', () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'tag:#idea' } });
+    fireEvent.change(screen.getByLabelText('Cerca nel grafo'), { target: { value: 'tag:#idea' } });
     expect(onQueryChange).toHaveBeenCalledWith({ search: 'tag:#idea' });
 
-    fireEvent.click(screen.getByLabelText('Include orphans'));
+    fireEvent.click(screen.getByLabelText('Orfani'));
     expect(onQueryChange).toHaveBeenCalledWith({ includeOrphans: false });
 
-    fireEvent.click(screen.getByLabelText('Text labels'));
+    fireEvent.click(screen.getByLabelText('Etichette'));
     expect(onDisplayChange).toHaveBeenCalledWith({ showText: false });
 
-    fireEvent.change(screen.getByLabelText('Repel'), { target: { value: '260' } });
+    fireEvent.change(screen.getByLabelText('Repulsione'), { target: { value: '260' } });
     expect(onForcesChange).toHaveBeenCalledWith({ repel: 260 });
   });
 
@@ -82,20 +82,20 @@ describe('<GraphSettingsPanel>', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add group' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Nuovo gruppo' }));
     expect(onAddGroup).toHaveBeenCalledWith({
-      name: 'New group',
+      name: 'Nuovo gruppo',
       query: '',
       color: expect.stringMatching(/^#[0-9a-f]{6}$/),
     });
 
-    fireEvent.click(screen.getByLabelText('Enable People'));
+    fireEvent.click(screen.getByLabelText('Abilita People'));
     expect(onUpdateGroup).toHaveBeenCalledWith('people', { enabled: false });
 
     fireEvent.change(screen.getByLabelText('People query'), { target: { value: 'tag:#team' } });
     expect(onUpdateGroup).toHaveBeenCalledWith('people', { query: 'tag:#team' });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Remove People' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Rimuovi People' }));
     expect(onRemoveGroup).toHaveBeenCalledWith('people');
   });
 });

@@ -25,6 +25,7 @@ import {
   type LayoutNode,
 } from '../MiniGraph/layout';
 import { GRAPH_CLUSTER_STRENGTH } from '../../lib/graph-tuning';
+import type { GraphForceSettings } from '../../lib/graph-settings';
 
 export type { LayoutEdge, LayoutNode };
 
@@ -39,6 +40,8 @@ export type GlobalLayoutOptions = {
    * derive a good default in `runGlobalLayout` based on `nodes.length`.
    */
   iterations?: number;
+  /** Optional user-facing force controls from the graph settings panel. */
+  forces?: GraphForceSettings;
 };
 
 // Force constants tuned for vault-scale graphs (50–1000 nodes).
@@ -57,6 +60,31 @@ const GLOBAL_DEFAULTS = {
   damping: 0.82,
   kCenter: 0.01,
 } as const;
+
+export function resolveGlobalForces(forces: GraphForceSettings | undefined): {
+  kRepulsive: number;
+  kAttractive: number;
+  restLen: number;
+  damping: number;
+  kCenter: number;
+  kClusterStrength: number;
+} {
+  if (forces === undefined) {
+    return {
+      ...GLOBAL_DEFAULTS,
+      kClusterStrength: GRAPH_CLUSTER_STRENGTH,
+    };
+  }
+
+  return {
+    kRepulsive: Math.max(0, forces.repel) * (12 + Math.max(0, forces.nodeDistance) / 16),
+    kAttractive: Math.max(0, forces.link) * 0.32,
+    restLen: Math.max(10, forces.linkDistance),
+    damping: GLOBAL_DEFAULTS.damping,
+    kCenter: Math.max(0, forces.center) * 0.14,
+    kClusterStrength: GRAPH_CLUSTER_STRENGTH * (1 + Math.max(0, forces.nodeDistance) / 420),
+  };
+}
 
 /**
  * Heuristic iteration count.
@@ -123,16 +151,17 @@ export function runGlobalLayout(
   opts: GlobalLayoutOptions,
 ): LayoutNode[] {
   const iterations = opts.iterations ?? defaultIterations(nodes.length);
+  const forces = resolveGlobalForces(opts.forces);
   return miniSimulateLayout(nodes, edges, {
     width: opts.width,
     height: opts.height,
     iterations,
-    kRepulsive: GLOBAL_DEFAULTS.kRepulsive,
-    kAttractive: GLOBAL_DEFAULTS.kAttractive,
-    restLen: GLOBAL_DEFAULTS.restLen,
-    damping: GLOBAL_DEFAULTS.damping,
-    kCenter: GLOBAL_DEFAULTS.kCenter,
-    kClusterStrength: GRAPH_CLUSTER_STRENGTH,
+    kRepulsive: forces.kRepulsive,
+    kAttractive: forces.kAttractive,
+    restLen: forces.restLen,
+    damping: forces.damping,
+    kCenter: forces.kCenter,
+    kClusterStrength: forces.kClusterStrength,
   });
 }
 

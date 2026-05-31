@@ -31,49 +31,54 @@ export function GraphSettingsPanel({
   const nextGroupColor = GROUP_COLORS[settings.groups.length % GROUP_COLORS.length] ?? '#6366f1';
 
   return (
-    <aside className="absolute right-3 top-3 z-10 flex max-h-[calc(100%-1.5rem)] w-72 flex-col overflow-hidden rounded-md border border-border/80 bg-bg-subtle/95 text-xs text-fg shadow-lg backdrop-blur">
-      <div className="border-b border-border/70 px-3 py-2">
-        <h2 className="text-[13px] font-semibold text-fg">Graph settings</h2>
+    <aside className="absolute right-4 top-4 z-10 flex max-h-[calc(100%-2rem)] w-80 max-w-[calc(100%-2rem)] flex-col overflow-hidden rounded-xl border border-border/80 bg-bg-subtle/95 text-xs text-fg shadow-xl shadow-black/10 backdrop-blur">
+      <div className="border-b border-border/70 px-3.5 py-3">
+        <h2 className="text-[13px] font-semibold text-fg">Controlli grafo</h2>
+        <p className="mt-0.5 text-[11px] leading-4 text-fg-muted">
+          Filtri, gruppi e fisica salvati per questo vault.
+        </p>
       </div>
       <div className="min-h-0 flex-1 space-y-4 overflow-auto p-3">
-        <PanelSection title="Filters">
+        <PanelSection title="Filtri">
           <label className={fieldClass}>
-            <span>Search</span>
+            <span>Cerca</span>
             <input
-              aria-label="Search"
+              aria-label="Cerca nel grafo"
               type="text"
               value={settings.query.search}
               onChange={(e): void => onQueryChange({ search: e.target.value })}
               className={inputClass}
-              placeholder="tag:#idea path:notes"
+              placeholder="type:person path:projects"
             />
           </label>
           <div className="grid grid-cols-2 gap-2">
             <Check
-              label="Include unresolved"
+              label="Nodi irrisolti"
               checked={settings.query.includeUnresolved}
               onChange={(checked): void => onQueryChange({ includeUnresolved: checked })}
+              disabledReason="Il motore del grafo non espone ancora i nodi non risolti."
             />
             <Check
-              label="Include orphans"
+              label="Orfani"
               checked={settings.query.includeOrphans}
               onChange={(checked): void => onQueryChange({ includeOrphans: checked })}
             />
             <Check
-              label="Existing only"
+              label="Solo esistenti"
               checked={settings.query.existingOnly}
               onChange={(checked): void => onQueryChange({ existingOnly: checked })}
+              disabledReason="Disponibile quando il grafo distinguerà file reali e riferimenti mancanti."
             />
             <Check
-              label="Focus mode"
+              label="Focus"
               checked={settings.query.focusMode}
               onChange={(checked): void => onQueryChange({ focusMode: checked })}
             />
           </div>
           <label className={fieldClass}>
-            <span>Local depth</span>
+            <span>Profondità</span>
             <input
-              aria-label="Local depth"
+              aria-label="Profondità locale"
               type="number"
               min={0}
               max={6}
@@ -85,27 +90,30 @@ export function GraphSettingsPanel({
         </PanelSection>
 
         <PanelSection
-          title="Groups"
+          title="Gruppi colore"
           action={
             <button
               type="button"
               onClick={(): void =>
-                onAddGroup({ name: 'New group', query: '', color: nextGroupColor })
+                onAddGroup({ name: 'Nuovo gruppo', query: '', color: nextGroupColor })
               }
-              className="rounded border border-border/80 px-2 py-0.5 text-[11px] text-fg-subtle hover:bg-bg-muted hover:text-fg"
+              className="rounded-md border border-border/80 px-2 py-0.5 text-[11px] text-fg-subtle transition hover:bg-bg-muted hover:text-fg"
             >
-              Add group
+              Nuovo gruppo
             </button>
           }
         >
           {settings.groups.length === 0 && (
-            <p className="text-[11px] leading-4 text-fg-muted">No group rules yet.</p>
+            <p className="text-[11px] leading-4 text-fg-muted">Nessuna regola colore.</p>
           )}
           {settings.groups.map((group) => (
-            <div key={group.id} className="space-y-2 rounded border border-border/60 p-2">
+            <div
+              key={group.id}
+              className="space-y-2 rounded-lg border border-border/60 bg-bg/60 p-2"
+            >
               <div className="flex items-center gap-2">
                 <input
-                  aria-label={`Enable ${group.name}`}
+                  aria-label={`Abilita ${group.name}`}
                   type="checkbox"
                   checked={group.enabled}
                   onChange={(e): void => onUpdateGroup(group.id, { enabled: e.target.checked })}
@@ -131,13 +139,13 @@ export function GraphSettingsPanel({
                   value={group.query}
                   onChange={(e): void => onUpdateGroup(group.id, { query: e.target.value })}
                   className={`${inputClass} min-w-0 flex-1`}
-                  placeholder="type:person OR tag:#team"
+                  placeholder="type:person OR path:team"
                 />
                 <button
                   type="button"
-                  aria-label={`Remove ${group.name}`}
+                  aria-label={`Rimuovi ${group.name}`}
                   onClick={(): void => onRemoveGroup(group.id)}
-                  className="h-7 w-7 rounded border border-border/80 text-fg-muted hover:bg-bg-muted hover:text-fg"
+                  className="h-7 w-7 rounded-md border border-border/80 text-fg-muted transition hover:bg-bg-muted hover:text-fg"
                 >
                   ×
                 </button>
@@ -146,34 +154,34 @@ export function GraphSettingsPanel({
           ))}
         </PanelSection>
 
-        <PanelSection title="Display">
+        <PanelSection title="Aspetto">
           <div className="grid grid-cols-2 gap-2">
             <Check
-              label="Arrows"
+              label="Frecce"
               checked={settings.display.showArrows}
               onChange={(checked): void => onDisplayChange({ showArrows: checked })}
             />
             <Check
-              label="Text labels"
+              label="Etichette"
               checked={settings.display.showText}
               onChange={(checked): void => onDisplayChange({ showText: checked })}
             />
             <Check
-              label="Nodes"
+              label="Nodi"
               checked={settings.display.showNodes}
               onChange={(checked): void => onDisplayChange({ showNodes: checked })}
             />
             <Check
-              label="Links"
+              label="Collegamenti"
               checked={settings.display.showLinks}
               onChange={(checked): void => onDisplayChange({ showLinks: checked })}
             />
           </div>
         </PanelSection>
 
-        <PanelSection title="Forces">
+        <PanelSection title="Fisica">
           <NumberControl
-            label="Center"
+            label="Centro"
             value={settings.forces.center}
             min={0}
             max={1}
@@ -181,7 +189,7 @@ export function GraphSettingsPanel({
             onChange={(center): void => onForcesChange({ center })}
           />
           <NumberControl
-            label="Repel"
+            label="Repulsione"
             value={settings.forces.repel}
             min={0}
             max={1200}
@@ -189,7 +197,7 @@ export function GraphSettingsPanel({
             onChange={(repel): void => onForcesChange({ repel })}
           />
           <NumberControl
-            label="Link"
+            label="Tensione link"
             value={settings.forces.link}
             min={0}
             max={1}
@@ -197,7 +205,7 @@ export function GraphSettingsPanel({
             onChange={(link): void => onForcesChange({ link })}
           />
           <NumberControl
-            label="Link distance"
+            label="Distanza link"
             value={settings.forces.linkDistance}
             min={10}
             max={320}
@@ -205,7 +213,7 @@ export function GraphSettingsPanel({
             onChange={(linkDistance): void => onForcesChange({ linkDistance })}
           />
           <NumberControl
-            label="Node distance"
+            label="Distanza nodi"
             value={settings.forces.nodeDistance}
             min={0}
             max={180}
@@ -213,7 +221,7 @@ export function GraphSettingsPanel({
             onChange={(nodeDistance): void => onForcesChange({ nodeDistance })}
           />
           <NumberControl
-            label="Link opacity"
+            label="Opacità link"
             value={settings.forces.linkOpacity}
             min={0}
             max={1}
@@ -250,17 +258,29 @@ function Check({
   label,
   checked,
   onChange,
+  disabledReason,
 }: {
   label: string;
   checked: boolean;
   onChange(checked: boolean): void;
+  disabledReason?: string;
 }): JSX.Element {
+  const isDisabled = disabledReason !== undefined;
   return (
-    <label className="flex items-center gap-1.5 rounded border border-border/60 bg-bg px-2 py-1.5 text-[11px] text-fg-subtle">
+    <label
+      className={[
+        'flex items-center gap-1.5 rounded-md border border-border/60 bg-bg px-2 py-1.5 text-[11px] transition',
+        isDisabled
+          ? 'cursor-not-allowed text-fg-muted/60'
+          : 'text-fg-subtle hover:border-fg-muted/40 hover:text-fg',
+      ].join(' ')}
+      title={disabledReason}
+    >
       <input
         aria-label={label}
         type="checkbox"
         checked={checked}
+        disabled={isDisabled}
         onChange={(e): void => onChange(e.target.checked)}
         className="h-3 w-3 accent-[rgb(var(--accent))]"
       />
@@ -302,6 +322,6 @@ function NumberControl({
 }
 
 const fieldClass =
-  'grid grid-cols-[88px_minmax(0,1fr)] items-center gap-2 text-[11px] text-fg-muted';
+  'grid grid-cols-[92px_minmax(0,1fr)] items-center gap-2 text-[11px] text-fg-muted';
 const inputClass =
-  'h-7 rounded border border-border/80 bg-bg px-2 text-xs text-fg outline-none focus:border-accent focus:ring-2 focus:ring-accent/15';
+  'h-7 rounded-md border border-border/80 bg-bg px-2 text-xs text-fg outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/15';

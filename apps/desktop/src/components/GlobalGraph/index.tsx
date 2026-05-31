@@ -6,6 +6,7 @@ import { ipcErrorMessage } from '../../lib/ipc-error';
 import { debounce } from '../../lib/debounce';
 import { GLOBAL_GRAPH_REFETCH_MS } from '../../lib/timings';
 import { navigateToNote } from '../../lib/navigate';
+import { deriveGraphView } from '../../lib/graph-view';
 import {
   Canvas,
   type CanvasEdge,
@@ -21,6 +22,7 @@ import { useTagsStore } from '../../stores/tags';
 import { useVaultStore } from '../../stores/vault';
 import { useGraphSettingsStore } from '../../stores/graph';
 import { GraphSettingsPanel } from './GraphSettingsPanel';
+import type { GraphGroupRule } from '../../lib/graph-settings';
 
 // Logical canvas the simulation runs on. The SVG `viewBox` matches
 // these numbers; on screen we just stretch to fill the container, with
@@ -50,10 +52,7 @@ type LoadState =
 
 export function GlobalGraph(): JSX.Element {
   const [load, setLoad] = useState<LoadState>({ kind: 'idle' });
-  const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<NotePath | null>(null);
-  const [selectedType, setSelectedType] = useState<string | null>(null);
-  const [selectedKinds, setSelectedKinds] = useState<ReadonlySet<string>>(EMPTY_STRING_SET);
   const [clusterOverlayOn, setClusterOverlayOn] = useState(false);
   // We bump `viewVersion` whenever we want to force the canvas to apply
   // a fresh `initialView` (fit-to-screen, +/- zoom button). Pan/wheel
@@ -74,6 +73,17 @@ export function GlobalGraph(): JSX.Element {
   const addGraphGroup = useGraphSettingsStore((s) => s.addGroup);
   const updateGraphGroup = useGraphSettingsStore((s) => s.updateGroup);
   const removeGraphGroup = useGraphSettingsStore((s) => s.removeGroup);
+  const search = graphSettings.query.search;
+  const selectedType = graphSettings.query.types[0] ?? null;
+  const selectedKinds = useMemo<ReadonlySet<string>>(
+    () => new Set(graphSettings.query.relationKinds),
+    [graphSettings.query.relationKinds],
+  );
+  const graphView = useMemo(
+    () => (load.kind === 'ready' ? deriveGraphView(load.graph, graphSettings) : null),
+    [load, graphSettings],
+  );
+  const visibleGraph = graphView?.graph ?? EMPTY_GRAPH;
 
   useEffect(() => {
     setGraphSettingsVaultRoot(currentVaultRoot);
@@ -135,11 +145,9 @@ export function GlobalGraph(): JSX.Element {
   // nodes (we don't need to expose the full graph object to the canvas).
   const titleMap = useMemo<Map<NotePath, string>>(() => {
     const m = new Map<NotePath, string>();
-    if (load.kind === 'ready') {
-      for (const n of load.graph.nodes) m.set(n.path, n.title);
-    }
+    for (const n of visibleGraph.nodes) m.set(n.path, n.title);
     return m;
-  }, [load]);
+  }, [visibleGraph]);
 
   // Chip list for the type filter row. Sources from the graph nodes so
   // only types actually present in this vault appear.
@@ -179,29 +187,26 @@ export function GlobalGraph(): JSX.Element {
   // path → type slug; feeds initializePositions for cluster-bias seeding.
   const typeById = useMemo<ReadonlyMap<NotePath, string | null>>(() => {
     const m = new Map<NotePath, string | null>();
-    if (load.kind !== 'ready') return m;
-    for (const n of load.graph.nodes) m.set(n.path, n.type);
+    for (const n of visibleGraph.nodes) m.set(n.path, n.type);
     return m;
-  }, [load]);
+  }, [visibleGraph]);
 
   // Degree counts (in + out). Used to scale node radius and decide
   // which nodes get labels at high zoom.
   const degreeMap = useMemo<Map<NotePath, number>>(() => {
     const m = new Map<NotePath, number>();
-    if (load.kind !== 'ready') return m;
-    for (const n of load.graph.nodes) m.set(n.path, 0);
-    for (const e of load.graph.edges) {
+    for (const n of visibleGraph.nodes) m.set(n.path, 0);
+    for (const e of visibleGraph.edges) {
       m.set(e.source, (m.get(e.source) ?? 0) + 1);
       m.set(e.target, (m.get(e.target) ?? 0) + 1);
     }
     return m;
-  }, [load]);
+  }, [visibleGraph]);
 
   // Adjacency for 1-hop highlight. Built once per graph (not per
   // selection), so clicking around is cheap.
   const adjacency = useMemo<Map<NotePath, Set<NotePath>>>(() => {
     const m = new Map<NotePath, Set<NotePath>>();
-    if (load.kind !== 'ready') return m;
     const ensure = (p: NotePath): Set<NotePath> => {
       let s = m.get(p);
       if (s === undefined) {
@@ -210,18 +215,18 @@ export function GlobalGraph(): JSX.Element {
       }
       return s;
     };
-    for (const e of load.graph.edges) {
+    for (const e of visibleGraph.edges) {
       ensure(e.source).add(e.target);
       ensure(e.target).add(e.source);
     }
     return m;
-  }, [load]);
+  }, [visibleGraph]);
 
   // Run the force simulation. The deps key is the graph identity, so
   // re-renders driven by selection / search / pan don't re-simulate.
   const layout = useMemo(() => {
     if (load.kind !== 'ready') return null;
-    const { nodes, edges } = load.graph;
+    const { nodes, edges } = visibleGraph;
     if (nodes.length === 0) return null;
     const positioned = initializePositions(
       nodes.map((n) => n.path),
@@ -232,10 +237,10 @@ export function GlobalGraph(): JSX.Element {
     runGlobalLayout(
       positioned,
       edges.map((e) => ({ source: e.source, target: e.target })),
-      { width: CANVAS_W, height: CANVAS_H },
+      { width: CANVAS_W, height: CANVAS_H, forces: graphSettings.forces },
     );
     return positioned;
-  }, [load, typeById]);
+  }, [load.kind, visibleGraph, typeById, graphSettings.forces]);
 
   // Build the canvas-level node list. Memoised so the Canvas's
   // `memo()` shallow comparison sees a stable reference unless the
@@ -244,8 +249,11 @@ export function GlobalGraph(): JSX.Element {
     if (layout === null) return [];
     const maxDegree = Array.from(degreeMap.values()).reduce((acc, v) => (v > acc ? v : acc), 0);
     const nodeMeta = new Map<NotePath, { type: string | null; color: string | null }>();
-    if (load.kind === 'ready') {
-      for (const n of load.graph.nodes) nodeMeta.set(n.path, { type: n.type, color: n.color });
+    for (const n of visibleGraph.nodes) {
+      nodeMeta.set(n.path, {
+        type: n.type,
+        color: groupColorForNode(n, graphSettings.groups) ?? n.color,
+      });
     }
     return layout.map((p) => {
       const degree = degreeMap.get(p.id) ?? 0;
@@ -262,25 +270,17 @@ export function GlobalGraph(): JSX.Element {
         color: meta?.color ?? null,
       };
     });
-  }, [layout, degreeMap, titleMap, load]);
+  }, [layout, degreeMap, titleMap, visibleGraph, graphSettings.groups]);
 
   const canvasEdges = useMemo<CanvasEdge[]>(() => {
-    if (load.kind !== 'ready') return [];
-    return load.graph.edges.map((e) => ({ source: e.source, target: e.target, kind: e.kind }));
-  }, [load]);
+    return visibleGraph.edges.map((e) => ({ source: e.source, target: e.target, kind: e.kind }));
+  }, [visibleGraph]);
 
-  // Search filter. Empty query disables filtering; otherwise we collect
-  // matching ids into a Set so the Canvas can do O(1) membership checks
-  // per node during render.
+  // Search/type/kind filters now remove nodes and links before layout,
+  // so the old Canvas-level dimming set stays empty.
   const matchedIds = useMemo<ReadonlySet<NotePath>>(() => {
-    const trimmed = search.trim().toLowerCase();
-    if (trimmed === '') return EMPTY_SET;
-    const out = new Set<NotePath>();
-    for (const [path, title] of titleMap) {
-      if (title.toLowerCase().includes(trimmed)) out.add(path);
-    }
-    return out;
-  }, [search, titleMap]);
+    return EMPTY_SET;
+  }, []);
 
   const neighborIds = useMemo<ReadonlySet<NotePath>>(() => {
     if (selectedId === null) return EMPTY_SET;
@@ -306,18 +306,32 @@ export function GlobalGraph(): JSX.Element {
   // no longer contains the previously selected type or kinds.
   useEffect(() => {
     if (load.kind !== 'ready') return;
-    if (selectedType !== null && !typeChips.some((t) => t.id === selectedType)) {
-      setSelectedType(null);
+    const validTypes = new Set(typeChips.map((t) => t.id));
+    const nextTypes = graphSettings.query.types.filter((type) => validTypes.has(type));
+    if (nextTypes.length !== graphSettings.query.types.length) {
+      updateGraphQuery({ types: nextTypes });
     }
-    if (selectedKinds.size > 0) {
-      const validKinds = new Set(kindOptions);
-      const stale = Array.from(selectedKinds).some((k) => !validKinds.has(k));
-      if (stale) {
-        const next = new Set(Array.from(selectedKinds).filter((k) => validKinds.has(k)));
-        setSelectedKinds(next);
-      }
+
+    const validKinds = new Set(kindOptions);
+    const nextKinds = graphSettings.query.relationKinds.filter((kind) => validKinds.has(kind));
+    if (nextKinds.length !== graphSettings.query.relationKinds.length) {
+      updateGraphQuery({ relationKinds: nextKinds });
     }
-  }, [load, typeChips, kindOptions, selectedType, selectedKinds]);
+  }, [
+    load.kind,
+    typeChips,
+    kindOptions,
+    graphSettings.query.types,
+    graphSettings.query.relationKinds,
+    updateGraphQuery,
+  ]);
+
+  useEffect(() => {
+    if (selectedId === null) return;
+    if (!visibleGraph.nodes.some((node) => node.path === selectedId)) {
+      setSelectedId(null);
+    }
+  }, [selectedId, visibleGraph]);
 
   // Compute fit-to-screen view. Called once when the layout is ready
   // and again whenever the user clicks the "fit" button.
@@ -515,11 +529,44 @@ export function GlobalGraph(): JSX.Element {
     setSelectedId(null);
   }, []);
 
+  const handleTypeChange = useCallback(
+    (type: string | null): void => {
+      updateGraphQuery({ types: type === null ? [] : [type] });
+    },
+    [updateGraphQuery],
+  );
+
+  const handleKindsChange = useCallback(
+    (next: ReadonlySet<string>): void => {
+      updateGraphQuery({ relationKinds: Array.from(next).sort() });
+    },
+    [updateGraphQuery],
+  );
+
+  const selectedNode = useMemo(
+    () =>
+      selectedId === null ? null : (canvasNodes.find((node) => node.id === selectedId) ?? null),
+    [selectedId, canvasNodes],
+  );
+
+  const selectedConnections = useMemo(
+    () =>
+      selectedId === null
+        ? []
+        : visibleGraph.edges.filter(
+            (edge) => edge.source === selectedId || edge.target === selectedId,
+          ),
+    [selectedId, visibleGraph],
+  );
+
   // ---- Render ------------------------------------------------------
   const isReady = load.kind === 'ready';
-  const nodeCount = isReady ? load.graph.nodes.length : 0;
-  const edgeCount = isReady ? load.graph.edges.length : 0;
-  const hasActiveFilters = search.trim() !== '' || selectedType !== null || selectedKinds.size > 0;
+  const totalNodeCount = isReady ? load.graph.nodes.length : 0;
+  const nodeCount = isReady ? visibleGraph.nodes.length : 0;
+  const edgeCount = isReady ? visibleGraph.edges.length : 0;
+  const hiddenNodeCount = graphView?.hiddenNodeCount ?? 0;
+  const hiddenEdgeCount = graphView?.hiddenEdgeCount ?? 0;
+  const hasActiveFilters = (graphView?.activeFilterCount ?? 0) > 0;
 
   return (
     <div className="flex h-full w-full flex-col bg-bg text-fg">
@@ -538,8 +585,8 @@ export function GlobalGraph(): JSX.Element {
             <input
               type="text"
               value={search}
-              onChange={(e): void => setSearch(e.target.value)}
-              placeholder="Filtra per titolo…"
+              onChange={(e): void => updateGraphQuery({ search: e.target.value })}
+              placeholder="Cerca nel grafo…"
               className="h-7 w-52 rounded-md border border-border/80 bg-bg px-2.5 text-xs text-fg shadow-sm outline-none transition placeholder:text-fg-muted hover:border-fg-muted/50 focus:border-accent focus:ring-2 focus:ring-accent/15"
               spellCheck={false}
               autoComplete="off"
@@ -578,12 +625,12 @@ export function GlobalGraph(): JSX.Element {
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <TypeChips types={typeChips} selectedType={selectedType} onChange={setSelectedType} />
+          <TypeChips types={typeChips} selectedType={selectedType} onChange={handleTypeChange} />
           <div className="flex flex-wrap items-center justify-end gap-2">
             <KindFilterDropdown
               kinds={kindOptions}
               selectedKinds={selectedKinds}
-              onChange={setSelectedKinds}
+              onChange={handleKindsChange}
             />
             <label className="flex h-7 items-center gap-1.5 rounded-md border border-border/80 bg-bg px-2 text-xs text-fg-subtle shadow-sm transition hover:border-fg-muted/40 hover:text-fg">
               <input
@@ -621,8 +668,12 @@ export function GlobalGraph(): JSX.Element {
         {load.kind === 'ready' && nodeCount === 0 && (
           <GraphStatus
             tone="neutral"
-            title="Nessun nodo nel grafo"
-            detail="Il vault non contiene ancora note collegabili."
+            title={totalNodeCount === 0 ? 'Nessun nodo nel grafo' : 'Nessun risultato nel grafo'}
+            detail={
+              totalNodeCount === 0
+                ? 'Il vault non contiene ancora note collegabili.'
+                : 'I filtri correnti nascondono tutti i nodi. Allarga la ricerca o disattiva un filtro.'
+            }
           />
         )}
         {load.kind === 'ready' && nodeCount > 0 && (
@@ -645,14 +696,31 @@ export function GlobalGraph(): JSX.Element {
             clusterOverlayOn={clusterOverlayOn}
             highlightType={selectedType}
             highlightKinds={selectedKinds}
+            showLinks={graphSettings.display.showLinks}
+            showNodes={graphSettings.display.showNodes}
+            showText={graphSettings.display.showText}
+            showArrows={graphSettings.display.showArrows}
+            linkOpacity={graphSettings.forces.linkOpacity}
+            focusMode={graphSettings.query.focusMode}
           />
         )}
         {load.kind === 'ready' && nodeCount > 0 && (
           <Legend visibleTypes={legendTypes} visibleKinds={legendKinds} />
         )}
+        {load.kind === 'ready' && selectedNode !== null && (
+          <NodeDetailPanel
+            node={selectedNode}
+            edgeCount={selectedConnections.length}
+            onOpen={(): void => {
+              void navigateToNote(selectedNode.id);
+            }}
+            onClose={(): void => setSelectedId(null)}
+          />
+        )}
         {load.kind === 'ready' && nodeCount > 0 && hasActiveFilters && (
           <div className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-2 rounded-md border border-border/70 bg-bg-subtle/90 px-2.5 py-1.5 text-[11px] text-fg-muted shadow-sm backdrop-blur">
-            vista filtrata
+            vista filtrata · {hiddenNodeCount} nodi nascosti · {hiddenEdgeCount} collegamenti
+            nascosti
           </div>
         )}
       </div>
@@ -661,7 +729,7 @@ export function GlobalGraph(): JSX.Element {
 }
 
 const EMPTY_SET: ReadonlySet<NotePath> = new Set<NotePath>();
-const EMPTY_STRING_SET: ReadonlySet<string> = new Set<string>();
+const EMPTY_GRAPH: FullGraph = { nodes: [], edges: [] };
 
 function clamp(n: number, lo: number, hi: number): number {
   if (n < lo) return lo;
@@ -678,6 +746,48 @@ function scaleRadius(degree: number, maxDegree: number): number {
   if (maxDegree <= 0) return NODE_R_MIN;
   const t = Math.sqrt(degree) / Math.sqrt(maxDegree);
   return NODE_R_MIN + t * (NODE_R_MAX - NODE_R_MIN);
+}
+
+function groupColorForNode(
+  node: { path: string; title: string; type: string | null },
+  groups: ReadonlyArray<GraphGroupRule>,
+): string | null {
+  for (const group of groups) {
+    if (!group.enabled) continue;
+    if (groupMatchesNode(node, group.query)) return group.color;
+  }
+  return null;
+}
+
+function groupMatchesNode(
+  node: { path: string; title: string; type: string | null },
+  query: string,
+): boolean {
+  const clauses = query
+    .split(/\s+OR\s+/i)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (clauses.length === 0) return false;
+  return clauses.some((clause) =>
+    clause
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(Boolean)
+      .every((token) => groupTokenMatchesNode(node, token)),
+  );
+}
+
+function groupTokenMatchesNode(
+  node: { path: string; title: string; type: string | null },
+  token: string,
+): boolean {
+  if (token.startsWith('type:')) return (node.type ?? '').toLowerCase() === token.slice(5);
+  if (token.startsWith('path:') || token.startsWith('folder:')) {
+    const value = token.slice(token.indexOf(':') + 1);
+    return node.path.toLowerCase().includes(value);
+  }
+  if (token.startsWith('tag:')) return false;
+  return node.title.toLowerCase().includes(token) || node.path.toLowerCase().includes(token);
 }
 
 const toolbarButtonClass =
@@ -725,6 +835,60 @@ function GraphStatus({
         </h2>
         <p className="mt-1 text-xs leading-5 text-fg-muted">{detail}</p>
       </div>
+    </div>
+  );
+}
+
+function NodeDetailPanel({
+  node,
+  edgeCount,
+  onOpen,
+  onClose,
+}: {
+  node: CanvasNode;
+  edgeCount: number;
+  onOpen(): void;
+  onClose(): void;
+}): JSX.Element {
+  return (
+    <aside className="absolute bottom-3 right-3 z-10 w-80 max-w-[calc(100%-1.5rem)] rounded-lg border border-border/80 bg-bg-subtle/95 p-3 text-xs text-fg shadow-lg backdrop-blur">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-fg">{node.title}</p>
+          <p className="mt-1 truncate font-mono text-[11px] text-fg-muted">{node.id}</p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-fg-muted transition hover:bg-bg-muted hover:text-fg"
+          aria-label="Chiudi dettaglio nodo"
+        >
+          ×
+        </button>
+      </div>
+
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        <NodeMetric label="Collegamenti" value={edgeCount.toString()} />
+        <NodeMetric label="Grado" value={node.degree.toString()} />
+        <NodeMetric label="Tipo" value={node.type ?? 'Nota'} />
+      </div>
+
+      <button
+        type="button"
+        onClick={onOpen}
+        className="mt-3 h-8 w-full rounded-md border border-border bg-bg px-3 text-left text-xs font-medium text-fg transition hover:border-accent/60 hover:bg-bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+      >
+        Apri nota
+      </button>
+    </aside>
+  );
+}
+
+function NodeMetric({ label, value }: { label: string; value: string }): JSX.Element {
+  return (
+    <div className="min-w-0 rounded-md border border-border/70 bg-bg px-2 py-1.5">
+      <p className="text-[10px] uppercase tracking-wide text-fg-muted">{label}</p>
+      <p className="truncate text-[12px] font-medium text-fg">{value}</p>
     </div>
   );
 }

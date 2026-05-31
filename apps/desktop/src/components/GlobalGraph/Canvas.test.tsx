@@ -97,4 +97,82 @@ describe('<Canvas> — dim precedence', () => {
       expect(Number(opacityAttr)).toBe(1);
     }
   });
+
+  it('honors display toggles for links, nodes, labels, and arrows', () => {
+    const nodes: CanvasNode[] = [
+      makeNode('a', { x: 100, y: 100, degree: 5 }),
+      makeNode('b', { x: 200, y: 200, degree: 5 }),
+    ];
+    const edges: CanvasEdge[] = [{ source: 'a', target: 'b', kind: 'owns' }];
+    const ref = createRef<CanvasHandle>();
+    const { container, rerender } = render(
+      <Canvas
+        ref={ref}
+        nodes={nodes}
+        edges={edges}
+        width={500}
+        height={500}
+        initialView={{ tx: 0, ty: 0, scale: 2 }}
+        selectedId={null}
+        matchedIds={new Set()}
+        neighborIds={new Set()}
+        onNodeClick={vi.fn()}
+        onNodeDoubleClick={vi.fn()}
+        onBackgroundMouseDown={vi.fn()}
+        onWheel={vi.fn()}
+        onBackgroundClick={vi.fn()}
+        panning={false}
+        clusterOverlayOn={false}
+        highlightType={null}
+        highlightKinds={new Set()}
+        showLinks={false}
+        showNodes={false}
+        showText={false}
+        showArrows={false}
+        linkOpacity={0.42}
+        focusMode={false}
+      />,
+    );
+
+    expect(container.querySelectorAll('path[data-graph-edge="true"]')).toHaveLength(0);
+    expect(container.querySelectorAll('circle[stroke]')).toHaveLength(0);
+    expect(container.querySelectorAll('text')).toHaveLength(0);
+
+    rerender(
+      <Canvas
+        ref={ref}
+        nodes={nodes}
+        edges={edges}
+        width={500}
+        height={500}
+        initialView={{ tx: 0, ty: 0, scale: 2 }}
+        selectedId={null}
+        matchedIds={new Set()}
+        neighborIds={new Set()}
+        onNodeClick={vi.fn()}
+        onNodeDoubleClick={vi.fn()}
+        onBackgroundMouseDown={vi.fn()}
+        onWheel={vi.fn()}
+        onBackgroundClick={vi.fn()}
+        panning={false}
+        clusterOverlayOn={false}
+        highlightType={null}
+        highlightKinds={new Set()}
+        showLinks
+        showNodes
+        showText
+        showArrows={false}
+        linkOpacity={0.42}
+        focusMode={false}
+      />,
+    );
+
+    const edge = container.querySelector('path[data-graph-edge="true"]');
+    expect(edge).not.toBeNull();
+    expect(edge?.getAttribute('d')).toContain('Q');
+    expect(edge?.getAttribute('opacity')).toBe('0.42');
+    expect(edge?.getAttribute('marker-end')).toBeNull();
+    expect(container.querySelectorAll('circle[stroke]').length).toBeGreaterThan(0);
+    expect(container.querySelectorAll('text').length).toBeGreaterThan(0);
+  });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { initializePositions, runGlobalLayout } from './layout';
+import { initializePositions, resolveGlobalForces, runGlobalLayout } from './layout';
 import {
   initializeOnCircle,
   simulateLayout,
@@ -94,6 +94,23 @@ describe('cluster bias', () => {
     const untyped = nodes.find((n) => n.id === 'u');
     expect(untyped).toBeDefined();
     expect(untyped!.nodeType).toBeUndefined();
+  });
+
+  it('maps graph force settings into concrete simulation constants', () => {
+    const forces = resolveGlobalForces({
+      center: 0.1,
+      repel: 500,
+      link: 0.12,
+      linkDistance: 140,
+      nodeDistance: 48,
+      linkOpacity: 0.5,
+    });
+
+    expect(forces.kRepulsive).toBe(7500);
+    expect(forces.kAttractive).toBeCloseTo(0.0384);
+    expect(forces.restLen).toBe(140);
+    expect(forces.kCenter).toBeCloseTo(0.014);
+    expect(forces.kClusterStrength).toBeGreaterThan(0);
   });
 
   it('mini-graph callers without kClusterStrength see identical output to explicit kClusterStrength=0', () => {
