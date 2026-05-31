@@ -29,7 +29,8 @@ import {
   deleteNote,
   searchByTitle,
 } from './notes.js';
-import { createFolder, renameFolder, deleteFolder } from './folder.js';
+import { listFolders, createFolder, renameFolder, deleteFolder } from './folder.js';
+import { duplicateNote, showInFinder } from './file-actions.js';
 import { getBacklinks, resolveTitle } from './links.js';
 import { searchFullText } from './search.js';
 import { listTags, getNotesByTag } from './tags.js';
@@ -89,14 +90,19 @@ export function registerIpcHandlers(win: BrowserWindow): void {
   handle(IpcChannels.loadNote, (args) => loadNote(args));
   handle(IpcChannels.saveNote, (args) => saveNote(args));
   handle(IpcChannels.createNote, (args) => createNote(args));
+  handle(IpcChannels.duplicateNote, (args) => duplicateNote(args));
   handle(IpcChannels.renameNote, (args) => renameNote(args));
   handle(IpcChannels.deleteNote, (args) => deleteNote(args));
   handle(IpcChannels.searchByTitle, (args) => searchByTitle(args));
 
   // Folders
+  handle(IpcChannels.listFolders, () => listFolders());
   handle(IpcChannels.createFolder, (args) => createFolder(args));
   handle(IpcChannels.renameFolder, (args) => renameFolder(args));
   handle(IpcChannels.deleteFolder, (args) => deleteFolder(args));
+
+  // File/folder shell actions
+  handle(IpcChannels.showInFinder, (args) => showInFinder(args));
 
   // Links
   handle(IpcChannels.getBacklinks, (args) => getBacklinks(args));

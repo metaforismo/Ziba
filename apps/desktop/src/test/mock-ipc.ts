@@ -98,13 +98,29 @@ function buildDefaultHandlers(): Required<MockHandlers> {
       wikilinks: [],
       mtimeMs: Date.now(),
     }),
+    [IpcChannels.duplicateNote]: async (args: { path: string }) => {
+      const path = args.path.endsWith('.md')
+        ? args.path.replace(/\.md$/, ' copy.md')
+        : `${args.path} copy.md`;
+      return {
+        path,
+        title: 'Untitled',
+        content: '',
+        frontmatter: {},
+        wikilinks: [],
+        mtimeMs: Date.now(),
+      };
+    },
     [IpcChannels.renameNote]: async (args: { to: string }) => ({ newPath: args.to }),
     [IpcChannels.deleteNote]: async () => undefined,
     [IpcChannels.searchByTitle]: async () => [],
 
+    [IpcChannels.listFolders]: async () => [],
     [IpcChannels.createFolder]: async () => undefined,
     [IpcChannels.renameFolder]: async () => undefined,
     [IpcChannels.deleteFolder]: async () => undefined,
+
+    [IpcChannels.showInFinder]: async () => undefined,
 
     [IpcChannels.getBacklinks]: async () => [],
     [IpcChannels.resolveTitle]: async () => null,

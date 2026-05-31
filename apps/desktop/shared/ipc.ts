@@ -55,14 +55,19 @@ export const IpcChannels = {
   loadNote: 'notes:load',
   saveNote: 'notes:save',
   createNote: 'notes:create',
+  duplicateNote: 'notes:duplicate',
   renameNote: 'notes:rename',
   deleteNote: 'notes:delete',
   searchByTitle: 'notes:searchByTitle',
 
   // Folder operations
+  listFolders: 'folder:list',
   createFolder: 'folder:create',
   renameFolder: 'folder:rename',
   deleteFolder: 'folder:delete',
+
+  // File/folder shell actions
+  showInFinder: 'file:showInFinder',
 
   // Wikilinks / backlinks
   getBacklinks: 'links:backlinks',
@@ -149,13 +154,17 @@ export type IpcRequests = {
   [IpcChannels.loadNote]: { path: NotePath };
   [IpcChannels.saveNote]: { path: NotePath; body: string; frontmatter: Frontmatter };
   [IpcChannels.createNote]: { path: NotePath; initialBody?: string };
+  [IpcChannels.duplicateNote]: { path: NotePath };
   [IpcChannels.renameNote]: { from: NotePath; to: NotePath };
   [IpcChannels.deleteNote]: { path: NotePath };
   [IpcChannels.searchByTitle]: { prefix: string; limit?: number };
 
+  [IpcChannels.listFolders]: void;
   [IpcChannels.createFolder]: { path: NotePath };
   [IpcChannels.renameFolder]: { from: NotePath; to: NotePath };
   [IpcChannels.deleteFolder]: { path: NotePath };
+
+  [IpcChannels.showInFinder]: { path: NotePath };
 
   [IpcChannels.getBacklinks]: { path: NotePath };
   [IpcChannels.resolveTitle]: { title: string };
@@ -216,13 +225,17 @@ export type IpcResponses = {
   [IpcChannels.loadNote]: Note;
   [IpcChannels.saveNote]: { mtimeMs: number };
   [IpcChannels.createNote]: Note;
+  [IpcChannels.duplicateNote]: Note;
   [IpcChannels.renameNote]: { newPath: NotePath };
   [IpcChannels.deleteNote]: void;
   [IpcChannels.searchByTitle]: NoteSummary[];
 
+  [IpcChannels.listFolders]: string[];
   [IpcChannels.createFolder]: void;
   [IpcChannels.renameFolder]: void;
   [IpcChannels.deleteFolder]: void;
+
+  [IpcChannels.showInFinder]: void;
 
   [IpcChannels.getBacklinks]: Backlink[];
   [IpcChannels.resolveTitle]: NotePath | null;

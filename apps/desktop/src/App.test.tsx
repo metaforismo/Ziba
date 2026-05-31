@@ -1,9 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, cleanup } from '@testing-library/react';
-import { installMockIpc } from './test/mock-ipc';
+import { act, render, cleanup, screen, waitFor } from '@testing-library/react';
+import type { VaultInfo } from '../shared/ipc';
+import { IpcChannels } from '../shared/ipc';
+import { installMockIpc, type MockController } from './test/mock-ipc';
 import { App } from './App';
 import { useEditorStore } from './stores/editor';
 import { useSearchStore } from './stores/search';
+import { useToastStore } from './stores/toast';
 import { useUiStore } from './stores/ui';
 import { useVaultStore } from './stores/vault';
 
@@ -17,14 +20,20 @@ import { useVaultStore } from './stores/vault';
 // (palette opens, prompt dialog appears, save round-trips through IPC)
 // has its own tests.
 
+let mock: MockController;
+
 beforeEach(() => {
-  installMockIpc();
+  mock = installMockIpc({
+    [IpcChannels.getCurrentVault]: async () => OPEN_VAULT,
+  });
   // Pretend a vault is open: the App short-circuits the shortcuts when
   // `current === null`, so without this stub we'd be testing the
   // empty-state branch.
   useVaultStore.setState({
     current: { root: '/test', name: 'test', openedAt: 0 },
   });
+  useToastStore.getState().clear();
+  useUiStore.setState({ newNotePromptOpen: false });
 });
 
 afterEach(() => {
@@ -44,6 +53,8 @@ function dispatchShortcut(key: string, opts: { shift?: boolean; alt?: boolean } 
   });
   window.dispatchEvent(e);
 }
+
+const OPEN_VAULT: VaultInfo = { root: '/test', name: 'test', openedAt: 0 };
 
 describe('App keyboard shortcuts', () => {
   it('Cmd+K opens the search palette', () => {
@@ -137,13 +148,18 @@ describe('App keyboard shortcuts', () => {
     expect(saveSpy).not.toHaveBeenCalled();
   });
 
-  it('Cmd+N requests the new-note prompt via UI store', () => {
+  it('Cmd+N creates an untitled note immediately', async () => {
     render(<App />);
-    expect(useUiStore.getState().newNotePromptOpen).toBe(false);
 
     dispatchShortcut('n');
 
-    expect(useUiStore.getState().newNotePromptOpen).toBe(true);
+    await waitFor(() => {
+      expect(mock.getSpy(IpcChannels.createNote)).toHaveBeenCalledWith({
+        path: 'Senza titolo.md',
+        initialBody: '',
+      });
+    });
+    expect(useEditorStore.getState().currentPath).toBe('Senza titolo.md');
   });
 
   it('shortcuts are inert on the empty-state screen (no vault open)', () => {
@@ -156,6 +172,53 @@ describe('App keyboard shortcuts', () => {
     dispatchShortcut('n');
 
     expect(openSpy).not.toHaveBeenCalled();
-    expect(useUiStore.getState().newNotePromptOpen).toBe(false);
+    expect(mock.getSpy(IpcChannels.createNote)).not.toHaveBeenCalled();
+  });
+});
+
+describe('App bootstrap', () => {
+  it('does not flash onboarding while main-process hydration is pending', async () => {
+    let resolveCurrent: (value: VaultInfo | null) => void = () => {};
+    const currentPromise = new Promise<VaultInfo | null>((resolve) => {
+      resolveCurrent = resolve;
+    });
+    installMockIpc({
+      [IpcChannels.getCurrentVault]: async () => currentPromise,
+      [IpcChannels.getRecentVaults]: async () => [],
+    });
+    useVaultStore.setState({ current: null, recentVaults: [] });
+
+    render(<App />);
+
+    expect(screen.queryByRole('heading', { name: /crea o apri un vault/i })).toBeNull();
+
+    await act(async () => {
+      resolveCurrent(null);
+      await currentPromise;
+    });
+
+    expect(await screen.findByRole('heading', { name: /crea o apri un vault/i })).toBeTruthy();
+  });
+
+  it('recovers to onboarding with a toast when hydration fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    installMockIpc({
+      [IpcChannels.getCurrentVault]: async () => {
+        throw Object.assign(new Error('[PERMISSION_DENIED] Permesso negato.'), {
+          code: 'PERMISSION_DENIED',
+        });
+      },
+      [IpcChannels.getRecentVaults]: async () => [],
+    });
+    useVaultStore.setState({ current: null, recentVaults: [] });
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: /crea o apri un vault/i })).toBeTruthy();
+    expect(useToastStore.getState().toasts.at(-1)).toMatchObject({
+      kind: 'error',
+      title: 'Non siamo riusciti a ripristinare il vault',
+      message: 'Permesso negato.',
+    });
   });
 });

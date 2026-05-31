@@ -117,6 +117,10 @@ const NODE_STROKE_DIM = 'rgb(var(--border))';
 // EDGE_STROKE removed: edges now use kindToHsl() for per-kind color.
 const EDGE_STROKE_HIGHLIGHT = 'rgb(var(--accent))';
 const LABEL_FILL = 'rgb(var(--fg))';
+const CANVAS_BG = 'rgb(var(--bg))';
+const CANVAS_DOT = 'rgb(var(--fg-muted) / 0.16)';
+const CANVAS_GRID = 'rgb(var(--border) / 0.32)';
+const CANVAS_HALO = 'rgb(var(--accent) / 0.08)';
 
 const FULL_OPACITY = 1;
 
@@ -258,6 +262,22 @@ export const Canvas = memo(
         onClick={onBackgroundClick}
       >
         <defs>
+          <radialGradient id="global-graph-surface" cx="50%" cy="42%" r="72%">
+            <stop offset="0%" stopColor={CANVAS_HALO} />
+            <stop offset="58%" stopColor="rgb(var(--bg-subtle) / 0.48)" />
+            <stop offset="100%" stopColor={CANVAS_BG} />
+          </radialGradient>
+          <pattern
+            id="global-graph-grid"
+            x="0"
+            y="0"
+            width="32"
+            height="32"
+            patternUnits="userSpaceOnUse"
+          >
+            <path d="M 32 0 L 0 0 0 32" fill="none" stroke={CANVAS_GRID} strokeWidth="0.6" />
+            <circle cx="0" cy="0" r="1.05" fill={CANVAS_DOT} />
+          </pattern>
           {/*
             Tiny arrow markers at the target end of each edge. We use a
             single neutral colour and let opacity carry the highlight —
@@ -275,6 +295,9 @@ export const Canvas = memo(
             <path d="M 0 0 L 10 5 L 0 10 z" fill="rgb(var(--fg-muted))" />
           </marker>
         </defs>
+
+        <rect width={width} height={height} fill="url(#global-graph-surface)" />
+        <rect width={width} height={height} fill="url(#global-graph-grid)" opacity="0.46" />
 
         <g ref={transformRef} transform={transformString(initialView)}>
           {clusterOverlayOn && <HullsLayer nodes={nodes} hiddenTypes={hiddenHullTypes} />}

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { EmptyState } from './components/EmptyState';
 import { Layout } from './components/Layout';
 import { SearchPalette } from './components/SearchPalette';
@@ -9,9 +9,13 @@ import { useTagsStore } from './stores/tags';
 import { useUiStore } from './stores/ui';
 import { useVaultStore } from './stores/vault';
 import { ipc } from './lib/ipc';
+import { ipcErrorMessage } from './lib/ipc-error';
+import { toast } from './stores/toast';
 
 export function App(): JSX.Element {
+  const [bootstrapped, setBootstrapped] = useState(false);
   const current = useVaultStore((s) => s.current);
+  const indexProgress = useVaultStore((s) => s.indexProgress);
   const hydrateFromMain = useVaultStore((s) => s.hydrateFromMain);
   const applyVaultEvent = useVaultStore((s) => s.applyVaultEvent);
   const setIndexProgress = useVaultStore((s) => s.setIndexProgress);
@@ -23,7 +27,15 @@ export function App(): JSX.Element {
   // listeners. Both subscriptions return unsubscribe functions, so the
   // effect cleanup detaches them on unmount / hot reload.
   useEffect(() => {
-    void hydrateFromMain();
+    let active = true;
+    void hydrateFromMain()
+      .catch((err: unknown) => {
+        console.error('[ziba] bootstrap hydration failed:', err);
+        toast.error(ipcErrorMessage(err), 'Non siamo riusciti a ripristinare il vault');
+      })
+      .finally(() => {
+        if (active) setBootstrapped(true);
+      });
 
     const offVaultEvent = ipc.onVaultEvent((event) => {
       // v1.0.1: schema-only change (someone edited a yml in
@@ -44,6 +56,7 @@ export function App(): JSX.Element {
     });
 
     return () => {
+      active = false;
       offVaultEvent();
       offIndexProgress();
     };
@@ -56,7 +69,7 @@ export function App(): JSX.Element {
   //
   //   - Cmd/Ctrl+K: open the search palette
   //   - Cmd/Ctrl+S: save the current note (no-op if not dirty)
-  //   - Cmd/Ctrl+N: open the "Nuova nota" prompt
+  //   - Cmd/Ctrl+N: create an untitled note immediately, Obsidian-style
   //
   // We pull the editor / UI store actions from `getState()` inside the
   // handler so the effect deps stay stable — there's no need to
@@ -89,7 +102,15 @@ export function App(): JSX.Element {
       if (key === 'n') {
         if (e.shiftKey || e.altKey) return;
         e.preventDefault();
-        useUiStore.getState().requestNewNotePrompt();
+        void useEditorStore
+          .getState()
+          .createUntitledNote()
+          .then(() => {
+            useUiStore.getState().setMainView('editor');
+          })
+          .catch((err: unknown) => {
+            toast.error(ipcErrorMessage(err), 'Impossibile creare la nota');
+          });
         return;
       }
     };
@@ -98,6 +119,41 @@ export function App(): JSX.Element {
       window.removeEventListener('keydown', onKeyDown);
     };
   }, [current, openPalette]);
+
+  useEffect(() => {
+    if (current !== null) {
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      if (window.scrollX !== 0 || window.scrollY !== 0) {
+        try {
+          window.scrollTo(0, 0);
+        } catch {
+          // jsdom exposes scrollTo but does not implement it. The direct
+          // scrollTop assignments above are enough for tests and browsers.
+        }
+      }
+    }
+  }, [current]);
+
+  if (!bootstrapped) {
+    return (
+      <>
+        <main className="flex h-full w-full items-center justify-center bg-bg p-6">
+          <div role="status" className="text-center text-sm text-fg-subtle">
+            <div className="mb-2 font-medium text-fg">Apro Ziba</div>
+            <div>
+              {indexProgress === null
+                ? 'Controllo il vault...'
+                : `Indicizzo ${indexProgress.processed}${
+                    indexProgress.total !== null ? `/${indexProgress.total}` : ''
+                  } note...`}
+            </div>
+          </div>
+        </main>
+        <ToastStack />
+      </>
+    );
+  }
 
   if (current === null) {
     return (

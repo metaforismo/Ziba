@@ -18,6 +18,9 @@ import { TypeChips, type TypeChip } from './TypeChips';
 import { KindFilterDropdown } from './KindFilterDropdown';
 import { Legend } from './Legend';
 import { useTagsStore } from '../../stores/tags';
+import { useVaultStore } from '../../stores/vault';
+import { useGraphSettingsStore } from '../../stores/graph';
+import { GraphSettingsPanel } from './GraphSettingsPanel';
 
 // Logical canvas the simulation runs on. The SVG `viewBox` matches
 // these numbers; on screen we just stretch to fill the container, with
@@ -62,6 +65,19 @@ export function GlobalGraph(): JSX.Element {
   const canvasRef = useRef<CanvasHandle | null>(null);
 
   const objectTypeSchemas = useTagsStore((s) => s.objectTypeSchemas);
+  const currentVaultRoot = useVaultStore((s) => s.current?.root ?? null);
+  const graphSettings = useGraphSettingsStore((s) => s.settings);
+  const setGraphSettingsVaultRoot = useGraphSettingsStore((s) => s.setVaultRoot);
+  const updateGraphQuery = useGraphSettingsStore((s) => s.updateQuery);
+  const updateGraphDisplay = useGraphSettingsStore((s) => s.updateDisplay);
+  const updateGraphForces = useGraphSettingsStore((s) => s.updateForces);
+  const addGraphGroup = useGraphSettingsStore((s) => s.addGroup);
+  const updateGraphGroup = useGraphSettingsStore((s) => s.updateGroup);
+  const removeGraphGroup = useGraphSettingsStore((s) => s.removeGroup);
+
+  useEffect(() => {
+    setGraphSettingsVaultRoot(currentVaultRoot);
+  }, [currentVaultRoot, setGraphSettingsVaultRoot]);
 
   // Initial fetch + watcher-driven refetch.
   useEffect(() => {
@@ -503,37 +519,38 @@ export function GlobalGraph(): JSX.Element {
   const isReady = load.kind === 'ready';
   const nodeCount = isReady ? load.graph.nodes.length : 0;
   const edgeCount = isReady ? load.graph.edges.length : 0;
+  const hasActiveFilters = search.trim() !== '' || selectedType !== null || selectedKinds.size > 0;
 
   return (
-    <div className="flex h-full w-full flex-col bg-bg">
-      <header className="flex shrink-0 flex-col gap-2 border-b border-border bg-bg-subtle px-3 py-2">
-        <div className="flex items-center justify-between gap-3">
+    <div className="flex h-full w-full flex-col bg-bg text-fg">
+      <header className="flex shrink-0 flex-col gap-2 border-b border-border/80 bg-bg-subtle/95 px-4 py-3 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-baseline gap-3">
-            <h1 className="truncate text-sm font-semibold text-fg">Grafo globale</h1>
+            <h1 className="truncate text-[15px] font-semibold text-fg">Grafo globale</h1>
             {isReady && (
-              <span className="truncate text-xs text-fg-muted">
+              <span className="truncate font-mono text-[11px] tabular-nums text-fg-muted">
                 {nodeCount} {nodeCount === 1 ? 'nodo' : 'nodi'} · {edgeCount}{' '}
                 {edgeCount === 1 ? 'arco' : 'archi'}
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <input
               type="text"
               value={search}
               onChange={(e): void => setSearch(e.target.value)}
               placeholder="Filtra per titolo…"
-              className="w-48 rounded border border-border bg-bg px-2 py-1 text-xs text-fg outline-none placeholder:text-fg-muted focus:border-fg-muted"
+              className="h-7 w-52 rounded-md border border-border/80 bg-bg px-2.5 text-xs text-fg shadow-sm outline-none transition placeholder:text-fg-muted hover:border-fg-muted/50 focus:border-accent focus:ring-2 focus:ring-accent/15"
               spellCheck={false}
               autoComplete="off"
               autoCorrect="off"
               aria-label="Filtra nodi per titolo"
             />
-            <div className="flex items-center gap-0.5">
+            <div className="flex h-7 items-center overflow-hidden rounded-md border border-border/80 bg-bg shadow-sm">
               <button
                 type="button"
                 onClick={(): void => handleZoom(1 / ZOOM_STEP)}
-                className="rounded px-2 py-1 text-xs text-fg-subtle hover:bg-bg-muted hover:text-fg"
+                className={toolbarButtonClass}
                 title="Zoom out"
                 aria-label="Diminuisci zoom"
               >
@@ -542,7 +559,7 @@ export function GlobalGraph(): JSX.Element {
               <button
                 type="button"
                 onClick={(): void => handleZoom(ZOOM_STEP)}
-                className="rounded px-2 py-1 text-xs text-fg-subtle hover:bg-bg-muted hover:text-fg"
+                className={toolbarButtonClass}
                 title="Zoom in"
                 aria-label="Aumenta zoom"
               >
@@ -551,7 +568,7 @@ export function GlobalGraph(): JSX.Element {
               <button
                 type="button"
                 onClick={fitToScreen}
-                className="rounded px-2 py-1 text-xs text-fg-subtle hover:bg-bg-muted hover:text-fg"
+                className={`${toolbarButtonClass} border-l border-border/70 px-2.5`}
                 title="Adatta alla finestra"
                 aria-label="Adatta alla finestra"
               >
@@ -560,20 +577,20 @@ export function GlobalGraph(): JSX.Element {
             </div>
           </div>
         </div>
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <TypeChips types={typeChips} selectedType={selectedType} onChange={setSelectedType} />
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <KindFilterDropdown
               kinds={kindOptions}
               selectedKinds={selectedKinds}
               onChange={setSelectedKinds}
             />
-            <label className="flex items-center gap-1 text-xs text-fg-subtle">
+            <label className="flex h-7 items-center gap-1.5 rounded-md border border-border/80 bg-bg px-2 text-xs text-fg-subtle shadow-sm transition hover:border-fg-muted/40 hover:text-fg">
               <input
                 type="checkbox"
                 checked={clusterOverlayOn}
                 onChange={(e): void => setClusterOverlayOn(e.target.checked)}
-                className="h-3 w-3"
+                className="h-3 w-3 accent-[rgb(var(--accent))]"
               />
               Mostra cluster
             </label>
@@ -581,21 +598,32 @@ export function GlobalGraph(): JSX.Element {
         </div>
       </header>
 
-      <div className="relative min-h-0 flex-1 overflow-hidden">
+      <div className="relative min-h-0 flex-1 overflow-hidden bg-bg">
+        <GraphSettingsPanel
+          settings={graphSettings}
+          onQueryChange={updateGraphQuery}
+          onDisplayChange={updateGraphDisplay}
+          onForcesChange={updateGraphForces}
+          onAddGroup={addGraphGroup}
+          onUpdateGroup={updateGraphGroup}
+          onRemoveGroup={removeGraphGroup}
+        />
         {load.kind === 'loading' && (
-          <div className="absolute inset-0 flex items-center justify-center text-sm text-fg-muted">
-            Caricamento grafo…
-          </div>
+          <GraphStatus
+            tone="neutral"
+            title="Caricamento grafo"
+            detail="Preparazione della mappa del vault."
+          />
         )}
         {load.kind === 'error' && (
-          <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-red-500">
-            Impossibile caricare il grafo: {load.message}
-          </div>
+          <GraphStatus tone="danger" title="Impossibile caricare il grafo" detail={load.message} />
         )}
         {load.kind === 'ready' && nodeCount === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center text-sm text-fg-muted">
-            Vault vuoto o nessun collegamento.
-          </div>
+          <GraphStatus
+            tone="neutral"
+            title="Nessun nodo nel grafo"
+            detail="Il vault non contiene ancora note collegabili."
+          />
         )}
         {load.kind === 'ready' && nodeCount > 0 && (
           <Canvas
@@ -622,6 +650,11 @@ export function GlobalGraph(): JSX.Element {
         {load.kind === 'ready' && nodeCount > 0 && (
           <Legend visibleTypes={legendTypes} visibleKinds={legendKinds} />
         )}
+        {load.kind === 'ready' && nodeCount > 0 && hasActiveFilters && (
+          <div className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-2 rounded-md border border-border/70 bg-bg-subtle/90 px-2.5 py-1.5 text-[11px] text-fg-muted shadow-sm backdrop-blur">
+            vista filtrata
+          </div>
+        )}
       </div>
     </div>
   );
@@ -645,4 +678,53 @@ function scaleRadius(degree: number, maxDegree: number): number {
   if (maxDegree <= 0) return NODE_R_MIN;
   const t = Math.sqrt(degree) / Math.sqrt(maxDegree);
   return NODE_R_MIN + t * (NODE_R_MAX - NODE_R_MIN);
+}
+
+const toolbarButtonClass =
+  'flex h-full min-w-7 items-center justify-center px-2 text-xs font-medium text-fg-subtle transition hover:bg-bg-muted hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent active:bg-bg-muted/80';
+
+function GraphStatus({
+  title,
+  detail,
+  tone,
+}: {
+  title: string;
+  detail: string;
+  tone: 'neutral' | 'danger';
+}): JSX.Element {
+  const isDanger = tone === 'danger';
+  return (
+    <div className="absolute inset-0 flex items-center justify-center p-6">
+      <div
+        className={[
+          'w-full max-w-sm rounded-lg border bg-bg-subtle/90 p-5 text-center shadow-sm backdrop-blur',
+          isDanger ? 'border-red-500/40' : 'border-border/80',
+        ].join(' ')}
+      >
+        <div
+          aria-hidden="true"
+          className={[
+            'mx-auto mb-4 h-24 w-48 rounded-md border',
+            isDanger ? 'border-red-500/25 bg-red-500/5' : 'border-border/70 bg-bg',
+          ].join(' ')}
+        >
+          <div className="flex h-full items-center justify-center gap-3">
+            <span className="h-2.5 w-2.5 rounded-full bg-accent/70" />
+            <span className="h-px w-12 bg-border" />
+            <span className="h-4 w-4 rounded-full border border-accent/50 bg-accent/15" />
+            <span className="h-px w-10 bg-border" />
+            <span className="h-2 w-2 rounded-full bg-fg-muted/50" />
+          </div>
+        </div>
+        <h2
+          className={
+            isDanger ? 'text-sm font-semibold text-red-500' : 'text-sm font-semibold text-fg'
+          }
+        >
+          {title}
+        </h2>
+        <p className="mt-1 text-xs leading-5 text-fg-muted">{detail}</p>
+      </div>
+    </div>
+  );
 }

@@ -1,5 +1,7 @@
 import type { JSX } from 'react';
 import type { NotePath } from '@ziba/core';
+import { CaretDown, CaretRight, FileText } from '@phosphor-icons/react';
+import { navigateToNote } from '../../lib/navigate';
 import { useEditorStore } from '../../stores/editor';
 import { useTagsStore, type TypeSummary } from '../../stores/tags';
 import { useUiStore } from '../../stores/ui';
@@ -26,7 +28,6 @@ export function TypesSection(): JSX.Element {
   const selectType = useTagsStore((s) => s.selectType);
   const expanded = useUiStore((s) => s.typesExpanded);
   const toggleExpanded = useUiStore((s) => s.toggleTypes);
-  const openNote = useEditorStore((s) => s.openNote);
   const currentPath = useEditorStore((s) => s.currentPath);
 
   const handleClick = (id: string): void => {
@@ -38,7 +39,7 @@ export function TypesSection(): JSX.Element {
   };
 
   const handleNoteClick = (path: NotePath): void => {
-    void openNote(path);
+    void navigateToNote(path);
   };
 
   return (
@@ -51,7 +52,7 @@ export function TypesSection(): JSX.Element {
       >
         <span className="flex items-center gap-1.5">
           <span aria-hidden="true" className="inline-block w-3 text-center">
-            {expanded ? '▾' : '▸'}
+            {expanded ? <CaretDown size={12} /> : <CaretRight size={12} />}
           </span>
           <span>Tipi</span>
         </span>
@@ -127,8 +128,8 @@ export function TypesSection(): JSX.Element {
                               : 'text-fg-subtle hover:bg-bg-muted hover:text-fg')
                           }
                         >
-                          <span aria-hidden="true" className="shrink-0">
-                            📄
+                          <span aria-hidden="true" className="shrink-0 text-fg-muted">
+                            <FileText size={15} />
                           </span>
                           <span className="truncate">{n.title}</span>
                         </button>
