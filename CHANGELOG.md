@@ -6,6 +6,14 @@ Il formato si basa su [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e
 
 ## [Unreleased]
 
+### Added
+
+- Preset grafo ispirati a SiYuan, soglia minima di connessioni (`minDegree`)
+  e dettaglio nodo con vicini cliccabili.
+- Controllo "Righe" nella DatabaseView, collegato a `DatabaseQuery.limit`.
+- Note di riferimento su SiYuan in `docs/siyuan-reference-notes.md`, con
+  mappatura funzionale e confine licenza/implementazione.
+
 ## [1.0.1] - 2026-05-10
 
 ### Phase 2 followups

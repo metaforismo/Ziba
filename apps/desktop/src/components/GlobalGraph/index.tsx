@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CornersOut, Gear, MagnifyingGlass, Minus, Plus } from '@phosphor-icons/react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  ArrowSquareOut,
+  CornersOut,
+  Gear,
+  MagnifyingGlass,
+  Minus,
+  Plus,
+  X,
+} from '@phosphor-icons/react';
 import type { NotePath } from '@ziba/core';
 import type { FullGraph } from '../../../shared/ipc';
 import { ipc } from '../../lib/ipc';
@@ -22,7 +32,7 @@ import { Legend } from './Legend';
 import { useTagsStore } from '../../stores/tags';
 import { useVaultStore } from '../../stores/vault';
 import { useGraphSettingsStore } from '../../stores/graph';
-import { GraphSettingsPanel } from './GraphSettingsPanel';
+import { GraphSettingsPanel, type GraphPreset } from './GraphSettingsPanel';
 import type { GraphGroupRule } from '../../lib/graph-settings';
 import { graphGroupQueryMatchesNode } from '../../lib/graph-groups';
 import { nextGraphKeyboardView } from './keyboard';
@@ -585,20 +595,38 @@ export function GlobalGraph(): JSX.Element {
     [updateGraphQuery],
   );
 
+  const handleApplyPreset = useCallback(
+    (preset: GraphPreset): void => {
+      updateGraphQuery(preset.query);
+      updateGraphDisplay(preset.display);
+      updateGraphForces(preset.forces);
+    },
+    [updateGraphQuery, updateGraphDisplay, updateGraphForces],
+  );
+
   const selectedNode = useMemo(
     () =>
       selectedId === null ? null : (canvasNodes.find((node) => node.id === selectedId) ?? null),
     [selectedId, canvasNodes],
   );
 
-  const selectedConnections = useMemo(
+  const selectedConnections = useMemo<NodeConnection[]>(
     () =>
       selectedId === null
         ? []
-        : visibleGraph.edges.filter(
-            (edge) => edge.source === selectedId || edge.target === selectedId,
-          ),
-    [selectedId, visibleGraph],
+        : visibleGraph.edges
+            .filter((edge) => edge.source === selectedId || edge.target === selectedId)
+            .map((edge) => {
+              const outgoing = edge.source === selectedId;
+              const id = outgoing ? edge.target : edge.source;
+              return {
+                id,
+                title: titleMap.get(id) ?? id,
+                kind: edge.kind === '' ? 'link' : edge.kind,
+                direction: outgoing ? 'out' : 'in',
+              };
+            }),
+    [selectedId, visibleGraph, titleMap],
   );
 
   // ---- Render ------------------------------------------------------
@@ -716,6 +744,7 @@ export function GlobalGraph(): JSX.Element {
           settings={graphSettings}
           onClose={(): void => setSettingsOpen(false)}
           onReset={resetGraphSettings}
+          onApplyPreset={handleApplyPreset}
           onQueryChange={updateGraphQuery}
           onDisplayChange={updateGraphDisplay}
           onForcesChange={updateGraphForces}
@@ -782,7 +811,8 @@ export function GlobalGraph(): JSX.Element {
         {load.kind === 'ready' && selectedNode !== null && (
           <NodeDetailPanel
             node={selectedNode}
-            edgeCount={selectedConnections.length}
+            connections={selectedConnections}
+            onSelectConnection={setSelectedId}
             onOpen={(): void => {
               void navigateToNote(selectedNode.id);
             }}
@@ -796,6 +826,13 @@ export function GlobalGraph(): JSX.Element {
 
 const EMPTY_SET: ReadonlySet<NotePath> = new Set<NotePath>();
 const EMPTY_GRAPH: FullGraph = { nodes: [], edges: [] };
+
+type NodeConnection = {
+  id: NotePath;
+  title: string;
+  kind: string;
+  direction: 'in' | 'out';
+};
 
 function clamp(n: number, lo: number, hi: number): number {
   if (n < lo) return lo;
@@ -886,15 +923,20 @@ function GraphStatus({
 
 function NodeDetailPanel({
   node,
-  edgeCount,
+  connections,
+  onSelectConnection,
   onOpen,
   onClose,
 }: {
   node: CanvasNode;
-  edgeCount: number;
+  connections: readonly NodeConnection[];
+  onSelectConnection(id: NotePath): void;
   onOpen(): void;
   onClose(): void;
 }): JSX.Element {
+  const visibleConnections = connections.slice(0, 8);
+  const hiddenConnectionCount = Math.max(0, connections.length - visibleConnections.length);
+
   return (
     <aside className="absolute bottom-3 right-3 z-10 w-80 max-w-[calc(100%-1.5rem)] rounded-lg border border-[#3a3a3f] bg-[#242426]/92 p-3 text-xs text-[#e6e6e8] shadow-xl shadow-black/25 backdrop-blur">
       <div className="flex items-start justify-between gap-3">
@@ -908,21 +950,69 @@ function NodeDetailPanel({
           className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-[#a7a7ad] transition hover:bg-[#303034] hover:text-[#f2f2f3]"
           aria-label="Chiudi dettaglio nodo"
         >
-          ×
+          <X size={14} aria-hidden="true" />
         </button>
       </div>
 
       <div className="mt-3 grid grid-cols-3 gap-2">
-        <NodeMetric label="Collegamenti" value={edgeCount.toString()} />
+        <NodeMetric label="Collegamenti" value={connections.length.toString()} />
         <NodeMetric label="Grado" value={node.degree.toString()} />
         <NodeMetric label="Tipo" value={node.type ?? 'Nota'} />
       </div>
 
+      {visibleConnections.length > 0 && (
+        <div className="mt-3 rounded-md border border-[#38383d] bg-[#1f1f22]/80">
+          <div className="flex h-8 items-center justify-between border-b border-[#343438] px-2">
+            <span className="text-[11px] font-semibold text-[#d7d7da]">Vicini</span>
+            {hiddenConnectionCount > 0 && (
+              <span className="font-mono text-[10px] tabular-nums text-[#8f8f98]">
+                +{hiddenConnectionCount}
+              </span>
+            )}
+          </div>
+          <div className="max-h-48 overflow-auto py-1">
+            {visibleConnections.map((connection) => (
+              <button
+                key={`${connection.direction}-${connection.id}-${connection.kind}`}
+                type="button"
+                onClick={(): void => onSelectConnection(connection.id)}
+                className="flex w-full min-w-0 items-center gap-2 px-2 py-1.5 text-left transition hover:bg-[#2a2a2e] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/25"
+              >
+                <span
+                  className={[
+                    'grid h-5 w-5 shrink-0 place-items-center rounded border',
+                    connection.direction === 'out'
+                      ? 'border-[#d53f5f]/35 bg-[#d53f5f]/10 text-[#f0a2b1]'
+                      : 'border-[#6f7178]/45 bg-[#2b2c31] text-[#d7d7da]',
+                  ].join(' ')}
+                  aria-hidden="true"
+                >
+                  {connection.direction === 'out' ? (
+                    <ArrowRight size={12} aria-hidden="true" />
+                  ) : (
+                    <ArrowLeft size={12} aria-hidden="true" />
+                  )}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[12px] text-[#eeeeef]">
+                    {connection.title}
+                  </span>
+                  <span className="block truncate font-mono text-[10px] text-[#8f8f98]">
+                    {connection.kind}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <button
         type="button"
         onClick={onOpen}
-        className="mt-3 h-8 w-full rounded-md border border-[#3a3a3f] bg-[#1f1f22] px-3 text-left text-xs font-medium text-[#ededf0] transition hover:border-[#5a5a62] hover:bg-[#303034] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/25"
+        className="mt-3 inline-flex h-8 w-full items-center justify-center rounded-md border border-[#3a3a3f] bg-[#1f1f22] px-3 text-xs font-medium text-[#ededf0] transition hover:border-[#5a5a62] hover:bg-[#303034] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/25"
       >
+        <ArrowSquareOut size={14} aria-hidden="true" className="mr-1.5" />
         Apri nota
       </button>
     </aside>

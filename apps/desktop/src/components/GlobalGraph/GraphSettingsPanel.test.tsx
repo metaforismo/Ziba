@@ -7,6 +7,7 @@ const DEFAULT_PROPS = {
   settings: DEFAULT_GRAPH_SETTINGS,
   onClose: vi.fn(),
   onReset: vi.fn(),
+  onApplyPreset: vi.fn(),
   onQueryChange: vi.fn(),
   onDisplayChange: vi.fn(),
   onForcesChange: vi.fn(),
@@ -26,6 +27,7 @@ describe('<GraphSettingsPanel>', () => {
     render(<GraphSettingsPanel {...DEFAULT_PROPS} open />);
 
     expect(screen.getByRole('heading', { name: 'Controlli grafo' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Applica preset SiYuan' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Filtri' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Gruppi' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Aspetto' })).toBeInTheDocument();
@@ -56,6 +58,9 @@ describe('<GraphSettingsPanel>', () => {
     fireEvent.click(screen.getByLabelText('Orfani'));
     expect(onQueryChange).toHaveBeenCalledWith({ includeOrphans: false });
 
+    fireEvent.change(screen.getByLabelText('Connessioni minime'), { target: { value: '2' } });
+    expect(onQueryChange).toHaveBeenCalledWith({ minDegree: 2 });
+
     fireEvent.click(screen.getByLabelText('Etichette'));
     expect(onDisplayChange).toHaveBeenCalledWith({ showText: false });
 
@@ -64,6 +69,21 @@ describe('<GraphSettingsPanel>', () => {
 
     fireEvent.change(screen.getByLabelText('Forza di repulsione'), { target: { value: '260' } });
     expect(onForcesChange).toHaveBeenCalledWith({ repel: 260 });
+  });
+
+  it('applies graph presets as a single user action', () => {
+    const onApplyPreset = vi.fn();
+    render(<GraphSettingsPanel {...DEFAULT_PROPS} open onApplyPreset={onApplyPreset} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Applica preset SiYuan' }));
+
+    expect(onApplyPreset).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'siyuan',
+        query: expect.objectContaining({ minDegree: 1, includeOrphans: false }),
+        display: expect.objectContaining({ showArrows: true }),
+      }),
+    );
   });
 
   it('adds and edits group rules', () => {

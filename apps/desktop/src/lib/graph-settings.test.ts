@@ -21,6 +21,7 @@ describe('graph settings defaults', () => {
       paths: [],
       types: [],
       relationKinds: [],
+      minDegree: 0,
       includeUnresolved: true,
       includeOrphans: true,
       existingOnly: false,
@@ -85,6 +86,7 @@ describe('graph settings storage', () => {
           query: {
             search: 42,
             tags: ['#ok', 12],
+            minDegree: 99,
             includeUnresolved: false,
             includeOrphans: 'yes',
             existingOnly: true,
@@ -123,6 +125,7 @@ describe('graph settings storage', () => {
 
     expect(settings.query.search).toBe('');
     expect(settings.query.tags).toEqual([]);
+    expect(settings.query.minDegree).toBe(32);
     expect(settings.query.includeUnresolved).toBe(false);
     expect(settings.query.includeOrphans).toBe(true);
     expect(settings.query.existingOnly).toBe(true);
@@ -172,6 +175,8 @@ describe('graph settings storage', () => {
 
     const { loadGraphSettingsForVault } = await loadGraphSettings();
     const settings = loadGraphSettingsForVault('/vault-a');
+
+    expect(settings.query.minDegree).toBe(0);
 
     expect(settings.display).toMatchObject({
       showArrows: true,

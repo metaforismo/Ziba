@@ -20,6 +20,7 @@ import { Table } from './Table';
  * column without forcing horizontal scroll on first paint.
  */
 const DEFAULT_VISIBLE_COLUMN_COUNT = 5;
+const DEFAULT_QUERY_LIMIT = 1000;
 
 // Frozen empty fallbacks — see BoardView/CalendarView for the same
 // reasoning (avoid per-render `[]` allocations driving downstream
@@ -61,6 +62,7 @@ export function DatabaseView(): JSX.Element {
   const setSort = useDatabaseStore((s) => s.setSort);
   const setGroupBy = useDatabaseStore((s) => s.setGroupBy);
   const setFolder = useDatabaseStore((s) => s.setFolder);
+  const setLimit = useDatabaseStore((s) => s.setLimit);
   const runQuery = useDatabaseStore((s) => s.runQuery);
   const subscribeToVaultEvents = useDatabaseStore((s) => s.subscribeToVaultEvents);
 
@@ -143,7 +145,10 @@ export function DatabaseView(): JSX.Element {
   const rows = result?.rows ?? EMPTY_ROWS;
   const groups = result?.groups ?? EMPTY_GROUPS;
   const totalCount = result?.totalCount ?? 0;
+  const queryLimit = query.limit ?? DEFAULT_QUERY_LIMIT;
   const noteCountLabel = totalCount === 1 ? '1 nota' : `${totalCount} note`;
+  const visibleWindowLabel =
+    rows.length > 0 && rows.length < totalCount ? `mostrate ${rows.length}` : null;
 
   const lastUpdatedLabel =
     lastUpdatedAt === null ? null : TIME_FORMATTER.format(new Date(lastUpdatedAt));
@@ -191,6 +196,9 @@ export function DatabaseView(): JSX.Element {
           <div className="flex items-baseline gap-3">
             <h1 className="text-base font-semibold text-fg">Database</h1>
             <span className="text-xs text-fg-muted">{noteCountLabel}</span>
+            {visibleWindowLabel !== null && (
+              <span className="text-xs text-fg-muted">{visibleWindowLabel}</span>
+            )}
             {loading && (
               <span aria-live="polite" className="text-xs text-fg-muted">
                 Aggiorno…
@@ -246,6 +254,8 @@ export function DatabaseView(): JSX.Element {
               setFolder(trimmed === '' ? undefined : trimmed);
             }}
           />
+
+          <LimitControl value={queryLimit} onChange={setLimit} />
 
           <ViewModeTabs current={databaseViewMode} onChange={setDatabaseViewMode} />
         </div>
@@ -418,6 +428,35 @@ function FolderScopeInput({
         placeholder="(tutte)"
         className="w-40 rounded border border-border bg-bg-subtle px-1.5 py-0.5 text-fg outline-none focus:ring-1 focus:ring-accent placeholder:text-fg-muted"
       />
+    </div>
+  );
+}
+
+function LimitControl({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange(limit: number): void;
+}): JSX.Element {
+  const options = [50, 100, 250, 1000, 5000];
+  const normalized = options.includes(value) ? value : DEFAULT_QUERY_LIMIT;
+
+  return (
+    <div className="flex items-center gap-1">
+      <label className="text-fg-muted">Righe:</label>
+      <select
+        value={normalized}
+        onChange={(e): void => onChange(Number(e.target.value))}
+        aria-label="Righe per vista"
+        className="rounded border border-border bg-bg-subtle px-1 py-0.5 text-fg outline-none focus:ring-1 focus:ring-accent"
+      >
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }

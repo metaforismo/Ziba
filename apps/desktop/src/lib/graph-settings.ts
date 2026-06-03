@@ -5,6 +5,7 @@ export type GraphQueryFilters = {
   paths: string[];
   types: string[];
   relationKinds: string[];
+  minDegree: number;
   includeUnresolved: boolean;
   includeOrphans: boolean;
   existingOnly: boolean;
@@ -58,6 +59,7 @@ export const DEFAULT_GRAPH_SETTINGS: GraphSettings = {
     paths: [],
     types: [],
     relationKinds: [],
+    minDegree: 0,
     includeUnresolved: true,
     includeOrphans: true,
     existingOnly: false,
@@ -110,6 +112,7 @@ function cloneDefaults(): GraphSettings {
       paths: [],
       types: [],
       relationKinds: [],
+      minDegree: DEFAULT_GRAPH_SETTINGS.query.minDegree,
     },
     display: { ...DEFAULT_GRAPH_SETTINGS.display },
     forces: { ...DEFAULT_GRAPH_SETTINGS.forces },
@@ -184,6 +187,7 @@ export function validateGraphSettings(raw: unknown): GraphSettings {
       paths: stringArray(query.paths, defaults.query.paths),
       types: stringArray(query.types, defaults.query.types),
       relationKinds: stringArray(query.relationKinds, defaults.query.relationKinds),
+      minDegree: boundedNumber(query.minDegree, defaults.query.minDegree, 0, 32),
       includeUnresolved: bool(query.includeUnresolved, defaults.query.includeUnresolved),
       includeOrphans: bool(query.includeOrphans, defaults.query.includeOrphans),
       existingOnly: bool(query.existingOnly, defaults.query.existingOnly),

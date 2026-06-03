@@ -87,4 +87,13 @@ describe('deriveGraphView', () => {
       { source: 'Projects/B.md', target: 'People/C.md', targetTitle: 'Carla', kind: 'owns' },
     ]);
   });
+
+  it('applies a SiYuan-style minimum connection threshold', () => {
+    const view = deriveGraphView(GRAPH, settings({ query: { minDegree: 2 } }));
+
+    expect(view.graph.nodes.map((n) => n.path)).toEqual(['Projects/B.md']);
+    expect(view.graph.edges).toEqual([]);
+    expect(view.activeFilterCount).toBe(1);
+    expect(view.hiddenNodeCount).toBe(3);
+  });
 });

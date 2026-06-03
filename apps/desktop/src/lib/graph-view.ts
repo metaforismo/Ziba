@@ -55,6 +55,7 @@ function activeFilterCount(settings: GraphSettings): number {
     query.paths.length > 0,
     query.types.length > 0,
     query.relationKinds.length > 0,
+    query.minDegree > 0,
     !query.includeOrphans,
   ].filter(Boolean).length;
 }
@@ -79,6 +80,20 @@ export function deriveGraphView(graph: FullGraph, settings: GraphSettings): Deri
     }
     visibleIds = connected;
     visibleEdges = matchedEdges.filter(
+      (edge) => visibleIds.has(edge.source) && visibleIds.has(edge.target),
+    );
+  }
+
+  if (settings.query.minDegree > 0) {
+    const degree = new Map<string, number>();
+    for (const edge of visibleEdges) {
+      degree.set(edge.source, (degree.get(edge.source) ?? 0) + 1);
+      degree.set(edge.target, (degree.get(edge.target) ?? 0) + 1);
+    }
+    visibleIds = new Set(
+      Array.from(visibleIds).filter((id) => (degree.get(id) ?? 0) >= settings.query.minDegree),
+    );
+    visibleEdges = visibleEdges.filter(
       (edge) => visibleIds.has(edge.source) && visibleIds.has(edge.target),
     );
   }
