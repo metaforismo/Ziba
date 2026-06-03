@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CornersOut, Gear, MagnifyingGlass, Minus, Plus } from '@phosphor-icons/react';
 import type { NotePath } from '@ziba/core';
 import type { FullGraph } from '../../../shared/ipc';
 import { ipc } from '../../lib/ipc';
@@ -23,6 +24,7 @@ import { useVaultStore } from '../../stores/vault';
 import { useGraphSettingsStore } from '../../stores/graph';
 import { GraphSettingsPanel } from './GraphSettingsPanel';
 import type { GraphGroupRule } from '../../lib/graph-settings';
+import { graphGroupQueryMatchesNode } from '../../lib/graph-groups';
 
 // Logical canvas the simulation runs on. The SVG `viewBox` matches
 // these numbers; on screen we just stretch to fill the container, with
@@ -54,6 +56,7 @@ export function GlobalGraph(): JSX.Element {
   const [load, setLoad] = useState<LoadState>({ kind: 'idle' });
   const [selectedId, setSelectedId] = useState<NotePath | null>(null);
   const [clusterOverlayOn, setClusterOverlayOn] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   // We bump `viewVersion` whenever we want to force the canvas to apply
   // a fresh `initialView` (fit-to-screen, +/- zoom button). Pan/wheel
   // gestures bypass this and write directly into the canvas via its
@@ -73,6 +76,8 @@ export function GlobalGraph(): JSX.Element {
   const addGraphGroup = useGraphSettingsStore((s) => s.addGroup);
   const updateGraphGroup = useGraphSettingsStore((s) => s.updateGroup);
   const removeGraphGroup = useGraphSettingsStore((s) => s.removeGroup);
+  const seedGraphGroups = useGraphSettingsStore((s) => s.seedGroupsFromTopLevelFolders);
+  const resetGraphSettings = useGraphSettingsStore((s) => s.resetSettings);
   const search = graphSettings.query.search;
   const selectedType = graphSettings.query.types[0] ?? null;
   const selectedKinds = useMemo<ReadonlySet<string>>(
@@ -88,6 +93,11 @@ export function GlobalGraph(): JSX.Element {
   useEffect(() => {
     setGraphSettingsVaultRoot(currentVaultRoot);
   }, [currentVaultRoot, setGraphSettingsVaultRoot]);
+
+  useEffect(() => {
+    if (load.kind !== 'ready') return;
+    seedGraphGroups(load.graph.nodes.map((node) => node.path));
+  }, [load, seedGraphGroups]);
 
   // Initial fetch + watcher-driven refetch.
   useEffect(() => {
@@ -569,85 +579,105 @@ export function GlobalGraph(): JSX.Element {
   const hasActiveFilters = (graphView?.activeFilterCount ?? 0) > 0;
 
   return (
-    <div className="flex h-full w-full flex-col bg-bg text-fg">
-      <header className="flex shrink-0 flex-col gap-2 border-b border-border/80 bg-bg-subtle/95 px-4 py-3 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex min-w-0 items-baseline gap-3">
-            <h1 className="truncate text-[15px] font-semibold text-fg">Grafo globale</h1>
-            {isReady && (
-              <span className="truncate font-mono text-[11px] tabular-nums text-fg-muted">
-                {nodeCount} {nodeCount === 1 ? 'nodo' : 'nodi'} · {edgeCount}{' '}
-                {edgeCount === 1 ? 'arco' : 'archi'}
-              </span>
+    <div className="flex h-full w-full flex-col bg-[#1d1d1f] text-[#e6e6e8]">
+      <div className="relative min-h-0 flex-1 overflow-hidden bg-[#1d1d1f]">
+        <div className="pointer-events-none absolute left-4 right-4 top-3 z-10 flex items-start justify-between gap-3">
+          <div className="min-w-0 rounded-lg border border-[#36363a]/90 bg-[#242426]/80 px-3 py-2 shadow-lg shadow-black/20 backdrop-blur">
+            <div className="flex min-w-0 items-baseline gap-3">
+              <h1 className="truncate text-[14px] font-semibold text-[#f0f0f2]">Vista grafo</h1>
+              {isReady && (
+                <span className="truncate font-mono text-[11px] tabular-nums text-[#9d9da4]">
+                  {nodeCount} {nodeCount === 1 ? 'nodo' : 'nodi'} · {edgeCount}{' '}
+                  {edgeCount === 1 ? 'arco' : 'archi'}
+                </span>
+              )}
+            </div>
+            {hasActiveFilters && (
+              <p className="mt-1 truncate text-[11px] text-[#9d9da4]">
+                {hiddenNodeCount} nodi nascosti · {hiddenEdgeCount} collegamenti nascosti
+              </p>
             )}
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <input
-              type="text"
-              value={search}
-              onChange={(e): void => updateGraphQuery({ search: e.target.value })}
-              placeholder="Cerca nel grafo…"
-              className="h-7 w-52 rounded-md border border-border/80 bg-bg px-2.5 text-xs text-fg shadow-sm outline-none transition placeholder:text-fg-muted hover:border-fg-muted/50 focus:border-accent focus:ring-2 focus:ring-accent/15"
-              spellCheck={false}
-              autoComplete="off"
-              autoCorrect="off"
-              aria-label="Filtra nodi per titolo"
-            />
-            <div className="flex h-7 items-center overflow-hidden rounded-md border border-border/80 bg-bg shadow-sm">
+
+          <div className="pointer-events-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
+            <label className="flex h-9 w-64 max-w-[38vw] items-center gap-2 rounded-lg border border-[#3a3a3f] bg-[#242426]/86 px-2.5 text-[#b7b7bd] shadow-lg shadow-black/20 backdrop-blur transition focus-within:border-[#5a5a62] focus-within:ring-2 focus-within:ring-white/10">
+              <MagnifyingGlass size={16} aria-hidden="true" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e): void => updateGraphQuery({ search: e.target.value })}
+                placeholder="Cerca nel grafo..."
+                className="min-w-0 flex-1 bg-transparent text-[13px] text-[#f0f0f2] outline-none placeholder:text-[#87878f]"
+                spellCheck={false}
+                autoComplete="off"
+                autoCorrect="off"
+                aria-label="Filtra nodi per titolo"
+              />
+            </label>
+            <div className="flex h-9 items-center overflow-hidden rounded-lg border border-[#3a3a3f] bg-[#242426]/86 shadow-lg shadow-black/20 backdrop-blur">
               <button
                 type="button"
                 onClick={(): void => handleZoom(1 / ZOOM_STEP)}
-                className={toolbarButtonClass}
+                className={graphToolbarButtonClass}
                 title="Zoom out"
                 aria-label="Diminuisci zoom"
               >
-                −
+                <Minus size={15} aria-hidden="true" />
               </button>
               <button
                 type="button"
                 onClick={(): void => handleZoom(ZOOM_STEP)}
-                className={toolbarButtonClass}
+                className={graphToolbarButtonClass}
                 title="Zoom in"
                 aria-label="Aumenta zoom"
               >
-                +
+                <Plus size={15} aria-hidden="true" />
               </button>
               <button
                 type="button"
                 onClick={fitToScreen}
-                className={`${toolbarButtonClass} border-l border-border/70 px-2.5`}
+                className={`${graphToolbarButtonClass} border-l border-[#3a3a3f]`}
                 title="Adatta alla finestra"
                 aria-label="Adatta alla finestra"
               >
-                Adatta
+                <CornersOut size={16} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={(): void => setSettingsOpen(true)}
+                className={`${graphToolbarButtonClass} border-l border-[#3a3a3f]`}
+                title="Controlli grafo"
+                aria-label="Apri controlli grafo"
+              >
+                <Gear size={16} aria-hidden="true" />
               </button>
             </div>
           </div>
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <TypeChips types={typeChips} selectedType={selectedType} onChange={handleTypeChange} />
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <KindFilterDropdown
-              kinds={kindOptions}
-              selectedKinds={selectedKinds}
-              onChange={handleKindsChange}
-            />
-            <label className="flex h-7 items-center gap-1.5 rounded-md border border-border/80 bg-bg px-2 text-xs text-fg-subtle shadow-sm transition hover:border-fg-muted/40 hover:text-fg">
-              <input
-                type="checkbox"
-                checked={clusterOverlayOn}
-                onChange={(e): void => setClusterOverlayOn(e.target.checked)}
-                className="h-3 w-3 accent-[rgb(var(--accent))]"
-              />
-              Mostra cluster
-            </label>
-          </div>
-        </div>
-      </header>
 
-      <div className="relative min-h-0 flex-1 overflow-hidden bg-bg">
+        <div className="pointer-events-auto absolute bottom-3 left-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-2">
+          <TypeChips types={typeChips} selectedType={selectedType} onChange={handleTypeChange} />
+          <KindFilterDropdown
+            kinds={kindOptions}
+            selectedKinds={selectedKinds}
+            onChange={handleKindsChange}
+          />
+          <label className="flex h-8 items-center gap-1.5 rounded-lg border border-[#3a3a3f] bg-[#242426]/84 px-2 text-[12px] text-[#c8c8ce] shadow-lg shadow-black/20 backdrop-blur transition hover:border-[#4f4f56] hover:text-[#f0f0f2]">
+            <input
+              type="checkbox"
+              checked={clusterOverlayOn}
+              onChange={(e): void => setClusterOverlayOn(e.target.checked)}
+              className="size-3.5 accent-[#d7d7da]"
+            />
+            Cluster
+          </label>
+        </div>
+
         <GraphSettingsPanel
+          open={settingsOpen}
           settings={graphSettings}
+          onClose={(): void => setSettingsOpen(false)}
+          onReset={resetGraphSettings}
           onQueryChange={updateGraphQuery}
           onDisplayChange={updateGraphDisplay}
           onForcesChange={updateGraphForces}
@@ -700,6 +730,10 @@ export function GlobalGraph(): JSX.Element {
             showNodes={graphSettings.display.showNodes}
             showText={graphSettings.display.showText}
             showArrows={graphSettings.display.showArrows}
+            labelFade={graphSettings.display.labelFade}
+            nodeScale={graphSettings.display.nodeScale}
+            linkWidth={graphSettings.display.linkWidth}
+            showGrid={graphSettings.display.showGrid}
             linkOpacity={graphSettings.forces.linkOpacity}
             focusMode={graphSettings.query.focusMode}
           />
@@ -716,12 +750,6 @@ export function GlobalGraph(): JSX.Element {
             }}
             onClose={(): void => setSelectedId(null)}
           />
-        )}
-        {load.kind === 'ready' && nodeCount > 0 && hasActiveFilters && (
-          <div className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-2 rounded-md border border-border/70 bg-bg-subtle/90 px-2.5 py-1.5 text-[11px] text-fg-muted shadow-sm backdrop-blur">
-            vista filtrata · {hiddenNodeCount} nodi nascosti · {hiddenEdgeCount} collegamenti
-            nascosti
-          </div>
         )}
       </div>
     </div>
@@ -754,44 +782,13 @@ function groupColorForNode(
 ): string | null {
   for (const group of groups) {
     if (!group.enabled) continue;
-    if (groupMatchesNode(node, group.query)) return group.color;
+    if (graphGroupQueryMatchesNode(node, group.query)) return group.color;
   }
   return null;
 }
 
-function groupMatchesNode(
-  node: { path: string; title: string; type: string | null },
-  query: string,
-): boolean {
-  const clauses = query
-    .split(/\s+OR\s+/i)
-    .map((part) => part.trim())
-    .filter(Boolean);
-  if (clauses.length === 0) return false;
-  return clauses.some((clause) =>
-    clause
-      .toLowerCase()
-      .split(/\s+/)
-      .filter(Boolean)
-      .every((token) => groupTokenMatchesNode(node, token)),
-  );
-}
-
-function groupTokenMatchesNode(
-  node: { path: string; title: string; type: string | null },
-  token: string,
-): boolean {
-  if (token.startsWith('type:')) return (node.type ?? '').toLowerCase() === token.slice(5);
-  if (token.startsWith('path:') || token.startsWith('folder:')) {
-    const value = token.slice(token.indexOf(':') + 1);
-    return node.path.toLowerCase().includes(value);
-  }
-  if (token.startsWith('tag:')) return false;
-  return node.title.toLowerCase().includes(token) || node.path.toLowerCase().includes(token);
-}
-
-const toolbarButtonClass =
-  'flex h-full min-w-7 items-center justify-center px-2 text-xs font-medium text-fg-subtle transition hover:bg-bg-muted hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent active:bg-bg-muted/80';
+const graphToolbarButtonClass =
+  'grid h-full min-w-9 place-items-center px-2 text-[#b7b7bd] transition hover:bg-[#303034] hover:text-[#f4f4f5] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/25 active:bg-[#343438]';
 
 function GraphStatus({
   title,
@@ -807,33 +804,35 @@ function GraphStatus({
     <div className="absolute inset-0 flex items-center justify-center p-6">
       <div
         className={[
-          'w-full max-w-sm rounded-lg border bg-bg-subtle/90 p-5 text-center shadow-sm backdrop-blur',
-          isDanger ? 'border-red-500/40' : 'border-border/80',
+          'w-full max-w-sm rounded-lg border bg-[#242426]/92 p-5 text-center shadow-xl shadow-black/25 backdrop-blur',
+          isDanger ? 'border-[#d53f5f]/55' : 'border-[#3a3a3f]',
         ].join(' ')}
       >
         <div
           aria-hidden="true"
           className={[
             'mx-auto mb-4 h-24 w-48 rounded-md border',
-            isDanger ? 'border-red-500/25 bg-red-500/5' : 'border-border/70 bg-bg',
+            isDanger ? 'border-[#d53f5f]/30 bg-[#d53f5f]/10' : 'border-[#38383d] bg-[#1d1d1f]',
           ].join(' ')}
         >
           <div className="flex h-full items-center justify-center gap-3">
-            <span className="h-2.5 w-2.5 rounded-full bg-accent/70" />
-            <span className="h-px w-12 bg-border" />
-            <span className="h-4 w-4 rounded-full border border-accent/50 bg-accent/15" />
-            <span className="h-px w-10 bg-border" />
-            <span className="h-2 w-2 rounded-full bg-fg-muted/50" />
+            <span className="h-2.5 w-2.5 rounded-full bg-[#b8babf]" />
+            <span className="h-px w-12 bg-[#484a50]" />
+            <span className="h-4 w-4 rounded-full border border-[#d53f5f]/55 bg-[#d53f5f]/30" />
+            <span className="h-px w-10 bg-[#484a50]" />
+            <span className="h-2 w-2 rounded-full bg-[#6f7178]" />
           </div>
         </div>
         <h2
           className={
-            isDanger ? 'text-sm font-semibold text-red-500' : 'text-sm font-semibold text-fg'
+            isDanger
+              ? 'text-sm font-semibold text-[#f0a2b1]'
+              : 'text-sm font-semibold text-[#f2f2f3]'
           }
         >
           {title}
         </h2>
-        <p className="mt-1 text-xs leading-5 text-fg-muted">{detail}</p>
+        <p className="mt-1 text-xs leading-5 text-[#a7a7ad]">{detail}</p>
       </div>
     </div>
   );
@@ -851,16 +850,16 @@ function NodeDetailPanel({
   onClose(): void;
 }): JSX.Element {
   return (
-    <aside className="absolute bottom-3 right-3 z-10 w-80 max-w-[calc(100%-1.5rem)] rounded-lg border border-border/80 bg-bg-subtle/95 p-3 text-xs text-fg shadow-lg backdrop-blur">
+    <aside className="absolute bottom-3 right-3 z-10 w-80 max-w-[calc(100%-1.5rem)] rounded-lg border border-[#3a3a3f] bg-[#242426]/92 p-3 text-xs text-[#e6e6e8] shadow-xl shadow-black/25 backdrop-blur">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-fg">{node.title}</p>
-          <p className="mt-1 truncate font-mono text-[11px] text-fg-muted">{node.id}</p>
+          <p className="truncate text-sm font-semibold text-[#f2f2f3]">{node.title}</p>
+          <p className="mt-1 truncate font-mono text-[11px] text-[#9d9da4]">{node.id}</p>
         </div>
         <button
           type="button"
           onClick={onClose}
-          className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-fg-muted transition hover:bg-bg-muted hover:text-fg"
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-[#a7a7ad] transition hover:bg-[#303034] hover:text-[#f2f2f3]"
           aria-label="Chiudi dettaglio nodo"
         >
           ×
@@ -876,7 +875,7 @@ function NodeDetailPanel({
       <button
         type="button"
         onClick={onOpen}
-        className="mt-3 h-8 w-full rounded-md border border-border bg-bg px-3 text-left text-xs font-medium text-fg transition hover:border-accent/60 hover:bg-bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+        className="mt-3 h-8 w-full rounded-md border border-[#3a3a3f] bg-[#1f1f22] px-3 text-left text-xs font-medium text-[#ededf0] transition hover:border-[#5a5a62] hover:bg-[#303034] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/25"
       >
         Apri nota
       </button>
@@ -886,9 +885,9 @@ function NodeDetailPanel({
 
 function NodeMetric({ label, value }: { label: string; value: string }): JSX.Element {
   return (
-    <div className="min-w-0 rounded-md border border-border/70 bg-bg px-2 py-1.5">
-      <p className="text-[10px] uppercase tracking-wide text-fg-muted">{label}</p>
-      <p className="truncate text-[12px] font-medium text-fg">{value}</p>
+    <div className="min-w-0 rounded-md border border-[#38383d] bg-[#1f1f22] px-2 py-1.5">
+      <p className="text-[10px] uppercase tracking-wide text-[#9d9da4]">{label}</p>
+      <p className="truncate text-[12px] font-medium text-[#ededf0]">{value}</p>
     </div>
   );
 }

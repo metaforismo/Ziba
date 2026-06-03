@@ -240,34 +240,6 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
             },
           },
           {
-            label: 'Duplica',
-            icon: <Files size={15} />,
-            onSelect: (): void => {
-              void mutations.duplicateFile(target.path);
-            },
-          },
-          {
-            label: 'Copia percorso',
-            icon: <Copy size={15} />,
-            children: [
-              {
-                label: 'Percorso relativo',
-                onSelect: (): void => copyPath(target.path),
-              },
-              {
-                label: 'Percorso assoluto',
-                onSelect: (): void => copyPath(absolutePathFor(target.path)),
-              },
-            ],
-          },
-          {
-            label: 'Mostra in Finder',
-            separatorBefore: true,
-            onSelect: (): void => {
-              void showInFinder(target.path);
-            },
-          },
-          {
             label: 'Rinomina',
             icon: <PencilSimple size={15} />,
             onSelect: (): void => {
@@ -292,6 +264,35 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
               });
             },
           },
+          {
+            label: 'Altro',
+            separatorBefore: true,
+            children: [
+              {
+                label: 'Duplica',
+                icon: <Files size={15} />,
+                onSelect: (): void => {
+                  void mutations.duplicateFile(target.path);
+                },
+              },
+              {
+                label: 'Copia percorso relativo',
+                icon: <Copy size={15} />,
+                onSelect: (): void => copyPath(target.path),
+              },
+              {
+                label: 'Copia percorso assoluto',
+                icon: <Copy size={15} />,
+                onSelect: (): void => copyPath(absolutePathFor(target.path)),
+              },
+              {
+                label: 'Mostra in Finder',
+                onSelect: (): void => {
+                  void showInFinder(target.path);
+                },
+              },
+            ],
+          },
         ];
       }
       if (target.kind === 'folder') {
@@ -308,23 +309,6 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
             icon: <Plus size={15} />,
             onSelect: (): void => {
               setDialog({ kind: 'newFolderIn', parentFolder: target.path });
-            },
-          },
-          {
-            label: 'Copia percorso',
-            icon: <Copy size={15} />,
-            children: [
-              { label: 'Percorso relativo', onSelect: (): void => copyPath(target.path) },
-              {
-                label: 'Percorso assoluto',
-                onSelect: (): void => copyPath(absolutePathFor(target.path)),
-              },
-            ],
-          },
-          {
-            label: 'Mostra in Finder',
-            onSelect: (): void => {
-              void showInFinder(target.path);
             },
           },
           {
@@ -360,6 +344,28 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
                 name: target.name,
               });
             },
+          },
+          {
+            label: 'Altro',
+            separatorBefore: true,
+            children: [
+              {
+                label: 'Copia percorso relativo',
+                icon: <Copy size={15} />,
+                onSelect: (): void => copyPath(target.path),
+              },
+              {
+                label: 'Copia percorso assoluto',
+                icon: <Copy size={15} />,
+                onSelect: (): void => copyPath(absolutePathFor(target.path)),
+              },
+              {
+                label: 'Mostra in Finder',
+                onSelect: (): void => {
+                  void showInFinder(target.path);
+                },
+              },
+            ],
           },
         ];
       }

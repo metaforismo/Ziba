@@ -105,34 +105,41 @@ type Props = {
   showNodes?: boolean;
   showText?: boolean;
   showArrows?: boolean;
+  labelFade?: number;
+  nodeScale?: number;
+  linkWidth?: number;
+  showGrid?: boolean;
   /** Base opacity for non-highlighted links. */
   linkOpacity?: number;
   /** When true, dimmed graph elements recede harder so the focus pops. */
   focusMode?: boolean;
 };
 
-// Below this scale we hide labels entirely — they pile up and become
-// unreadable. Above 1.5x we show labels but only for the most-connected
-// nodes (the quantile threshold lives in `lib/graph-tuning.ts`).
-const LABEL_MIN_SCALE = 1.5;
+const DEFAULT_LABEL_FADE = 0.48;
+const DEFAULT_NODE_SCALE = 1;
+const DEFAULT_LINK_WIDTH = 0.72;
 
 // Visual constants. We keep these here (not as Tailwind classes) because
 // SVG elements need actual `fill`/`stroke` attributes — a class with a
 // background-color does nothing on a `<circle>`.
-const NODE_FILL = 'rgb(var(--accent) / 0.18)';
-const NODE_STROKE = 'rgb(var(--accent))';
-const NODE_FILL_DIM = 'rgb(var(--bg-muted))';
-const NODE_STROKE_DIM = 'rgb(var(--border))';
-// EDGE_STROKE removed: edges now use kindToHsl() for per-kind color.
-const EDGE_STROKE_HIGHLIGHT = 'rgb(var(--accent))';
-const LABEL_FILL = 'rgb(var(--fg))';
-const CANVAS_BG = 'rgb(var(--bg))';
-const CANVAS_DOT = 'rgb(var(--fg-muted) / 0.16)';
-const CANVAS_GRID = 'rgb(var(--border) / 0.32)';
-const CANVAS_HALO = 'rgb(var(--accent) / 0.08)';
+const NODE_FILL = '#b8babf';
+const NODE_STROKE = '#d7d8dc';
+const NODE_FILL_DIM = '#515359';
+const NODE_STROKE_DIM = '#3f4147';
+const NODE_SELECTED = '#d53f5f';
+const NODE_SELECTED_STROKE = '#f0a2b1';
+const EDGE_STROKE = '#484a50';
+const EDGE_STROKE_HIGHLIGHT = '#d53f5f';
+const LABEL_FILL = '#e6e6e8';
+const LABEL_STROKE = '#1d1d1f';
+const CANVAS_BG = '#1d1d1f';
+const CANVAS_BG_CENTER = '#242426';
+const CANVAS_DOT = 'rgba(255,255,255,0.10)';
+const CANVAS_GRID = 'rgba(255,255,255,0.07)';
+const CANVAS_HALO = 'rgba(255,255,255,0.025)';
 
 const FULL_OPACITY = 1;
-const DEFAULT_LINK_OPACITY = 0.32;
+const DEFAULT_LINK_OPACITY = 0.24;
 
 const EMPTY_STRING_SET: ReadonlySet<string> = new Set();
 
@@ -174,7 +181,11 @@ export const Canvas = memo(
       showLinks = true,
       showNodes = true,
       showText = true,
-      showArrows = true,
+      showArrows = false,
+      labelFade = DEFAULT_LABEL_FADE,
+      nodeScale = DEFAULT_NODE_SCALE,
+      linkWidth = DEFAULT_LINK_WIDTH,
+      showGrid = false,
       linkOpacity = DEFAULT_LINK_OPACITY,
       focusMode = false,
     } = props;
@@ -227,7 +238,10 @@ export const Canvas = memo(
     // it's a single pass over `nodes` and the parent already memoised the
     // degree value into each CanvasNode.
     const labelDegreeThreshold = labelDegreeAtQuantile(nodes, LABEL_TOP_DEGREE_QUANTILE);
-    const showLabels = initialView.scale >= LABEL_MIN_SCALE;
+    const labelMinScale = 0.68 + clampNumber(labelFade, 0, 1) * 0.95;
+    const showLabels = initialView.scale >= labelMinScale;
+    const radiusScale = clampNumber(nodeScale, 0.45, 2.25);
+    const baseLinkWidth = clampNumber(linkWidth, 0.25, 4);
     // We use the *initial* scale only for the static flag. The live
     // scale is in viewRef but we don't toggle labels on every wheel
     // tick — that would defeat the purpose of the imperative transform.
@@ -281,7 +295,7 @@ export const Canvas = memo(
         <defs>
           <radialGradient id="global-graph-surface" cx="50%" cy="42%" r="72%">
             <stop offset="0%" stopColor={CANVAS_HALO} />
-            <stop offset="58%" stopColor="rgb(var(--bg-subtle) / 0.48)" />
+            <stop offset="58%" stopColor={CANVAS_BG_CENTER} />
             <stop offset="100%" stopColor={CANVAS_BG} />
           </radialGradient>
           <pattern
@@ -309,12 +323,25 @@ export const Canvas = memo(
             markerHeight="4"
             orient="auto-start-reverse"
           >
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="rgb(var(--fg-muted))" />
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#9a9ca2" />
           </marker>
         </defs>
 
-        <rect width={width} height={height} fill="url(#global-graph-surface)" />
-        <rect width={width} height={height} fill="url(#global-graph-grid)" opacity="0.46" />
+        <rect
+          data-graph-surface="obsidian-dark"
+          width={width}
+          height={height}
+          fill="url(#global-graph-surface)"
+        />
+        {showGrid && (
+          <rect
+            data-graph-grid="true"
+            width={width}
+            height={height}
+            fill="url(#global-graph-grid)"
+            opacity="0.42"
+          />
+        )}
 
         <g ref={transformRef} transform={transformString(initialView)}>
           {clusterOverlayOn && <HullsLayer nodes={nodes} hiddenTypes={hiddenHullTypes} />}
@@ -327,10 +354,14 @@ export const Canvas = memo(
                 if (a === null || b === null) return null;
                 const highlight =
                   hasSelection && (e.source === selectedId || e.target === selectedId);
-                // When a node is selected (highlight), use accent color regardless of kind —
-                // the selection visual takes precedence over kind information.
-                const kindColor = kindToHsl(e.kind);
-                const stroke = highlight ? EDGE_STROKE_HIGHLIGHT : kindColor;
+                // Links stay neutral by default, like Obsidian. Relation-kind colour
+                // only appears when the user has explicitly filtered to kinds.
+                const stroke =
+                  highlightKinds.size > 0 && highlightKinds.has(e.kind)
+                    ? kindToHsl(e.kind)
+                    : highlight
+                      ? EDGE_STROKE_HIGHLIGHT
+                      : EDGE_STROKE;
                 const dimByKindFilter = highlightKinds.size > 0 && !highlightKinds.has(e.kind);
                 const dimByTypeFilter =
                   highlightType !== null &&
@@ -355,7 +386,7 @@ export const Canvas = memo(
                     stroke={stroke}
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    strokeWidth={highlight ? 1.8 : 1}
+                    strokeWidth={highlight ? baseLinkWidth * 2.1 : baseLinkWidth}
                     opacity={opacity}
                     markerEnd={showArrows ? 'url(#global-graph-arrow)' : undefined}
                   />
@@ -384,6 +415,7 @@ export const Canvas = memo(
                   !isHighlightedByType;
                 const opacity = dim ? dimOpacity : FULL_OPACITY;
                 const labelEligible = showText && showLabels && n.degree >= labelDegreeThreshold;
+                const radius = Math.max(2.4, n.r * radiusScale);
                 return (
                   <g
                     key={n.id}
@@ -401,33 +433,38 @@ export const Canvas = memo(
                     <title>{n.title}</title>
                     {isSelected && (
                       <circle
-                        r={n.r + 8}
-                        fill="rgb(var(--accent) / 0.12)"
-                        stroke="rgb(var(--accent) / 0.28)"
+                        r={radius + 8}
+                        fill="rgba(213,63,95,0.14)"
+                        stroke="rgba(213,63,95,0.34)"
                         strokeWidth={1}
                       />
                     )}
                     <circle
-                      r={n.r}
+                      r={radius}
                       fill={
                         dim
                           ? NODE_FILL_DIM
                           : isSelected
-                            ? NODE_STROKE
+                            ? NODE_SELECTED
                             : n.color !== null
                               ? n.color
                               : NODE_FILL
                       }
-                      stroke={dim ? NODE_STROKE_DIM : NODE_STROKE}
-                      strokeWidth={isSelected ? 2 : 1}
+                      stroke={
+                        dim ? NODE_STROKE_DIM : isSelected ? NODE_SELECTED_STROKE : NODE_STROKE
+                      }
+                      strokeWidth={isSelected ? 1.8 : 0.9}
                     />
                     {labelEligible && (
                       <text
-                        x={n.r + 3}
+                        x={radius + 3.8}
                         y={3}
-                        fontSize={9}
-                        fontWeight={500}
+                        fontSize={10}
+                        fontWeight={560}
                         fill={LABEL_FILL}
+                        stroke={LABEL_STROKE}
+                        strokeWidth={3.2}
+                        paintOrder="stroke"
                         pointerEvents="none"
                       >
                         {truncate(n.title, 24)}
@@ -476,4 +513,11 @@ function labelDegreeAtQuantile(nodes: CanvasNode[], q: number): number {
 function truncate(s: string, max: number): string {
   if (s.length <= max) return s;
   return `${s.slice(0, Math.max(1, max - 1))}…`;
+}
+
+function clampNumber(n: number, lo: number, hi: number): number {
+  if (!Number.isFinite(n)) return lo;
+  if (n < lo) return lo;
+  if (n > hi) return hi;
+  return n;
 }

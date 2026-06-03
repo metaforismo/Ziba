@@ -1,30 +1,26 @@
 // Force-directed layout for the full-vault graph.
 //
-// Implementation choice: re-uses the hand-rolled simulator from
-// `MiniGraph/layout.ts`. That simulator was written for a 1-hop
-// neighbourhood (5–30 nodes) and uses the obvious O(n²) repulsion loop,
-// but it scales acceptably to the v0.3 target ("works at <500 nodes")
-// when we crank the iteration count up and tune the force constants.
-//
-// We deliberately do NOT pull in `d3-force` or `vis-network` — for v0.3
-// we want to keep the renderer bundle small and the math legible. If a
-// real-world vault hits the multi-thousand-node range and the layout
-// pass becomes a UX problem, v0.4 can swap in a Barnes-Hut quadtree
-// approximation behind this same `runGlobalLayout` API; the rest of the
-// component does not need to change.
-//
-// We also explicitly do NOT import the `'self'` semantics from the
-// mini-graph — there is no anchor node in a vault-wide view, so every
-// node is free to move. The `'outbound'` kind is used as an arbitrary
-// label so the existing `LayoutNode` shape lines up.
+// The mini graph keeps its tiny hand-rolled simulator, but the global
+// graph deserves Barnes-Hut repulsion and predictable controls. We use
+// `d3-force` behind this small API so the rest of the graph stays unaware
+// of the engine swap.
 
 import {
+  forceCenter,
+  forceCollide,
+  forceLink,
+  forceManyBody,
+  forceSimulation,
+  forceX,
+  forceY,
+  type SimulationLinkDatum,
+  type SimulationNodeDatum,
+} from 'd3-force';
+import {
   initializeOnCircle as miniInitializeOnCircle,
-  simulateLayout as miniSimulateLayout,
   type LayoutEdge,
   type LayoutNode,
 } from '../MiniGraph/layout';
-import { GRAPH_CLUSTER_STRENGTH } from '../../lib/graph-tuning';
 import type { GraphForceSettings } from '../../lib/graph-settings';
 
 export type { LayoutEdge, LayoutNode };
@@ -44,45 +40,31 @@ export type GlobalLayoutOptions = {
   forces?: GraphForceSettings;
 };
 
-// Force constants tuned for vault-scale graphs (50–1000 nodes).
-//
-// `kRepulsive` is the dominant cost in O(n²). With many nodes the cloud
-// would otherwise collapse onto itself, so we bump repulsion well above
-// the mini-graph's ~1800 to keep the layout open and readable. Springs
-// are softer (smaller `kAttractive`) because the average degree is much
-// higher and a stiff spring would knot tightly-coupled clusters. The
-// rest length is shorter because the canvas is fixed-size and we'd
-// rather see a denser graph than a graph that overflows its bounds.
 const GLOBAL_DEFAULTS = {
-  kRepulsive: 6500,
-  kAttractive: 0.025,
-  restLen: 55,
-  damping: 0.82,
-  kCenter: 0.01,
+  chargeStrength: -360,
+  linkStrength: 0.08,
+  linkDistance: 96,
+  collideRadius: 20,
+  centerStrength: 0.08,
 } as const;
 
 export function resolveGlobalForces(forces: GraphForceSettings | undefined): {
-  kRepulsive: number;
-  kAttractive: number;
-  restLen: number;
-  damping: number;
-  kCenter: number;
-  kClusterStrength: number;
+  chargeStrength: number;
+  linkStrength: number;
+  linkDistance: number;
+  collideRadius: number;
+  centerStrength: number;
 } {
   if (forces === undefined) {
-    return {
-      ...GLOBAL_DEFAULTS,
-      kClusterStrength: GRAPH_CLUSTER_STRENGTH,
-    };
+    return GLOBAL_DEFAULTS;
   }
 
   return {
-    kRepulsive: Math.max(0, forces.repel) * (12 + Math.max(0, forces.nodeDistance) / 16),
-    kAttractive: Math.max(0, forces.link) * 0.32,
-    restLen: Math.max(10, forces.linkDistance),
-    damping: GLOBAL_DEFAULTS.damping,
-    kCenter: Math.max(0, forces.center) * 0.14,
-    kClusterStrength: GRAPH_CLUSTER_STRENGTH * (1 + Math.max(0, forces.nodeDistance) / 420),
+    chargeStrength: -Math.max(0, forces.repel),
+    linkStrength: Math.max(0, forces.link),
+    linkDistance: Math.max(10, forces.linkDistance),
+    collideRadius: 8 + Math.max(0, forces.nodeDistance) * 0.36,
+    centerStrength: Math.max(0, forces.center),
   };
 }
 
@@ -150,19 +132,89 @@ export function runGlobalLayout(
   edges: LayoutEdge[],
   opts: GlobalLayoutOptions,
 ): LayoutNode[] {
+  if (nodes.length === 0) return nodes;
   const iterations = opts.iterations ?? defaultIterations(nodes.length);
   const forces = resolveGlobalForces(opts.forces);
-  return miniSimulateLayout(nodes, edges, {
-    width: opts.width,
-    height: opts.height,
-    iterations,
-    kRepulsive: forces.kRepulsive,
-    kAttractive: forces.kAttractive,
-    restLen: forces.restLen,
-    damping: forces.damping,
-    kCenter: forces.kCenter,
-    kClusterStrength: forces.kClusterStrength,
+  const ids = new Set(nodes.map((node) => node.id));
+  const simNodes: D3LayoutNode[] = nodes.map((node) => {
+    const simNode: D3LayoutNode = {
+      id: node.id,
+      x: node.x,
+      y: node.y,
+      vx: node.vx,
+      vy: node.vy,
+    };
+    if (node.nodeType !== undefined && node.nodeType !== null && node.nodeType !== '') {
+      simNode.nodeType = node.nodeType;
+    }
+    return simNode;
   });
+  const simLinks: D3LayoutLink[] = edges.flatMap((edge) =>
+    ids.has(edge.source) && ids.has(edge.target)
+      ? [{ source: edge.source, target: edge.target }]
+      : [],
+  );
+
+  forceSimulation<D3LayoutNode>(simNodes)
+    .force(
+      'charge',
+      forceManyBody<D3LayoutNode>()
+        .strength(forces.chargeStrength)
+        .distanceMin(8)
+        .distanceMax(Math.max(opts.width, opts.height)),
+    )
+    .force(
+      'link',
+      forceLink<D3LayoutNode, D3LayoutLink>(simLinks)
+        .id((node) => node.id)
+        .distance(forces.linkDistance)
+        .strength(forces.linkStrength),
+    )
+    .force(
+      'collide',
+      forceCollide<D3LayoutNode>()
+        .radius((node) => {
+          const typeBias = node.nodeType === undefined || node.nodeType === '' ? 0 : 2;
+          return forces.collideRadius + typeBias;
+        })
+        .strength(0.64)
+        .iterations(2),
+    )
+    .force('x', forceX<D3LayoutNode>(opts.width / 2).strength(forces.centerStrength))
+    .force('y', forceY<D3LayoutNode>(opts.height / 2).strength(forces.centerStrength))
+    .force('center', forceCenter<D3LayoutNode>(opts.width / 2, opts.height / 2))
+    .stop()
+    .tick(iterations);
+
+  const padding = 28;
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i];
+    const simNode = simNodes[i];
+    if (node === undefined || simNode === undefined) continue;
+    node.x = clampFinite(simNode.x, padding, opts.width - padding, opts.width / 2);
+    node.y = clampFinite(simNode.y, padding, opts.height - padding, opts.height / 2);
+    node.vx = Number.isFinite(simNode.vx) ? (simNode.vx ?? 0) : 0;
+    node.vy = Number.isFinite(simNode.vy) ? (simNode.vy ?? 0) : 0;
+  }
+
+  return nodes;
+}
+
+type D3LayoutNode = SimulationNodeDatum & {
+  id: string;
+  nodeType?: string | null;
+};
+
+type D3LayoutLink = SimulationLinkDatum<D3LayoutNode> & {
+  source: string | D3LayoutNode;
+  target: string | D3LayoutNode;
+};
+
+function clampFinite(n: number | undefined, lo: number, hi: number, fallback: number): number {
+  if (n === undefined || !Number.isFinite(n)) return fallback;
+  if (n < lo) return lo;
+  if (n > hi) return hi;
+  return n;
 }
 
 /**

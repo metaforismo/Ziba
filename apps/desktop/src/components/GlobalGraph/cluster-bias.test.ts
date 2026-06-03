@@ -106,11 +106,43 @@ describe('cluster bias', () => {
       linkOpacity: 0.5,
     });
 
-    expect(forces.kRepulsive).toBe(7500);
-    expect(forces.kAttractive).toBeCloseTo(0.0384);
-    expect(forces.restLen).toBe(140);
-    expect(forces.kCenter).toBeCloseTo(0.014);
-    expect(forces.kClusterStrength).toBeGreaterThan(0);
+    expect(forces.chargeStrength).toBe(-500);
+    expect(forces.linkStrength).toBeCloseTo(0.12);
+    expect(forces.linkDistance).toBe(140);
+    expect(forces.collideRadius).toBeCloseTo(25.28);
+    expect(forces.centerStrength).toBeCloseTo(0.1);
+  });
+
+  it('runs the d3 global layout without NaN and keeps nodes inside bounds', () => {
+    const ids = Array.from({ length: 36 }, (_, i) => `n${i}`);
+    const edges: LayoutEdge[] = Array.from({ length: 35 }, (_, i) => ({
+      source: `n${i}`,
+      target: `n${i + 1}`,
+    }));
+    const nodes = initializePositions(ids, 900, 600);
+
+    runGlobalLayout(nodes, edges, {
+      width: 900,
+      height: 600,
+      iterations: 220,
+      forces: {
+        center: 0.08,
+        repel: 420,
+        link: 0.08,
+        linkDistance: 96,
+        nodeDistance: 32,
+        linkOpacity: 0.24,
+      },
+    });
+
+    for (const node of nodes) {
+      expect(Number.isFinite(node.x)).toBe(true);
+      expect(Number.isFinite(node.y)).toBe(true);
+      expect(node.x).toBeGreaterThanOrEqual(28);
+      expect(node.x).toBeLessThanOrEqual(872);
+      expect(node.y).toBeGreaterThanOrEqual(28);
+      expect(node.y).toBeLessThanOrEqual(572);
+    }
   });
 
   it('mini-graph callers without kClusterStrength see identical output to explicit kClusterStrength=0', () => {

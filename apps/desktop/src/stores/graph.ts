@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { buildAutoGraphGroupsFromFolders } from '../lib/graph-groups';
 import {
   DEFAULT_GRAPH_SETTINGS,
   loadGraphSettingsForVault,
@@ -34,6 +35,7 @@ type GraphSettingsState = {
   addGroup(group: NewGroupRule): string;
   updateGroup(id: string, patch: Partial<Omit<GraphGroupRule, 'id'>>): void;
   removeGroup(id: string): void;
+  seedGroupsFromTopLevelFolders(folders: readonly string[]): void;
   resetSettings(): void;
 };
 
@@ -50,6 +52,7 @@ function cloneSettings(settings: GraphSettings): GraphSettings {
     display: { ...settings.display },
     forces: { ...settings.forces },
     groups: settings.groups.map((g) => ({ ...g })),
+    groupsSeeded: settings.groupsSeeded,
   };
 }
 
@@ -110,6 +113,7 @@ export const useGraphSettingsStore = create<GraphSettingsState>((set, get) => {
             enabled: group.enabled ?? true,
           },
         ],
+        groupsSeeded: true,
       };
       setAndPersist(settings);
       return id;
@@ -129,6 +133,22 @@ export const useGraphSettingsStore = create<GraphSettingsState>((set, get) => {
         groups: get().settings.groups.filter((group) => group.id !== id),
       };
       setAndPersist(settings);
+    },
+    seedGroupsFromTopLevelFolders(folders) {
+      const current = get().settings;
+      if (current.groupsSeeded || current.groups.length > 0) return;
+
+      const existingIds = new Set(current.groups.map((group) => group.id));
+      const generatedGroups = buildAutoGraphGroupsFromFolders(folders).filter(
+        (group) => !existingIds.has(group.id),
+      );
+      if (generatedGroups.length === 0) return;
+
+      setAndPersist({
+        ...current,
+        groups: [...current.groups, ...generatedGroups],
+        groupsSeeded: true,
+      });
     },
     resetSettings() {
       setAndPersist(cloneSettings(DEFAULT_GRAPH_SETTINGS));

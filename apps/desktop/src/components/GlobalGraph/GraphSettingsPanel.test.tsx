@@ -3,40 +3,50 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { GraphSettingsPanel } from './GraphSettingsPanel';
 import { DEFAULT_GRAPH_SETTINGS } from '../../lib/graph-settings';
 
-describe('<GraphSettingsPanel>', () => {
-  it('renders the required settings sections', () => {
-    render(
-      <GraphSettingsPanel
-        settings={DEFAULT_GRAPH_SETTINGS}
-        onQueryChange={vi.fn()}
-        onDisplayChange={vi.fn()}
-        onForcesChange={vi.fn()}
-        onAddGroup={vi.fn()}
-        onUpdateGroup={vi.fn()}
-        onRemoveGroup={vi.fn()}
-      />,
-    );
+const DEFAULT_PROPS = {
+  settings: DEFAULT_GRAPH_SETTINGS,
+  onClose: vi.fn(),
+  onReset: vi.fn(),
+  onQueryChange: vi.fn(),
+  onDisplayChange: vi.fn(),
+  onForcesChange: vi.fn(),
+  onAddGroup: vi.fn(),
+  onUpdateGroup: vi.fn(),
+  onRemoveGroup: vi.fn(),
+};
 
-    expect(screen.getByRole('heading', { name: 'Filtri' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Gruppi colore' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Aspetto' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Fisica' })).toBeInTheDocument();
+describe('<GraphSettingsPanel>', () => {
+  it('stays out of the graph until the drawer is opened', () => {
+    render(<GraphSettingsPanel {...DEFAULT_PROPS} open={false} />);
+
+    expect(screen.queryByRole('heading', { name: 'Controlli grafo' })).toBeNull();
   });
 
-  it('emits real setting updates from filters, display, and forces controls', () => {
+  it('renders the Obsidian-like drawer sections without unsupported global controls', () => {
+    render(<GraphSettingsPanel {...DEFAULT_PROPS} open />);
+
+    expect(screen.getByRole('heading', { name: 'Controlli grafo' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Filtri' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Gruppi' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Aspetto' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Forze' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Nodi irrisolti')).toBeNull();
+    expect(screen.queryByLabelText('Solo esistenti')).toBeNull();
+    expect(screen.queryByLabelText('Profondità locale')).toBeNull();
+  });
+
+  it('emits real setting updates from search, toggles, and sliders', () => {
     const onQueryChange = vi.fn();
     const onDisplayChange = vi.fn();
     const onForcesChange = vi.fn();
 
     render(
       <GraphSettingsPanel
-        settings={DEFAULT_GRAPH_SETTINGS}
+        {...DEFAULT_PROPS}
+        open
         onQueryChange={onQueryChange}
         onDisplayChange={onDisplayChange}
         onForcesChange={onForcesChange}
-        onAddGroup={vi.fn()}
-        onUpdateGroup={vi.fn()}
-        onRemoveGroup={vi.fn()}
       />,
     );
 
@@ -49,7 +59,10 @@ describe('<GraphSettingsPanel>', () => {
     fireEvent.click(screen.getByLabelText('Etichette'));
     expect(onDisplayChange).toHaveBeenCalledWith({ showText: false });
 
-    fireEvent.change(screen.getByLabelText('Repulsione'), { target: { value: '260' } });
+    fireEvent.change(screen.getByLabelText('Dimensione nodo'), { target: { value: '1.4' } });
+    expect(onDisplayChange).toHaveBeenCalledWith({ nodeScale: 1.4 });
+
+    fireEvent.change(screen.getByLabelText('Forza di repulsione'), { target: { value: '260' } });
     expect(onForcesChange).toHaveBeenCalledWith({ repel: 260 });
   });
 
@@ -65,24 +78,23 @@ describe('<GraphSettingsPanel>', () => {
           name: 'People',
           query: 'type:person',
           enabled: true,
-          color: '#ef4444',
+          color: '#64748b',
         },
       ],
     };
 
     render(
       <GraphSettingsPanel
+        {...DEFAULT_PROPS}
+        open
         settings={settings}
-        onQueryChange={vi.fn()}
-        onDisplayChange={vi.fn()}
-        onForcesChange={vi.fn()}
         onAddGroup={onAddGroup}
         onUpdateGroup={onUpdateGroup}
         onRemoveGroup={onRemoveGroup}
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Nuovo gruppo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Nuovo' }));
     expect(onAddGroup).toHaveBeenCalledWith({
       name: 'Nuovo gruppo',
       query: '',
@@ -92,10 +104,25 @@ describe('<GraphSettingsPanel>', () => {
     fireEvent.click(screen.getByLabelText('Abilita People'));
     expect(onUpdateGroup).toHaveBeenCalledWith('people', { enabled: false });
 
-    fireEvent.change(screen.getByLabelText('People query'), { target: { value: 'tag:#team' } });
-    expect(onUpdateGroup).toHaveBeenCalledWith('people', { query: 'tag:#team' });
+    fireEvent.change(screen.getByLabelText('People query'), { target: { value: 'path:"Team"' } });
+    expect(onUpdateGroup).toHaveBeenCalledWith('people', { query: 'path:"Team"' });
 
     fireEvent.click(screen.getByRole('button', { name: 'Rimuovi People' }));
     expect(onRemoveGroup).toHaveBeenCalledWith('people');
+  });
+
+  it('collapses sections and exposes reset/close actions', () => {
+    const onClose = vi.fn();
+    const onReset = vi.fn();
+    render(<GraphSettingsPanel {...DEFAULT_PROPS} open onClose={onClose} onReset={onReset} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Aspetto' }));
+    expect(screen.queryByLabelText('Soglia testo')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ripristina impostazioni grafo' }));
+    expect(onReset).toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Chiudi controlli grafo' }));
+    expect(onClose).toHaveBeenCalled();
   });
 });

@@ -175,4 +175,86 @@ describe('<Canvas> — dim precedence', () => {
     expect(container.querySelectorAll('circle[stroke]').length).toBeGreaterThan(0);
     expect(container.querySelectorAll('text').length).toBeGreaterThan(0);
   });
+
+  it('uses the Obsidian-style dark surface with grid off and neutral links by default', () => {
+    const nodes: CanvasNode[] = [
+      makeNode('a', { x: 100, y: 100, degree: 5 }),
+      makeNode('b', { x: 200, y: 200, degree: 5 }),
+    ];
+    const edges: CanvasEdge[] = [{ source: 'a', target: 'b', kind: '' }];
+    const ref = createRef<CanvasHandle>();
+    const { container } = render(
+      <Canvas
+        ref={ref}
+        nodes={nodes}
+        edges={edges}
+        width={500}
+        height={500}
+        initialView={{ tx: 0, ty: 0, scale: 2 }}
+        selectedId={null}
+        matchedIds={new Set()}
+        neighborIds={new Set()}
+        onNodeClick={vi.fn()}
+        onNodeDoubleClick={vi.fn()}
+        onBackgroundMouseDown={vi.fn()}
+        onWheel={vi.fn()}
+        onBackgroundClick={vi.fn()}
+        panning={false}
+        clusterOverlayOn={false}
+        highlightType={null}
+        highlightKinds={new Set()}
+      />,
+    );
+
+    expect(container.querySelector('[data-graph-surface="obsidian-dark"]')).not.toBeNull();
+    expect(container.querySelector('[data-graph-grid="true"]')).toBeNull();
+    const edge = container.querySelector('path[data-graph-edge="true"]');
+    expect(edge?.getAttribute('stroke')).toBe('#484a50');
+    expect(edge?.getAttribute('stroke-width')).toBe('0.72');
+    expect(edge?.getAttribute('marker-end')).toBeNull();
+  });
+
+  it('applies graph display controls for grid, label threshold, node scale, and link width', () => {
+    const nodes: CanvasNode[] = [
+      makeNode('a', { x: 100, y: 100, r: 4, degree: 5 }),
+      makeNode('b', { x: 200, y: 200, r: 4, degree: 5 }),
+    ];
+    const edges: CanvasEdge[] = [{ source: 'a', target: 'b', kind: '' }];
+    const ref = createRef<CanvasHandle>();
+    const { container } = render(
+      <Canvas
+        ref={ref}
+        nodes={nodes}
+        edges={edges}
+        width={500}
+        height={500}
+        initialView={{ tx: 0, ty: 0, scale: 0.9 }}
+        selectedId={null}
+        matchedIds={new Set()}
+        neighborIds={new Set()}
+        onNodeClick={vi.fn()}
+        onNodeDoubleClick={vi.fn()}
+        onBackgroundMouseDown={vi.fn()}
+        onWheel={vi.fn()}
+        onBackgroundClick={vi.fn()}
+        panning={false}
+        clusterOverlayOn={false}
+        highlightType={null}
+        highlightKinds={new Set()}
+        showGrid
+        labelFade={0}
+        nodeScale={1.5}
+        linkWidth={1.25}
+      />,
+    );
+
+    expect(container.querySelector('[data-graph-grid="true"]')).not.toBeNull();
+    expect(
+      container.querySelector('path[data-graph-edge="true"]')?.getAttribute('stroke-width'),
+    ).toBe('1.25');
+    expect(container.querySelector('circle[stroke="#d7d8dc"]')?.getAttribute('r')).toBe('6');
+    const label = container.querySelector('text');
+    expect(label).not.toBeNull();
+    expect(label?.getAttribute('paint-order')).toBe('stroke');
+  });
 });

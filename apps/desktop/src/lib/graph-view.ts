@@ -1,5 +1,6 @@
 import type { FullGraph, GraphEdge, GraphNode } from '../../shared/ipc';
 import type { GraphSettings } from './graph-settings';
+import { graphGroupQueryMatchesNode } from './graph-groups';
 
 export type DerivedGraphView = {
   graph: FullGraph;
@@ -28,18 +29,7 @@ function pathMatches(path: string, filters: readonly string[]): boolean {
 function nodeMatchesSearch(node: GraphNode, rawSearch: string): boolean {
   const search = normalize(rawSearch);
   if (search === '') return true;
-
-  const tokens = search.split(/\s+/).filter(Boolean);
-  return tokens.every((token) => {
-    if (token.startsWith('type:')) {
-      return normalize(node.type ?? '') === token.slice('type:'.length);
-    }
-    if (token.startsWith('path:') || token.startsWith('folder:')) {
-      const value = token.slice(token.indexOf(':') + 1);
-      return normalize(node.path).includes(value);
-    }
-    return normalize(node.title).includes(token) || normalize(node.path).includes(token);
-  });
+  return graphGroupQueryMatchesNode(node, rawSearch);
 }
 
 function nodeMatchesSettings(node: GraphNode, settings: GraphSettings): boolean {

@@ -52,6 +52,18 @@ describe('deriveGraphView', () => {
     expect(view.hiddenNodeCount).toBe(3);
   });
 
+  it('supports quoted path and OR search syntax advertised by the graph drawer', () => {
+    const view = deriveGraphView(
+      GRAPH,
+      settings({ query: { search: 'path:"Projects" OR type:person' } }),
+    );
+
+    expect(view.graph.nodes.map((n) => n.path)).toEqual(['Projects/B.md', 'People/C.md']);
+    expect(view.graph.edges).toEqual([
+      { source: 'Projects/B.md', target: 'People/C.md', targetTitle: 'Carla', kind: 'owns' },
+    ]);
+  });
+
   it('filters by type and relation kind while preserving valid endpoints', () => {
     const view = deriveGraphView(
       GRAPH,

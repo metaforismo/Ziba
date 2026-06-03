@@ -1,4 +1,5 @@
-import type { JSX } from 'react';
+import { ArrowCounterClockwise, CaretDown, CaretRight, Plus, X } from '@phosphor-icons/react';
+import { useState, type JSX, type ReactNode } from 'react';
 import type {
   GraphDisplaySettings,
   GraphForceSettings,
@@ -8,7 +9,10 @@ import type {
 } from '../../lib/graph-settings';
 
 type Props = {
+  open: boolean;
   settings: GraphSettings;
+  onClose(): void;
+  onReset(): void;
   onQueryChange(patch: Partial<GraphQueryFilters>): void;
   onDisplayChange(patch: Partial<GraphDisplaySettings>): void;
   onForcesChange(patch: Partial<GraphForceSettings>): void;
@@ -17,29 +21,72 @@ type Props = {
   onRemoveGroup(id: string): void;
 };
 
-const GROUP_COLORS = ['#ef4444', '#14b8a6', '#6366f1', '#f59e0b', '#ec4899'];
+const GROUP_COLORS = ['#64748b', '#6366f1', '#8b5cf6', '#d97706', '#dc2626', '#2563eb'];
+const OPEN_SECTIONS = ['Filtri', 'Gruppi', 'Aspetto', 'Forze'] as const;
 
 export function GraphSettingsPanel({
+  open,
   settings,
+  onClose,
+  onReset,
   onQueryChange,
   onDisplayChange,
   onForcesChange,
   onAddGroup,
   onUpdateGroup,
   onRemoveGroup,
-}: Props): JSX.Element {
-  const nextGroupColor = GROUP_COLORS[settings.groups.length % GROUP_COLORS.length] ?? '#6366f1';
+}: Props): JSX.Element | null {
+  const [openSections, setOpenSections] = useState<ReadonlySet<string>>(
+    () => new Set(OPEN_SECTIONS),
+  );
+  const nextGroupColor = GROUP_COLORS[settings.groups.length % GROUP_COLORS.length] ?? '#64748b';
+
+  if (!open) return null;
+
+  const toggleSection = (section: string): void => {
+    setOpenSections((current) => {
+      const next = new Set(current);
+      if (next.has(section)) next.delete(section);
+      else next.add(section);
+      return next;
+    });
+  };
 
   return (
-    <aside className="absolute right-4 top-4 z-10 flex max-h-[calc(100%-2rem)] w-80 max-w-[calc(100%-2rem)] flex-col overflow-hidden rounded-xl border border-border/80 bg-bg-subtle/95 text-xs text-fg shadow-xl shadow-black/10 backdrop-blur">
-      <div className="border-b border-border/70 px-3.5 py-3">
-        <h2 className="text-[13px] font-semibold text-fg">Controlli grafo</h2>
-        <p className="mt-0.5 text-[11px] leading-4 text-fg-muted">
-          Filtri, gruppi e fisica salvati per questo vault.
-        </p>
+    <aside className="absolute bottom-3 right-3 top-3 z-20 flex w-[22rem] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-lg border border-[#3a3a3f] bg-[#242426]/95 text-[12px] text-[#e4e4e7] shadow-2xl shadow-black/35 backdrop-blur-xl">
+      <div className="flex items-center justify-between border-b border-[#36363a] px-3 py-2.5">
+        <div className="min-w-0">
+          <h2 className="truncate text-[14px] font-semibold text-[#f2f2f3]">Controlli grafo</h2>
+          <p className="mt-0.5 truncate text-[11px] text-[#9d9da4]">Filtri, gruppi e fisica.</p>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={onReset}
+            className={iconButtonClass}
+            title="Ripristina impostazioni grafo"
+            aria-label="Ripristina impostazioni grafo"
+          >
+            <ArrowCounterClockwise size={15} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className={iconButtonClass}
+            title="Chiudi controlli grafo"
+            aria-label="Chiudi controlli grafo"
+          >
+            <X size={15} aria-hidden="true" />
+          </button>
+        </div>
       </div>
-      <div className="min-h-0 flex-1 space-y-4 overflow-auto p-3">
-        <PanelSection title="Filtri">
+
+      <div className="min-h-0 flex-1 overflow-auto">
+        <AccordionSection
+          title="Filtri"
+          open={openSections.has('Filtri')}
+          onToggle={(): void => toggleSection('Filtri')}
+        >
           <label className={fieldClass}>
             <span>Cerca</span>
             <input
@@ -48,76 +95,52 @@ export function GraphSettingsPanel({
               value={settings.query.search}
               onChange={(e): void => onQueryChange({ search: e.target.value })}
               className={inputClass}
-              placeholder="type:person path:projects"
+              placeholder='path:"Projects" OR type:person'
+              spellCheck={false}
             />
           </label>
-          <div className="grid grid-cols-2 gap-2">
-            <Check
-              label="Nodi irrisolti"
-              checked={settings.query.includeUnresolved}
-              onChange={(checked): void => onQueryChange({ includeUnresolved: checked })}
-              disabledReason="Il motore del grafo non espone ancora i nodi non risolti."
-            />
-            <Check
-              label="Orfani"
-              checked={settings.query.includeOrphans}
-              onChange={(checked): void => onQueryChange({ includeOrphans: checked })}
-            />
-            <Check
-              label="Solo esistenti"
-              checked={settings.query.existingOnly}
-              onChange={(checked): void => onQueryChange({ existingOnly: checked })}
-              disabledReason="Disponibile quando il grafo distinguerà file reali e riferimenti mancanti."
-            />
-            <Check
-              label="Focus"
-              checked={settings.query.focusMode}
-              onChange={(checked): void => onQueryChange({ focusMode: checked })}
-            />
-          </div>
-          <label className={fieldClass}>
-            <span>Profondità</span>
-            <input
-              aria-label="Profondità locale"
-              type="number"
-              min={0}
-              max={6}
-              value={settings.query.localDepth}
-              onChange={(e): void => onQueryChange({ localDepth: Number(e.target.value) })}
-              className={inputClass}
-            />
-          </label>
-        </PanelSection>
+          <Check
+            label="Orfani"
+            checked={settings.query.includeOrphans}
+            onChange={(includeOrphans): void => onQueryChange({ includeOrphans })}
+          />
+          <Check
+            label="Focus"
+            checked={settings.query.focusMode}
+            onChange={(focusMode): void => onQueryChange({ focusMode })}
+          />
+        </AccordionSection>
 
-        <PanelSection
-          title="Gruppi colore"
+        <AccordionSection
+          title="Gruppi"
+          open={openSections.has('Gruppi')}
+          onToggle={(): void => toggleSection('Gruppi')}
           action={
             <button
               type="button"
-              onClick={(): void =>
-                onAddGroup({ name: 'Nuovo gruppo', query: '', color: nextGroupColor })
-              }
-              className="rounded-md border border-border/80 px-2 py-0.5 text-[11px] text-fg-subtle transition hover:bg-bg-muted hover:text-fg"
+              onClick={(e): void => {
+                e.stopPropagation();
+                onAddGroup({ name: 'Nuovo gruppo', query: '', color: nextGroupColor });
+              }}
+              className="inline-flex h-6 items-center gap-1 rounded-md border border-[#45454a] px-2 text-[11px] text-[#d7d7da] transition hover:border-[#595960] hover:bg-[#303034]"
             >
-              Nuovo gruppo
+              <Plus size={12} aria-hidden="true" />
+              Nuovo
             </button>
           }
         >
           {settings.groups.length === 0 && (
-            <p className="text-[11px] leading-4 text-fg-muted">Nessuna regola colore.</p>
+            <p className="text-[11px] leading-4 text-[#9d9da4]">Nessuna regola colore.</p>
           )}
           {settings.groups.map((group) => (
-            <div
-              key={group.id}
-              className="space-y-2 rounded-lg border border-border/60 bg-bg/60 p-2"
-            >
+            <div key={group.id} className="rounded-md border border-[#38383d] bg-[#1f1f22] p-2">
               <div className="flex items-center gap-2">
                 <input
                   aria-label={`Abilita ${group.name}`}
                   type="checkbox"
                   checked={group.enabled}
                   onChange={(e): void => onUpdateGroup(group.id, { enabled: e.target.checked })}
-                  className="h-3 w-3 accent-[rgb(var(--accent))]"
+                  className={checkboxClass}
                 />
                 <input
                   aria-label={`${group.name} name`}
@@ -130,89 +153,125 @@ export function GraphSettingsPanel({
                   type="color"
                   value={group.color}
                   onChange={(e): void => onUpdateGroup(group.id, { color: e.target.value })}
-                  className="h-7 w-8 rounded border border-border bg-bg"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  aria-label={`${group.name} query`}
-                  value={group.query}
-                  onChange={(e): void => onUpdateGroup(group.id, { query: e.target.value })}
-                  className={`${inputClass} min-w-0 flex-1`}
-                  placeholder="type:person OR path:team"
+                  className="h-7 w-8 shrink-0 rounded border border-[#45454a] bg-[#1b1b1d]"
                 />
                 <button
                   type="button"
                   aria-label={`Rimuovi ${group.name}`}
                   onClick={(): void => onRemoveGroup(group.id)}
-                  className="h-7 w-7 rounded-md border border-border/80 text-fg-muted transition hover:bg-bg-muted hover:text-fg"
+                  className={iconButtonClass}
                 >
-                  ×
+                  <X size={14} aria-hidden="true" />
                 </button>
               </div>
+              <input
+                aria-label={`${group.name} query`}
+                value={group.query}
+                onChange={(e): void => onUpdateGroup(group.id, { query: e.target.value })}
+                className={`${inputClass} mt-2 w-full`}
+                placeholder='path:"3. Resources" OR type:book'
+                spellCheck={false}
+              />
             </div>
           ))}
-        </PanelSection>
+        </AccordionSection>
 
-        <PanelSection title="Aspetto">
+        <AccordionSection
+          title="Aspetto"
+          open={openSections.has('Aspetto')}
+          onToggle={(): void => toggleSection('Aspetto')}
+        >
           <div className="grid grid-cols-2 gap-2">
             <Check
               label="Frecce"
               checked={settings.display.showArrows}
-              onChange={(checked): void => onDisplayChange({ showArrows: checked })}
+              onChange={(showArrows): void => onDisplayChange({ showArrows })}
             />
             <Check
               label="Etichette"
               checked={settings.display.showText}
-              onChange={(checked): void => onDisplayChange({ showText: checked })}
+              onChange={(showText): void => onDisplayChange({ showText })}
             />
             <Check
               label="Nodi"
               checked={settings.display.showNodes}
-              onChange={(checked): void => onDisplayChange({ showNodes: checked })}
+              onChange={(showNodes): void => onDisplayChange({ showNodes })}
             />
             <Check
               label="Collegamenti"
               checked={settings.display.showLinks}
-              onChange={(checked): void => onDisplayChange({ showLinks: checked })}
+              onChange={(showLinks): void => onDisplayChange({ showLinks })}
+            />
+            <Check
+              label="Griglia"
+              checked={settings.display.showGrid}
+              onChange={(showGrid): void => onDisplayChange({ showGrid })}
             />
           </div>
-        </PanelSection>
+          <Slider
+            label="Soglia testo"
+            value={settings.display.labelFade}
+            min={0}
+            max={1}
+            step={0.01}
+            onChange={(labelFade): void => onDisplayChange({ labelFade })}
+          />
+          <Slider
+            label="Dimensione nodo"
+            value={settings.display.nodeScale}
+            min={0.2}
+            max={3}
+            step={0.05}
+            onChange={(nodeScale): void => onDisplayChange({ nodeScale })}
+          />
+          <Slider
+            label="Spessore linea"
+            value={settings.display.linkWidth}
+            min={0.1}
+            max={4}
+            step={0.05}
+            onChange={(linkWidth): void => onDisplayChange({ linkWidth })}
+          />
+        </AccordionSection>
 
-        <PanelSection title="Fisica">
-          <NumberControl
-            label="Centro"
+        <AccordionSection
+          title="Forze"
+          open={openSections.has('Forze')}
+          onToggle={(): void => toggleSection('Forze')}
+        >
+          <Slider
+            label="Forza di centratura"
             value={settings.forces.center}
             min={0}
             max={1}
             step={0.01}
             onChange={(center): void => onForcesChange({ center })}
           />
-          <NumberControl
-            label="Repulsione"
+          <Slider
+            label="Forza di repulsione"
             value={settings.forces.repel}
             min={0}
             max={1200}
             step={10}
             onChange={(repel): void => onForcesChange({ repel })}
           />
-          <NumberControl
-            label="Tensione link"
+          <Slider
+            label="Forza collegamenti"
             value={settings.forces.link}
             min={0}
             max={1}
             step={0.01}
             onChange={(link): void => onForcesChange({ link })}
           />
-          <NumberControl
-            label="Distanza link"
+          <Slider
+            label="Distanza collegamenti"
             value={settings.forces.linkDistance}
             min={10}
             max={320}
             step={1}
             onChange={(linkDistance): void => onForcesChange({ linkDistance })}
           />
-          <NumberControl
+          <Slider
             label="Distanza nodi"
             value={settings.forces.nodeDistance}
             min={0}
@@ -220,36 +279,52 @@ export function GraphSettingsPanel({
             step={1}
             onChange={(nodeDistance): void => onForcesChange({ nodeDistance })}
           />
-          <NumberControl
-            label="Opacità link"
+          <Slider
+            label="Opacita collegamenti"
             value={settings.forces.linkOpacity}
             min={0}
             max={1}
             step={0.01}
             onChange={(linkOpacity): void => onForcesChange({ linkOpacity })}
           />
-        </PanelSection>
+        </AccordionSection>
       </div>
     </aside>
   );
 }
 
-function PanelSection({
+function AccordionSection({
   title,
+  open,
   action,
+  onToggle,
   children,
 }: {
   title: string;
-  action?: JSX.Element;
-  children: React.ReactNode;
+  open: boolean;
+  action?: ReactNode;
+  onToggle(): void;
+  children: ReactNode;
 }): JSX.Element {
   return (
-    <section className="space-y-2">
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="text-[11px] font-semibold uppercase tracking-wide text-fg-muted">{title}</h3>
+    <section className="border-b border-[#36363a]">
+      <div className="flex h-10 items-center gap-2 px-3 transition hover:bg-[#2a2a2e]">
+        <button
+          type="button"
+          onClick={onToggle}
+          className="inline-flex min-w-0 flex-1 items-center gap-2 text-left text-[13px] font-semibold text-[#e7e7ea] outline-none focus-visible:rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/25"
+          aria-expanded={open}
+        >
+          {open ? (
+            <CaretDown size={14} aria-hidden="true" className="shrink-0 text-[#a7a7ad]" />
+          ) : (
+            <CaretRight size={14} aria-hidden="true" className="shrink-0 text-[#a7a7ad]" />
+          )}
+          <span className="truncate">{title}</span>
+        </button>
         {action}
       </div>
-      <div className="space-y-2">{children}</div>
+      {open && <div className="space-y-3 px-3 pb-3">{children}</div>}
     </section>
   );
 }
@@ -258,38 +333,26 @@ function Check({
   label,
   checked,
   onChange,
-  disabledReason,
 }: {
   label: string;
   checked: boolean;
   onChange(checked: boolean): void;
-  disabledReason?: string;
 }): JSX.Element {
-  const isDisabled = disabledReason !== undefined;
   return (
-    <label
-      className={[
-        'flex items-center gap-1.5 rounded-md border border-border/60 bg-bg px-2 py-1.5 text-[11px] transition',
-        isDisabled
-          ? 'cursor-not-allowed text-fg-muted/60'
-          : 'text-fg-subtle hover:border-fg-muted/40 hover:text-fg',
-      ].join(' ')}
-      title={disabledReason}
-    >
+    <label className="flex h-8 items-center gap-2 rounded-md border border-[#38383d] bg-[#1f1f22] px-2 text-[12px] text-[#d7d7da] transition hover:border-[#47474d] hover:bg-[#252529]">
       <input
         aria-label={label}
         type="checkbox"
         checked={checked}
-        disabled={isDisabled}
         onChange={(e): void => onChange(e.target.checked)}
-        className="h-3 w-3 accent-[rgb(var(--accent))]"
+        className={checkboxClass}
       />
-      <span>{label}</span>
+      <span className="min-w-0 truncate">{label}</span>
     </label>
   );
 }
 
-function NumberControl({
+function Slider({
   label,
   value,
   min,
@@ -305,23 +368,35 @@ function NumberControl({
   onChange(value: number): void;
 }): JSX.Element {
   return (
-    <label className={fieldClass}>
-      <span>{label}</span>
+    <label className="block space-y-1.5 text-[12px] text-[#d7d7da]">
+      <span className="flex items-center justify-between gap-3">
+        <span className="truncate">{label}</span>
+        <span className="font-mono text-[11px] tabular-nums text-[#a7a7ad]">
+          {formatNumber(value)}
+        </span>
+      </span>
       <input
         aria-label={label}
-        type="number"
+        type="range"
         min={min}
         max={max}
         step={step}
         value={value}
         onChange={(e): void => onChange(Number(e.target.value))}
-        className={inputClass}
+        className="ziba-graph-slider h-5 w-full accent-[#d7d7da]"
       />
     </label>
   );
 }
 
-const fieldClass =
-  'grid grid-cols-[92px_minmax(0,1fr)] items-center gap-2 text-[11px] text-fg-muted';
+function formatNumber(value: number): string {
+  if (Math.abs(value) >= 10) return Math.round(value).toString();
+  return value.toLocaleString('it-IT', { maximumFractionDigits: 2 });
+}
+
+const fieldClass = 'grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-2 text-[#a7a7ad]';
 const inputClass =
-  'h-7 rounded-md border border-border/80 bg-bg px-2 text-xs text-fg outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/15';
+  'h-8 rounded-md border border-[#3d3d42] bg-[#19191b] px-2 text-[12px] text-[#eeeeef] outline-none transition placeholder:text-[#77777f] hover:border-[#4b4b52] focus:border-[#77777f] focus:ring-2 focus:ring-white/10';
+const iconButtonClass =
+  'grid size-7 place-items-center rounded-md text-[#a7a7ad] transition hover:bg-[#303034] hover:text-[#f2f2f3] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/25';
+const checkboxClass = 'size-3.5 rounded border-[#57575e] bg-[#171719] accent-[#d7d7da]';

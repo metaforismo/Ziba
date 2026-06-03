@@ -28,10 +28,14 @@ describe('graph settings defaults', () => {
       localDepth: 1,
     });
     expect(DEFAULT_GRAPH_SETTINGS.display).toMatchObject({
-      showArrows: true,
+      showArrows: false,
       showText: true,
       showNodes: true,
       showLinks: true,
+      labelFade: 0.48,
+      nodeScale: 1,
+      linkWidth: 0.7,
+      showGrid: false,
     });
     expect(DEFAULT_GRAPH_SETTINGS.forces).toMatchObject({
       center: 0.08,
@@ -39,9 +43,10 @@ describe('graph settings defaults', () => {
       link: 0.08,
       linkDistance: 96,
       nodeDistance: 32,
-      linkOpacity: 0.32,
+      linkOpacity: 0.18,
     });
     expect(DEFAULT_GRAPH_SETTINGS.groups).toEqual([]);
+    expect(DEFAULT_GRAPH_SETTINGS.groupsSeeded).toBe(false);
   });
 });
 
@@ -91,6 +96,10 @@ describe('graph settings storage', () => {
             showText: 'no',
             showNodes: true,
             showLinks: false,
+            labelFade: 3,
+            nodeScale: 0,
+            linkWidth: 12,
+            showGrid: true,
           },
           forces: {
             center: 2,
@@ -100,6 +109,7 @@ describe('graph settings storage', () => {
             nodeDistance: Number.NaN,
             linkOpacity: 0.7,
           },
+          groupsSeeded: 'yes',
           groups: [
             { id: 'ok', name: 'People', enabled: true, query: 'type:person', color: '#ef4444' },
             { id: '', name: 'Bad', enabled: true, query: 'tag:x', color: 'red' },
@@ -123,6 +133,10 @@ describe('graph settings storage', () => {
       showText: true,
       showNodes: true,
       showLinks: false,
+      labelFade: 1,
+      nodeScale: 0.2,
+      linkWidth: 4,
+      showGrid: true,
     });
     expect(settings.forces).toMatchObject({
       center: 1,
@@ -135,5 +149,41 @@ describe('graph settings storage', () => {
     expect(settings.groups).toEqual([
       { id: 'ok', name: 'People', enabled: true, query: 'type:person', color: '#ef4444' },
     ]);
+    expect(settings.groupsSeeded).toBe(false);
+  });
+
+  it('migrates old persisted settings by filling newly added fields', async () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        '/vault-a': {
+          query: { search: 'old' },
+          display: {
+            showArrows: true,
+            showText: false,
+            showNodes: true,
+            showLinks: true,
+          },
+          forces: { linkOpacity: 0.32 },
+          groups: [],
+        },
+      }),
+    );
+
+    const { loadGraphSettingsForVault } = await loadGraphSettings();
+    const settings = loadGraphSettingsForVault('/vault-a');
+
+    expect(settings.display).toMatchObject({
+      showArrows: true,
+      showText: false,
+      showNodes: true,
+      showLinks: true,
+      labelFade: 0.48,
+      nodeScale: 1,
+      linkWidth: 0.7,
+      showGrid: false,
+    });
+    expect(settings.forces.linkOpacity).toBe(0.32);
+    expect(settings.groupsSeeded).toBe(false);
   });
 });

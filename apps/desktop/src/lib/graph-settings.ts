@@ -17,6 +17,10 @@ export type GraphDisplaySettings = {
   showText: boolean;
   showNodes: boolean;
   showLinks: boolean;
+  labelFade: number;
+  nodeScale: number;
+  linkWidth: number;
+  showGrid: boolean;
 };
 
 export type GraphForceSettings = {
@@ -41,6 +45,7 @@ export type GraphSettings = {
   display: GraphDisplaySettings;
   forces: GraphForceSettings;
   groups: GraphGroupRule[];
+  groupsSeeded: boolean;
 };
 
 export const GRAPH_SETTINGS_STORAGE_KEY = 'ziba.graph-settings.v1';
@@ -60,10 +65,14 @@ export const DEFAULT_GRAPH_SETTINGS: GraphSettings = {
     localDepth: 1,
   },
   display: {
-    showArrows: true,
+    showArrows: false,
     showText: true,
     showNodes: true,
     showLinks: true,
+    labelFade: 0.48,
+    nodeScale: 1,
+    linkWidth: 0.7,
+    showGrid: false,
   },
   forces: {
     center: 0.08,
@@ -71,10 +80,17 @@ export const DEFAULT_GRAPH_SETTINGS: GraphSettings = {
     link: 0.08,
     linkDistance: 96,
     nodeDistance: 32,
-    linkOpacity: 0.32,
+    linkOpacity: 0.18,
   },
   groups: [],
+  groupsSeeded: false,
 };
+
+const DISPLAY_LIMITS = {
+  labelFade: [0, 1],
+  nodeScale: [0.2, 3],
+  linkWidth: [0.1, 4],
+} as const;
 
 const FORCE_LIMITS = {
   center: [0, 1],
@@ -98,6 +114,7 @@ function cloneDefaults(): GraphSettings {
     display: { ...DEFAULT_GRAPH_SETTINGS.display },
     forces: { ...DEFAULT_GRAPH_SETTINGS.forces },
     groups: [],
+    groupsSeeded: DEFAULT_GRAPH_SETTINGS.groupsSeeded,
   };
 }
 
@@ -178,6 +195,25 @@ export function validateGraphSettings(raw: unknown): GraphSettings {
       showText: bool(display.showText, defaults.display.showText),
       showNodes: bool(display.showNodes, defaults.display.showNodes),
       showLinks: bool(display.showLinks, defaults.display.showLinks),
+      labelFade: boundedNumber(
+        display.labelFade,
+        defaults.display.labelFade,
+        DISPLAY_LIMITS.labelFade[0],
+        DISPLAY_LIMITS.labelFade[1],
+      ),
+      nodeScale: boundedNumber(
+        display.nodeScale,
+        defaults.display.nodeScale,
+        DISPLAY_LIMITS.nodeScale[0],
+        DISPLAY_LIMITS.nodeScale[1],
+      ),
+      linkWidth: boundedNumber(
+        display.linkWidth,
+        defaults.display.linkWidth,
+        DISPLAY_LIMITS.linkWidth[0],
+        DISPLAY_LIMITS.linkWidth[1],
+      ),
+      showGrid: bool(display.showGrid, defaults.display.showGrid),
     },
     forces: {
       center: boundedNumber(
@@ -218,6 +254,7 @@ export function validateGraphSettings(raw: unknown): GraphSettings {
       ),
     },
     groups,
+    groupsSeeded: bool(raw.groupsSeeded, defaults.groupsSeeded),
   };
 }
 
