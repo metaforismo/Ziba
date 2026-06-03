@@ -2,234 +2,123 @@
 
 # Ziba
 
-**Un second brain open-source che fonde Notion e Obsidian.**
+### A local-first, open-source knowledge workspace for markdown notes, typed objects, databases, and graphs.
 
-Markdown locale come fonte unica di verità, database strutturati come Notion, grafo di connessioni come Obsidian. In futuro: AI-native (semantic search, auto-link, agent organizzativi).
+Ziba brings together the best parts of Obsidian and Notion: plain markdown files
+that stay on your machine, a structured database layer for properties and typed
+objects, and a visual graph for seeing how ideas connect.
+
+It is built for people who want a second brain they can inspect, extend, sync,
+fork, automate, and keep forever.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-v1.0-blue)](#stato)
+[![Status](https://img.shields.io/badge/status-v1.0_alpha-blue)](#project-status)
+[![Local-first](https://img.shields.io/badge/local--first-markdown%20%2B%20sqlite-2ea44f)](#why-ziba)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-[Filosofia](#filosofia--perché-ziba) ·
-[Funzionalità](#funzionalità) ·
-[Architettura](#architettura) ·
-[Quick start](#quick-start) ·
-[Formato vault](#formato-vault) ·
-[Roadmap](#roadmap) ·
-[Contribuire](CONTRIBUTING.md)
+[Why Ziba](#why-ziba) |
+[Features](#features) |
+[Quick Start](#quick-start) |
+[Vault Format](#vault-format) |
+[Architecture](#architecture) |
+[Roadmap](#roadmap) |
+[Contributing](CONTRIBUTING.md)
 
 </div>
 
 ---
 
-## Filosofia — Perché Ziba
+## Why Ziba
 
-Notion e Obsidian sono entrambi strumenti eccellenti, ma costringono a scegliere:
+Most knowledge tools ask you to choose between power and ownership.
 
-|  | **Notion** | **Obsidian** | **Ziba** |
+Notion gives you structured databases, rich editing, and polished workflows, but
+your workspace lives inside a proprietary cloud product. Obsidian gives you
+plain files, backlinks, and a thriving markdown ecosystem, but structured data
+and object-level relationships are left mostly to plugins and conventions.
+
+Ziba is an experiment in taking both ideas seriously:
+
+| Capability | Notion | Obsidian | Ziba |
 |---|---|---|---|
-| Storage | Cloud proprietario | File markdown locali | File markdown locali |
-| Block editor con `/` menu | ✅ | ❌ | ✅ |
-| Database con property tipizzate | ✅ | Limitato | ✅ |
-| Wikilinks `[[...]]` + backlink | Limitato | ✅ | ✅ |
-| Knowledge graph | ❌ | ✅ | ✅ (constellation mode v1.0) |
-| Oggetti tipizzati + relazioni | ❌ | ❌ | ✅ (v1.0) |
-| Lock-in | Sì | No | No |
-| Open source | No | No | ✅ |
-| AI nativa | Limitata | Plugin | In roadmap |
+| Local markdown as source of truth | No | Yes | Yes |
+| No proprietary data lock-in | No | Yes | Yes |
+| Block-style editing | Yes | Limited | Yes |
+| Typed properties | Yes | Limited | Yes |
+| Table, board, and calendar views | Yes | Plugin-driven | Yes |
+| Wikilinks and backlinks | Limited | Yes | Yes |
+| Global knowledge graph | No | Yes | Yes |
+| Typed objects and semantic relations | Limited | Convention-based | Yes |
+| Open source | No | No | Yes |
+| AI-ready knowledge model | Limited | Plugin-driven | In progress |
 
-**Posizionamento:** Notion's power, Obsidian's freedom, AI-ready.
+The long-term idea is simple: your knowledge base should be a folder of durable
+files, not a subscription hostage. The app can be beautiful, structured, and
+intelligent without taking ownership of your data.
 
-I tuoi dati restano file `.md` con frontmatter YAML sul tuo disco. Sincronizzabili con qualsiasi servizio (Dropbox, iCloud, git). Nessun lock-in. Mai.
+## What Ziba Feels Like
 
-## Stato
+Use it as a markdown-first notebook. Add properties when a note becomes more
+structured. Turn notes into typed objects such as people, books, ideas, projects,
+meetings, or daily logs. Link them with regular wikilinks or semantic relations.
+Then move between an editor, database views, object panels, and a graph without
+leaving your local vault.
 
-> **v1.0 — Object-Relational Foundation.** Non è ancora installabile come bundle distribuito; funziona in modalità sviluppo (`pnpm dev`). Il core è completo end-to-end: vault locale, editor a blocchi con wikilink/backlink, search FTS5, database con vista tabella/kanban/calendario, grafo globale con constellation mode (hull colorati per tipo, filtro per kind di relazione), oggetti tipizzati con schemi `.ziba/schema/*.yml`, ObjectPanel, TypesSection sidebar, IPC error surface tipizzato, toast UI.
+Ziba is especially useful for:
 
-## Funzionalità
+- Personal knowledge management and research archives.
+- Project notes with people, meetings, tasks, books, and references.
+- Writers and founders mapping ideas across many documents.
+- Developers who want a hackable local-first knowledge substrate.
+- AI-native workflows where the graph and object model can later power semantic
+  search, auto-linking, and local agents.
 
-### v0.1 — Foundation (✅ shipped)
+## Project Status
 
-- **Vault locale** — scegli una cartella, è il tuo workspace. Source of truth = file `.md` sul disco.
-- **Editor Tiptap** con markdown shortcut nativi: `# ` → heading, `**testo**` → bold, `> ` → quote, `- ` → lista, ecc.
-- **Wikilink `[[Nota]]`** con autocomplete su `[[`, click per navigare, link rotti evidenziati, creazione automatica della nota mancante.
-- **Sidebar** con file tree annidato, CRUD via context menu, navigazione completa da tastiera.
-- **Pannello backlink** che si aggiorna live al variare del vault.
-- **Watcher su disco** con detection conflitti (vim, altri editor).
-- Autosave debounced.
+Ziba is in **v1.0 alpha**. The core desktop experience works in development mode
+and the project has an end-to-end local vault model, but it is not yet a polished
+signed installer for everyday non-technical users.
 
-### v0.2 — Power editing (✅ shipped)
+Current state:
 
-- **Search palette `Cmd/Ctrl+K`** — full-text search via SQLite FTS5 con sintassi booleana (`foo OR bar`, `"frase esatta"`, `-escludi`).
-- **Tag system** — `#tag` nel body o `tags: []` in frontmatter. Sidebar mostra Tag section con count, click filtra il file tree.
-- **Property editor** — frontmatter come property tipizzate (text/number/date/boolean/url/multi-select) sopra l'editor.
-- **Slash menu `/`** — popup blocchi inseribili (heading, list, quote, code, hr, callout).
-- **Mini-graph** locale alla nota corrente (1-hop) nel right pane.
+- Local vaults backed by `.md` files and YAML frontmatter.
+- Electron desktop app with React, Tiptap, Tailwind, Zustand, and SQLite.
+- Full-text search, tags, backlinks, file tree, database views, and graph views.
+- Typed objects and semantic relations via `.ziba/schema/*.yml`.
+- Extensive unit and component coverage across the core and desktop app.
+- MIT licensed and open to contributors.
 
-### v0.3 — Database & graph (✅ shipped)
+## Features
 
-- **Database view** — vista tabellare di tutto il vault con FilterBar tipizzata (eq/contains/has/lacks/lt/gt/lte/gte), sort multi-key, group-by su qualsiasi property, ColumnPicker.
-- **Grafo globale** — vista force-directed con pan/zoom, search, click highlight 1-hop neighbors, double-click apre.
-- **Callout block** — Tiptap node con 6 kinds (note, info, tip, warning, danger, success). Markdown roundtrip Obsidian-compatible (`> [!kind]`).
-- **Typed property index** — ogni frontmatter property estratta in colonne SQLite tipizzate per query veloci.
+### Local-first vaults
 
-### v0.4 — DB sub-views + blocchi avanzati (✅ shipped)
+- Open any folder as a vault.
+- Store notes as normal `.md` files with standard YAML frontmatter.
+- Sync with anything you trust: git, iCloud, Dropbox, Syncthing, rsync, or an
+  external editor.
+- Rebuild the SQLite index at any time because the filesystem is the source of
+  truth.
 
-- **Board view (kanban)** — colonne raggruppate per property, drag-and-drop per spostare le note tra colonne. Aggiorna direttamente il frontmatter sul disco.
-- **Calendar view** — griglia mensile italiana (Lun-Dom), navigazione prev/next/oggi.
-- **Embed block** — `![[Nota]]` mostra il contenuto inline. Markdown roundtrip Obsidian-compatible.
-- **Math (KaTeX)** — formule LaTeX con `$$..$$` block e `$..$` inline. Click → editor LaTeX live preview.
+### Rich markdown editing
 
-### v0.5 — Hardening + UX polish (✅ shipped)
+- Tiptap editor with markdown shortcuts.
+- Wikilink autocomplete with `[[...]]`.
+- Broken link highlighting and note creation flows.
+- Slash menu for headings, lists, quotes, code, callouts, embeds, math, and
+  typed relations.
+- KaTeX math support for inline and block formulas.
 
-- **IPC error surface tipizzato** — `IpcErrorCode` derivato dal type union, helper `extractIpcErrorCode` / `ipcErrorMessage`.
-- **Toast surface globale** — sostituisce `window.alert`. Non-blocking, color-coded, auto-dismiss.
-- **Two-stage error split nelle mutazioni** — IPC failure vs refresh failure: messaggi distinti e truthful.
-- **Keyboard shortcuts** — `Cmd/Ctrl+S` salva, `Cmd/Ctrl+N` nuova nota.
-- **Refactor**: Sidebar split, query-builder estratto come modulo puro, `Fragment` discriminated union.
+### Structured knowledge
 
-### v1.0 — Typed objects + relations (✅ shipped)
+- Frontmatter property editor.
+- Typed property indexing for fast queries.
+- Tags from both frontmatter and inline `#tag` syntax.
+- Database table view with typed filters, sorting, grouping, and column picking.
+- Board and calendar views for property-driven workflows.
 
-Ogni nota può dichiararsi un oggetto tipizzato (`type:`) e dichiarare relazioni tipizzate (`relations:`) verso altri oggetti. Lo schema per ogni tipo vive in `.ziba/schema/<type>.yml`.
+### Typed objects and semantic relations
 
-- **Schema + indexer + relations table** — sette schemi seed, tabella SQLite `relations` con `kind` tipizzato. Backward-compatible: wikilink generici restano nel grafo come `kind = ''`.
-- **ObjectPanel + sidebar TypesSection** — pannello relazioni sulla nota corrente; contatori per tipo in sidebar.
-- **Editor type-icon + slash relation** — icona di tipo nei wikilink; slash menu `/relazione` per inserire relazioni tipizzate.
-- **Database view type filter** — filtro per tipo; colonne suggerite seguono lo schema.
-- **Constellation graph** — hull colorati per tipo, filtro multi-select per kind di relazione, leggenda in overlay.
-
-### In arrivo
-
-Vedi la [roadmap](#roadmap).
-
-## Architettura
-
-```
-ziba/
-├── apps/
-│   └── desktop/              # App Electron
-│       ├── electron/         # Main process: IPC, fs, SQLite, watcher
-│       ├── src/              # Renderer: React + Tiptap + Tailwind + Zustand
-│       └── shared/           # Contratto IPC tipizzato (main ↔ renderer)
-└── packages/
-    ├── core/                 # Logica condivisa (TS puro, zero React/Electron)
-    │   └── src/
-    │       ├── adapters/     # Interfacce: Filesystem, IndexStore, Watcher
-    │       ├── markdown/     # Parser, serializer, wikilink extractor
-    │       ├── vault/        # Scan, indicizzazione, load/save note
-    │       ├── index-store/  # Schema SQLite condiviso
-    │       ├── seed-schemas/ # Sette schemi seed (note, person, book, …)
-    │       └── types/        # Tipi domain (Note, Frontmatter, ObjectTypeSchema)
-    └── tsconfig/             # Config TypeScript condivisa
-```
-
-### Principio architetturale: adapter pattern
-
-`packages/core` non importa React, Electron, o Node-specific code. Espone interfacce che ogni piattaforma implementa:
-
-- **Desktop (Electron):** Node `fs/promises`, `better-sqlite3`, `chokidar`
-- **Web (futuro):** File System Access API, IndexedDB, custom file watcher
-- **Mobile (futuro):** Expo FileSystem, expo-sqlite, Expo file events
-
-Aggiungere una nuova piattaforma significa scrivere solo gli adapter, non riscrivere la logica.
-
-### Stack tecnico
-
-| Layer | Tecnologia | Perché |
-|---|---|---|
-| Monorepo | Turborepo + pnpm workspaces | Caching incrementale, link automatico tra package |
-| Linguaggio | TypeScript strict | Type safety end-to-end, condivisa tra processi |
-| Desktop runtime | Electron 32 | Ecosistema npm completo, futuro AI locale via Node |
-| Build desktop | electron-vite + electron-builder | DX moderna, HMR, build multi-piattaforma |
-| UI | React 18 | Standard di settore |
-| Editor | Tiptap (ProseMirror) | Block editor estendibile, round-trip markdown via `tiptap-markdown` |
-| Stato | Zustand | Minimale, niente boilerplate |
-| Styling | Tailwind CSS | Utility-first, niente runtime |
-| Storage | File `.md` + cache SQLite | Local-first, source of truth = filesystem |
-| Index | better-sqlite3 (sync) | Veloce, zero overhead async, perfetto in Electron main |
-| Watcher | chokidar | Standard de facto cross-platform |
-
-### Modello dati
-
-```ts
-type Note = {
-  path: string;                    // relativo al vault, "projects/ziba.md"
-  title: string;                   // frontmatter.title > primo H1 > basename
-  frontmatter: Record<string, unknown>;
-  content: string;                 // body markdown senza frontmatter
-  wikilinks: string[];             // target estratti da [[...]]
-  mtimeMs: number;
-};
-```
-
-Il file `.md` sul disco è la fonte unica di verità. La cache SQLite (in `<vault>/.ziba/index.db`) accelera query come "trova tutti i backlink di X" e "autocomplete per `[[`". Cancellabile in qualsiasi momento — viene ricostruita all'apertura del vault.
-
-## Quick start
-
-### Prerequisiti
-
-- **Node.js** ≥ 20
-- **pnpm** ≥ 9 (`corepack enable && corepack use pnpm@9` o `npm i -g pnpm`)
-- **macOS / Linux / Windows** (primary dev su macOS, gli altri non sono ancora stati testati a fondo)
-
-### Installazione e dev
-
-```bash
-git clone https://github.com/metaforismo/Ziba.git ziba
-cd ziba
-pnpm install
-pnpm --filter ziba-desktop run dev
-```
-
-L'app si apre. Al primo avvio: scegli una cartella vuota o piena di `.md` come vault e si parte.
-
-### Vault di esempio
-
-Per provare le funzionalità senza preparare un vault da zero:
-
-```bash
-node scripts/seed-vault.mjs ./sample-vault
-```
-
-Genera 6 note interconnesse via wikilink (idee, progetti, persone, libri, daily). Poi apri `./sample-vault` da Ziba.
-
-### Verifica
-
-```bash
-pnpm typecheck   # tutto il monorepo
-pnpm build       # produce dist/ per packages e out/ per app
-```
-
-### Build distributable
-
-```bash
-pnpm --filter ziba-desktop run dist:mac     # .dmg + .zip per macOS (x64+arm64)
-pnpm --filter ziba-desktop run dist:win     # NSIS installer
-pnpm --filter ziba-desktop run dist:linux   # AppImage + .deb
-```
-
-> Non c'è ancora code signing. Su macOS l'app non firmata richiede "Apri" dal menu contestuale del Finder la prima volta.
-
-## Formato vault
-
-Un vault Ziba è una directory di file markdown. Ziba aggiunge una sola sottodirectory `.ziba/` per i propri dati:
-
-```
-my-vault/
-├── tolkien.md
-├── projects/
-│   └── ziba.md
-└── .ziba/
-    ├── index.db          # cache SQLite (rigenerabile, mai autoritativa)
-    └── schema/
-        ├── book.yml
-        ├── person.yml
-        └── note.yml
-```
-
-### Oggetti tipizzati (v1.0)
-
-Aggiungi `type:` al frontmatter di una nota per dichiararla un oggetto tipizzato. Le relazioni verso altri oggetti vanno sotto `relations:`:
+Ziba can treat a note as an object:
 
 ```markdown
 ---
@@ -237,19 +126,19 @@ type: book
 title: The Hobbit
 year: 1937
 relations:
-  author: "[[Tolkien]]"
+  author: "[[J. R. R. Tolkien]]"
+  in_series: "[[Middle-earth]]"
 ---
 
-Il libro che ha…
+A compact fantasy novel that became the doorway into Middle-earth.
 ```
 
-Lo schema del tipo — che definisce quali property e relazioni ha senso aspettarsi — vive in `.ziba/schema/book.yml`:
+Object schemas live in `.ziba/schema/<type>.yml`:
 
 ```yaml
-# .ziba/schema/book.yml
 id: book
-label: Libro
-icon: 📖
+label: Book
+icon: B
 color: "#6366f1"
 properties:
   title:
@@ -260,53 +149,208 @@ properties:
 relations:
   author:
     target: person
-    label: Autore
+    label: Author
   in_series:
     target: book
-    label: Serie
-inverse:
-  cited_by:
-    reverse_of: cites
-    label: Citato da
+    label: Series
 ```
 
-Gli schemi sono **soft**: documentano l'intenzione + guidano la UI (property panel, relation picker, colori del grafo), ma non bloccano il salvataggio di valori fuori-spec.
+Schemas are intentionally soft. They guide the UI, relation picker, object
+panel, graph colors, and future automation, but they do not prevent you from
+editing your files however you want.
 
-I wikilink nel body senza `type:` e `relations:` continuano a funzionare come prima (relazioni untyped, `kind = ''`).
+### Graph-first exploration
 
-Per la specifica completa del formato vault (layout directory, campi schema, tipi di property, slug convention) vedi [`docs/vault-format.md`](docs/vault-format.md).
+- Local mini-graph around the current note.
+- Global graph with pan, zoom, search, and node selection.
+- Obsidian-style visual polish with dark canvas, subtle links, and hover focus.
+- Constellation mode with type clusters, color groups, relation-kind filters,
+  and graph settings.
+
+### Desktop workflows
+
+- File tree with nested folders.
+- Context menus for file and folder actions.
+- Recent vaults and starter vault generation.
+- Typed IPC boundary between Electron main and renderer.
+- Watcher-based updates when files change on disk.
+
+## Quick Start
+
+### Requirements
+
+- Node.js 20 or newer.
+- pnpm 9 or newer.
+- macOS, Linux, or Windows. Development is currently most tested on macOS.
+
+Enable pnpm with Corepack:
+
+```bash
+corepack enable
+corepack use pnpm@9
+```
+
+### Run the desktop app
+
+```bash
+git clone https://github.com/metaforismo/Ziba.git ziba
+cd ziba
+pnpm install
+pnpm --filter ziba-desktop run dev
+```
+
+On first launch, choose an empty folder or an existing folder of markdown files
+as your vault.
+
+### Create a sample vault
+
+```bash
+node scripts/seed-vault.mjs ./sample-vault
+pnpm --filter ziba-desktop run dev
+```
+
+Then open `./sample-vault` from Ziba.
+
+### Verify the repo
+
+```bash
+pnpm typecheck
+pnpm lint
+pnpm format:check
+pnpm test
+pnpm build
+```
+
+### Build desktop packages
+
+```bash
+pnpm --filter ziba-desktop run dist:mac
+pnpm --filter ziba-desktop run dist:win
+pnpm --filter ziba-desktop run dist:linux
+```
+
+Code signing is not set up yet. On macOS, unsigned builds may need to be opened
+from Finder's context menu the first time.
+
+## Vault Format
+
+A Ziba vault is just a folder:
+
+```text
+my-vault/
+|-- ideas/
+|   `-- local-first-software.md
+|-- people/
+|   `-- ada-lovelace.md
+|-- books/
+|   `-- the-hobbit.md
+`-- .ziba/
+    |-- index.db
+    `-- schema/
+        |-- note.yml
+        |-- person.yml
+        |-- book.yml
+        |-- project.yml
+        |-- idea.yml
+        |-- daily.yml
+        `-- meeting.yml
+```
+
+- `.md` files are the durable user data.
+- `.ziba/index.db` is a rebuildable SQLite cache.
+- `.ziba/schema/*.yml` describes optional object types and relation kinds.
+
+See [docs/vault-format.md](docs/vault-format.md) for the full vault format,
+schema fields, property types, relation conventions, and slug rules.
+
+## Architecture
+
+Ziba is a TypeScript monorepo:
+
+```text
+ziba/
+|-- apps/
+|   `-- desktop/
+|       |-- electron/         # Main process: IPC, fs, SQLite, watcher
+|       |-- src/              # Renderer: React, Tiptap, Tailwind, Zustand
+|       `-- shared/           # Typed IPC contract
+`-- packages/
+    |-- core/                 # Platform-agnostic TypeScript domain logic
+    |   `-- src/
+    |       |-- adapters/     # Filesystem, index store, watcher interfaces
+    |       |-- markdown/     # Parser, serializer, wikilinks, tags
+    |       |-- query/        # Database query model
+    |       |-- vault/        # Scan, indexing, load/save notes
+    |       |-- index-store/  # Shared SQLite schema
+    |       |-- seed-schemas/ # Default object type schemas
+    |       `-- types/        # Domain types
+    `-- tsconfig/
+```
+
+The important architectural choice is the adapter pattern. `packages/core` does
+not import React, Electron, Node APIs, or browser APIs. It defines interfaces;
+platforms implement them.
+
+That keeps the door open for:
+
+- Electron desktop today.
+- A web version using File System Access API and IndexedDB.
+- A mobile client using Expo FileSystem and SQLite.
+- Local AI and automation layers that can reason over a clean object graph.
+
+Read [docs/architecture.md](docs/architecture.md) for the deeper walkthrough.
 
 ## Roadmap
 
-### Fatto
+Recently shipped:
 
-- **v0.x** — vault open, editor, properties, tags, backlinks, full-text search,
-  database view (table/board/calendar), global graph, embed, math (KaTeX),
-  IPC error surface, toast UI, keyboard shortcuts.
-- **v1.0** — typed objects + relations, ObjectPanel, TypesSection sidebar,
-  type-filtered database, constellation graph (hull colorati, kind filter,
-  leggenda).
+- Local vault, markdown editor, wikilinks, backlinks, tags, full-text search.
+- Database table, board, and calendar views.
+- Global graph and local mini-graph.
+- Typed objects, schemas, relation table, object panel, and type sidebar.
+- Obsidian-style graph polish, graph settings, and improved file actions.
 
-### Next (v1.x)
+Next directions:
 
-- **Filter unification**: un singolo `selectedType` condiviso tra Sidebar,
-  DatabaseView e GlobalGraph (attualmente store indipendenti).
-- **Aliased relations** nei popup di inserimento (`[[Target|Display]]`).
-- **Plugin system foundation** — l'object model offre la base strutturale.
-- **Performance**: Web Worker per il layout del grafo; batch IPC per la
-  risoluzione wikilink.
-- **Web port** — multi-fase; `packages/core` è già pure TS.
-- **Mobile** — read-only client Expo, futuro più lontano.
-- **AI-native** — semantic search, auto-link, agent organizzativi.
+- Unified filtering across Sidebar, DatabaseView, and GlobalGraph.
+- Better relation aliases and richer relation insertion flows.
+- Plugin system foundations.
+- Graph performance work, including worker-based layout.
+- Web port experiments.
+- Read-only mobile exploration.
+- AI-native features: semantic search, auto-linking, vault-aware assistants,
+  and local-first agent workflows.
 
-Le issue del repository taggano la versione obiettivo. La roadmap è indicativa, non promessa di delivery.
+The roadmap is a direction, not a delivery promise. Issues and discussions are
+the best place to shape what happens next.
 
-## Contribuire
+## Contributing
 
-Le contribuzioni sono benvenute. Vedi [CONTRIBUTING.md](CONTRIBUTING.md) per linee guida, setup ambiente, e processo di PR.
+Ziba is open source because knowledge tools should be inspectable and
+user-owned. Contributions are welcome across the whole project:
 
-Per discussioni più aperte (idee di feature, design, dubbi di architettura), apri una [Discussion](https://github.com/metaforismo/Ziba/discussions). Per bug riproducibili, una [Issue](https://github.com/metaforismo/Ziba/issues).
+- Bug fixes and regression tests.
+- Documentation improvements.
+- UI and accessibility polish.
+- Parser, indexing, and graph performance work.
+- Design discussions for plugins, sync, web, mobile, and AI-native workflows.
+
+Start with [CONTRIBUTING.md](CONTRIBUTING.md) for setup, conventions, and PR
+workflow. For larger ideas, open a
+[GitHub Discussion](https://github.com/metaforismo/Ziba/discussions) before
+writing code.
+
+## Philosophy
+
+Ziba is built around a few durable beliefs:
+
+- Your knowledge base should outlive the app you use to edit it.
+- Files are a better long-term contract than an opaque database.
+- Structure should be optional, gradual, and visible.
+- Local-first software can still feel modern and powerful.
+- AI should help you understand your own knowledge without requiring you to
+  surrender it.
 
 ## License
 
-[MIT](LICENSE) © 2026 Francesco Giannicola e contributor.
+[MIT](LICENSE) (c) 2026 Francesco Giannicola and contributors.
