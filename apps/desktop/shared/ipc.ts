@@ -7,6 +7,9 @@ import type {
   DatabaseQuery,
   DatabaseResult,
   DatabaseRow,
+  DatabaseViewDefinition,
+  DatabaseViewLayout,
+  DatabaseViewsFile,
   DetectedProperty,
   Frontmatter,
   FullGraph,
@@ -30,6 +33,9 @@ export type {
   DatabaseQuery,
   DatabaseResult,
   DatabaseRow,
+  DatabaseViewDefinition,
+  DatabaseViewLayout,
+  DatabaseViewsFile,
   DetectedProperty,
   FullGraph,
   GraphEdge,
@@ -81,6 +87,10 @@ export const IpcChannels = {
 
   // Database queries (v0.3 Wave 1)
   runDatabaseQuery: 'db:query',
+  listDatabaseViews: 'db:views:list',
+  upsertDatabaseView: 'db:views:upsert',
+  deleteDatabaseView: 'db:views:delete',
+  duplicateDatabaseView: 'db:views:duplicate',
   // Full graph (v0.3 Wave 1, used by Wave 2's global graph view)
   getFullGraph: 'graph:full',
 
@@ -98,6 +108,7 @@ export const IpcChannels = {
   // Watcher push events (main → renderer)
   vaultEvent: 'watcher:event',
   indexProgress: 'index:progress',
+  databaseViewsChanged: 'database:viewsChanged',
 } as const;
 
 export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];
@@ -176,6 +187,10 @@ export type IpcRequests = {
   [IpcChannels.getNotesByTag]: { tag: string };
 
   [IpcChannels.runDatabaseQuery]: { query: DatabaseQuery };
+  [IpcChannels.listDatabaseViews]: void;
+  [IpcChannels.upsertDatabaseView]: { view: DatabaseViewDefinition };
+  [IpcChannels.deleteDatabaseView]: { id: string };
+  [IpcChannels.duplicateDatabaseView]: { id: string };
   [IpcChannels.getFullGraph]: void;
 
   // v1.0
@@ -208,6 +223,8 @@ export type LinkReferencesResult = {
   backlinks: LinkReference[];
   mentions: LinkReference[];
 };
+
+export type DatabaseViewsChangedPayload = DatabaseViewsFile;
 
 /** A single full-text-search hit returned to the renderer. */
 export type SearchHit = {
@@ -262,6 +279,10 @@ export type IpcResponses = {
   [IpcChannels.getNotesByTag]: NoteSummary[];
 
   [IpcChannels.runDatabaseQuery]: DatabaseResult;
+  [IpcChannels.listDatabaseViews]: DatabaseViewsFile;
+  [IpcChannels.upsertDatabaseView]: DatabaseViewDefinition;
+  [IpcChannels.deleteDatabaseView]: DatabaseViewsFile;
+  [IpcChannels.duplicateDatabaseView]: DatabaseViewDefinition;
   [IpcChannels.getFullGraph]: FullGraph;
 
   // v1.0
@@ -299,6 +320,7 @@ export interface ZibaApi {
 
   onVaultEvent(listener: (payload: VaultEventPayload) => void): () => void;
   onIndexProgress(listener: (payload: IndexProgressPayload) => void): () => void;
+  onDatabaseViewsChanged(listener: (payload: DatabaseViewsChangedPayload) => void): () => void;
 }
 
 declare global {

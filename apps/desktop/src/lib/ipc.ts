@@ -7,6 +7,9 @@ import type {
   Backlink,
   DatabaseQuery,
   DatabaseResult,
+  DatabaseViewDefinition,
+  DatabaseViewsChangedPayload,
+  DatabaseViewsFile,
   FullGraph,
   IndexProgressPayload,
   LinkReferencesResult,
@@ -125,6 +128,18 @@ export const ipc = {
   runDatabaseQuery(args: { query: DatabaseQuery }): Promise<DatabaseResult> {
     return api().invoke(IpcChannels.runDatabaseQuery, args);
   },
+  listDatabaseViews(): Promise<DatabaseViewsFile> {
+    return api().invoke(IpcChannels.listDatabaseViews);
+  },
+  upsertDatabaseView(args: { view: DatabaseViewDefinition }): Promise<DatabaseViewDefinition> {
+    return api().invoke(IpcChannels.upsertDatabaseView, args);
+  },
+  deleteDatabaseView(args: { id: string }): Promise<DatabaseViewsFile> {
+    return api().invoke(IpcChannels.deleteDatabaseView, args);
+  },
+  duplicateDatabaseView(args: { id: string }): Promise<DatabaseViewDefinition> {
+    return api().invoke(IpcChannels.duplicateDatabaseView, args);
+  },
   getFullGraph(): Promise<FullGraph> {
     return api().invoke(IpcChannels.getFullGraph);
   },
@@ -160,6 +175,9 @@ export const ipc = {
   },
   onIndexProgress(listener: (payload: IndexProgressPayload) => void): () => void {
     return api().onIndexProgress(listener);
+  },
+  onDatabaseViewsChanged(listener: (payload: DatabaseViewsChangedPayload) => void): () => void {
+    return api().onDatabaseViewsChanged(listener);
   },
 };
 

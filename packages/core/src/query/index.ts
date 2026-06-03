@@ -132,6 +132,25 @@ export type DatabaseQuery = {
   limit?: number;
 };
 
+export type DatabaseViewLayout = 'table' | 'board' | 'calendar' | 'gallery';
+
+export type DatabaseViewDefinition = {
+  id: string;
+  name: string;
+  layout: DatabaseViewLayout;
+  query: DatabaseQuery;
+  selectedType: string | null;
+  columns: string[];
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type DatabaseViewsFile = {
+  version: 1;
+  activeViewId: string | null;
+  views: DatabaseViewDefinition[];
+};
+
 /**
  * Materialised row returned by the query API. `properties` is keyed by
  * property name and contains the typed `DetectedProperty` for that key —

@@ -379,4 +379,30 @@ describe('useDatabaseStore — selectedType slice', () => {
 
     expect(observed!.filters?.some((f) => f.key === 'type')).toBe(false);
   });
+
+  it('applyViewState replaces query and selectedType in one immediate run', async () => {
+    const { useDatabaseStore, useVaultStore } = await loadStores();
+    useVaultStore.setState({ current: FAKE_VAULT });
+    let observed: DatabaseQuery | null = null;
+    mock.setHandler(IpcChannels.runDatabaseQuery, async ({ query }) => {
+      observed = query;
+      return { rows: [], groups: [], totalCount: 0 };
+    });
+
+    await useDatabaseStore.getState().applyViewState({
+      query: {
+        filters: [{ kind: 'eq', key: 'status', value: 'active' }],
+        groupBy: 'status',
+        limit: 25,
+      },
+      selectedType: 'project',
+    });
+
+    expect(useDatabaseStore.getState().query.limit).toBe(25);
+    expect(useDatabaseStore.getState().selectedType).toBe('project');
+    expect(observed!.filters).toEqual([
+      { kind: 'eq', key: 'type', value: 'project' },
+      { kind: 'eq', key: 'status', value: 'active' },
+    ]);
+  });
 });

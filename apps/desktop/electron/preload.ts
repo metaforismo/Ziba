@@ -10,6 +10,7 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import {
   IpcChannels,
+  type DatabaseViewsChangedPayload,
   type IndexProgressPayload,
   type IpcRequests,
   type IpcResponses,
@@ -45,6 +46,16 @@ const api: ZibaApi = {
     ipcRenderer.on(IpcChannels.indexProgress, wrapped);
     return () => {
       ipcRenderer.off(IpcChannels.indexProgress, wrapped);
+    };
+  },
+
+  onDatabaseViewsChanged(listener: (payload: DatabaseViewsChangedPayload) => void): () => void {
+    const wrapped = (_e: IpcRendererEvent, payload: DatabaseViewsChangedPayload): void => {
+      listener(payload);
+    };
+    ipcRenderer.on(IpcChannels.databaseViewsChanged, wrapped);
+    return () => {
+      ipcRenderer.off(IpcChannels.databaseViewsChanged, wrapped);
     };
   },
 };
