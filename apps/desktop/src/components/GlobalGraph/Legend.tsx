@@ -18,11 +18,11 @@ export function Legend({ visibleTypes, visibleKinds }: Props): JSX.Element | nul
   return (
     <div
       aria-label="Legenda"
-      className="pointer-events-none absolute right-2 top-2 z-10 max-w-[200px] rounded-md border border-border bg-bg-subtle/95 p-2 text-xs text-fg shadow"
+      className="pointer-events-none absolute right-4 top-16 z-10 max-w-[200px] rounded-lg border border-[#3a3a3f] bg-[#242426]/86 p-2 text-xs text-[#e6e6e8] shadow-lg shadow-black/20 backdrop-blur"
     >
       {visibleTypes.length > 0 && (
         <div>
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-fg-muted">
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[#9d9da4]">
             Tipi
           </p>
           <ul className="flex flex-col gap-0.5">
@@ -41,7 +41,7 @@ export function Legend({ visibleTypes, visibleKinds }: Props): JSX.Element | nul
       )}
       {visibleKinds.length > 0 && (
         <div className={visibleTypes.length > 0 ? 'mt-2' : ''}>
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-fg-muted">
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[#9d9da4]">
             Relazioni
           </p>
           <ul className="flex flex-col gap-0.5">

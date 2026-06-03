@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CornersOut, Gear, MagnifyingGlass, Minus, Plus } from '@phosphor-icons/react';
 import type { NotePath } from '@ziba/core';
 import type { FullGraph } from '../../../shared/ipc';
 import { ipc } from '../../lib/ipc';
@@ -6,6 +7,7 @@ import { ipcErrorMessage } from '../../lib/ipc-error';
 import { debounce } from '../../lib/debounce';
 import { GLOBAL_GRAPH_REFETCH_MS } from '../../lib/timings';
 import { navigateToNote } from '../../lib/navigate';
+import { deriveGraphView } from '../../lib/graph-view';
 import {
   Canvas,
   type CanvasEdge,
@@ -18,6 +20,12 @@ import { TypeChips, type TypeChip } from './TypeChips';
 import { KindFilterDropdown } from './KindFilterDropdown';
 import { Legend } from './Legend';
 import { useTagsStore } from '../../stores/tags';
+import { useVaultStore } from '../../stores/vault';
+import { useGraphSettingsStore } from '../../stores/graph';
+import { GraphSettingsPanel } from './GraphSettingsPanel';
+import type { GraphGroupRule } from '../../lib/graph-settings';
+import { graphGroupQueryMatchesNode } from '../../lib/graph-groups';
+import { nextGraphKeyboardView } from './keyboard';
 
 // Logical canvas the simulation runs on. The SVG `viewBox` matches
 // these numbers; on screen we just stretch to fill the container, with
@@ -47,11 +55,9 @@ type LoadState =
 
 export function GlobalGraph(): JSX.Element {
   const [load, setLoad] = useState<LoadState>({ kind: 'idle' });
-  const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<NotePath | null>(null);
-  const [selectedType, setSelectedType] = useState<string | null>(null);
-  const [selectedKinds, setSelectedKinds] = useState<ReadonlySet<string>>(EMPTY_STRING_SET);
   const [clusterOverlayOn, setClusterOverlayOn] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   // We bump `viewVersion` whenever we want to force the canvas to apply
   // a fresh `initialView` (fit-to-screen, +/- zoom button). Pan/wheel
   // gestures bypass this and write directly into the canvas via its
@@ -60,8 +66,40 @@ export function GlobalGraph(): JSX.Element {
   const [panning, setPanning] = useState(false);
   const requestSeq = useRef(0);
   const canvasRef = useRef<CanvasHandle | null>(null);
+  const graphFrameRef = useRef<HTMLDivElement | null>(null);
 
   const objectTypeSchemas = useTagsStore((s) => s.objectTypeSchemas);
+  const currentVaultRoot = useVaultStore((s) => s.current?.root ?? null);
+  const graphSettings = useGraphSettingsStore((s) => s.settings);
+  const setGraphSettingsVaultRoot = useGraphSettingsStore((s) => s.setVaultRoot);
+  const updateGraphQuery = useGraphSettingsStore((s) => s.updateQuery);
+  const updateGraphDisplay = useGraphSettingsStore((s) => s.updateDisplay);
+  const updateGraphForces = useGraphSettingsStore((s) => s.updateForces);
+  const addGraphGroup = useGraphSettingsStore((s) => s.addGroup);
+  const updateGraphGroup = useGraphSettingsStore((s) => s.updateGroup);
+  const removeGraphGroup = useGraphSettingsStore((s) => s.removeGroup);
+  const seedGraphGroups = useGraphSettingsStore((s) => s.seedGroupsFromTopLevelFolders);
+  const resetGraphSettings = useGraphSettingsStore((s) => s.resetSettings);
+  const search = graphSettings.query.search;
+  const selectedType = graphSettings.query.types[0] ?? null;
+  const selectedKinds = useMemo<ReadonlySet<string>>(
+    () => new Set(graphSettings.query.relationKinds),
+    [graphSettings.query.relationKinds],
+  );
+  const graphView = useMemo(
+    () => (load.kind === 'ready' ? deriveGraphView(load.graph, graphSettings) : null),
+    [load, graphSettings],
+  );
+  const visibleGraph = graphView?.graph ?? EMPTY_GRAPH;
+
+  useEffect(() => {
+    setGraphSettingsVaultRoot(currentVaultRoot);
+  }, [currentVaultRoot, setGraphSettingsVaultRoot]);
+
+  useEffect(() => {
+    if (load.kind !== 'ready') return;
+    seedGraphGroups(load.graph.nodes.map((node) => node.path));
+  }, [load, seedGraphGroups]);
 
   // Initial fetch + watcher-driven refetch.
   useEffect(() => {
@@ -119,11 +157,9 @@ export function GlobalGraph(): JSX.Element {
   // nodes (we don't need to expose the full graph object to the canvas).
   const titleMap = useMemo<Map<NotePath, string>>(() => {
     const m = new Map<NotePath, string>();
-    if (load.kind === 'ready') {
-      for (const n of load.graph.nodes) m.set(n.path, n.title);
-    }
+    for (const n of visibleGraph.nodes) m.set(n.path, n.title);
     return m;
-  }, [load]);
+  }, [visibleGraph]);
 
   // Chip list for the type filter row. Sources from the graph nodes so
   // only types actually present in this vault appear.
@@ -163,29 +199,26 @@ export function GlobalGraph(): JSX.Element {
   // path → type slug; feeds initializePositions for cluster-bias seeding.
   const typeById = useMemo<ReadonlyMap<NotePath, string | null>>(() => {
     const m = new Map<NotePath, string | null>();
-    if (load.kind !== 'ready') return m;
-    for (const n of load.graph.nodes) m.set(n.path, n.type);
+    for (const n of visibleGraph.nodes) m.set(n.path, n.type);
     return m;
-  }, [load]);
+  }, [visibleGraph]);
 
   // Degree counts (in + out). Used to scale node radius and decide
   // which nodes get labels at high zoom.
   const degreeMap = useMemo<Map<NotePath, number>>(() => {
     const m = new Map<NotePath, number>();
-    if (load.kind !== 'ready') return m;
-    for (const n of load.graph.nodes) m.set(n.path, 0);
-    for (const e of load.graph.edges) {
+    for (const n of visibleGraph.nodes) m.set(n.path, 0);
+    for (const e of visibleGraph.edges) {
       m.set(e.source, (m.get(e.source) ?? 0) + 1);
       m.set(e.target, (m.get(e.target) ?? 0) + 1);
     }
     return m;
-  }, [load]);
+  }, [visibleGraph]);
 
   // Adjacency for 1-hop highlight. Built once per graph (not per
   // selection), so clicking around is cheap.
   const adjacency = useMemo<Map<NotePath, Set<NotePath>>>(() => {
     const m = new Map<NotePath, Set<NotePath>>();
-    if (load.kind !== 'ready') return m;
     const ensure = (p: NotePath): Set<NotePath> => {
       let s = m.get(p);
       if (s === undefined) {
@@ -194,18 +227,18 @@ export function GlobalGraph(): JSX.Element {
       }
       return s;
     };
-    for (const e of load.graph.edges) {
+    for (const e of visibleGraph.edges) {
       ensure(e.source).add(e.target);
       ensure(e.target).add(e.source);
     }
     return m;
-  }, [load]);
+  }, [visibleGraph]);
 
   // Run the force simulation. The deps key is the graph identity, so
   // re-renders driven by selection / search / pan don't re-simulate.
   const layout = useMemo(() => {
     if (load.kind !== 'ready') return null;
-    const { nodes, edges } = load.graph;
+    const { nodes, edges } = visibleGraph;
     if (nodes.length === 0) return null;
     const positioned = initializePositions(
       nodes.map((n) => n.path),
@@ -216,10 +249,10 @@ export function GlobalGraph(): JSX.Element {
     runGlobalLayout(
       positioned,
       edges.map((e) => ({ source: e.source, target: e.target })),
-      { width: CANVAS_W, height: CANVAS_H },
+      { width: CANVAS_W, height: CANVAS_H, forces: graphSettings.forces },
     );
     return positioned;
-  }, [load, typeById]);
+  }, [load.kind, visibleGraph, typeById, graphSettings.forces]);
 
   // Build the canvas-level node list. Memoised so the Canvas's
   // `memo()` shallow comparison sees a stable reference unless the
@@ -228,8 +261,11 @@ export function GlobalGraph(): JSX.Element {
     if (layout === null) return [];
     const maxDegree = Array.from(degreeMap.values()).reduce((acc, v) => (v > acc ? v : acc), 0);
     const nodeMeta = new Map<NotePath, { type: string | null; color: string | null }>();
-    if (load.kind === 'ready') {
-      for (const n of load.graph.nodes) nodeMeta.set(n.path, { type: n.type, color: n.color });
+    for (const n of visibleGraph.nodes) {
+      nodeMeta.set(n.path, {
+        type: n.type,
+        color: groupColorForNode(n, graphSettings.groups) ?? n.color,
+      });
     }
     return layout.map((p) => {
       const degree = degreeMap.get(p.id) ?? 0;
@@ -246,25 +282,17 @@ export function GlobalGraph(): JSX.Element {
         color: meta?.color ?? null,
       };
     });
-  }, [layout, degreeMap, titleMap, load]);
+  }, [layout, degreeMap, titleMap, visibleGraph, graphSettings.groups]);
 
   const canvasEdges = useMemo<CanvasEdge[]>(() => {
-    if (load.kind !== 'ready') return [];
-    return load.graph.edges.map((e) => ({ source: e.source, target: e.target, kind: e.kind }));
-  }, [load]);
+    return visibleGraph.edges.map((e) => ({ source: e.source, target: e.target, kind: e.kind }));
+  }, [visibleGraph]);
 
-  // Search filter. Empty query disables filtering; otherwise we collect
-  // matching ids into a Set so the Canvas can do O(1) membership checks
-  // per node during render.
+  // Search/type/kind filters now remove nodes and links before layout,
+  // so the old Canvas-level dimming set stays empty.
   const matchedIds = useMemo<ReadonlySet<NotePath>>(() => {
-    const trimmed = search.trim().toLowerCase();
-    if (trimmed === '') return EMPTY_SET;
-    const out = new Set<NotePath>();
-    for (const [path, title] of titleMap) {
-      if (title.toLowerCase().includes(trimmed)) out.add(path);
-    }
-    return out;
-  }, [search, titleMap]);
+    return EMPTY_SET;
+  }, []);
 
   const neighborIds = useMemo<ReadonlySet<NotePath>>(() => {
     if (selectedId === null) return EMPTY_SET;
@@ -290,18 +318,32 @@ export function GlobalGraph(): JSX.Element {
   // no longer contains the previously selected type or kinds.
   useEffect(() => {
     if (load.kind !== 'ready') return;
-    if (selectedType !== null && !typeChips.some((t) => t.id === selectedType)) {
-      setSelectedType(null);
+    const validTypes = new Set(typeChips.map((t) => t.id));
+    const nextTypes = graphSettings.query.types.filter((type) => validTypes.has(type));
+    if (nextTypes.length !== graphSettings.query.types.length) {
+      updateGraphQuery({ types: nextTypes });
     }
-    if (selectedKinds.size > 0) {
-      const validKinds = new Set(kindOptions);
-      const stale = Array.from(selectedKinds).some((k) => !validKinds.has(k));
-      if (stale) {
-        const next = new Set(Array.from(selectedKinds).filter((k) => validKinds.has(k)));
-        setSelectedKinds(next);
-      }
+
+    const validKinds = new Set(kindOptions);
+    const nextKinds = graphSettings.query.relationKinds.filter((kind) => validKinds.has(kind));
+    if (nextKinds.length !== graphSettings.query.relationKinds.length) {
+      updateGraphQuery({ relationKinds: nextKinds });
     }
-  }, [load, typeChips, kindOptions, selectedType, selectedKinds]);
+  }, [
+    load.kind,
+    typeChips,
+    kindOptions,
+    graphSettings.query.types,
+    graphSettings.query.relationKinds,
+    updateGraphQuery,
+  ]);
+
+  useEffect(() => {
+    if (selectedId === null) return;
+    if (!visibleGraph.nodes.some((node) => node.path === selectedId)) {
+      setSelectedId(null);
+    }
+  }, [selectedId, visibleGraph]);
 
   // Compute fit-to-screen view. Called once when the layout is ready
   // and again whenever the user clicks the "fit" button.
@@ -371,6 +413,7 @@ export function GlobalGraph(): JSX.Element {
       };
       setView(next);
       canvasRef.current?.setView(next);
+      userInteractedRef.current = true;
     },
     [view],
   );
@@ -482,6 +525,35 @@ export function GlobalGraph(): JSX.Element {
     // from yanking the camera back.
   }, []);
 
+  const handleGraphFrameMouseDownCapture = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (isKeyboardInputTarget(e.target)) return;
+    graphFrameRef.current?.focus({ preventScroll: true });
+  }, []);
+
+  const handleGraphKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (isKeyboardInputTarget(e.target)) return;
+      const cur = canvasRef.current?.getView() ?? view;
+      const next = nextGraphKeyboardView(
+        cur,
+        { key: e.key, shiftKey: e.shiftKey },
+        {
+          width: CANVAS_W,
+          height: CANVAS_H,
+          minScale: ZOOM_MIN,
+          maxScale: ZOOM_MAX,
+          zoomStep: ZOOM_STEP,
+        },
+      );
+      if (next === null) return;
+      e.preventDefault();
+      setView(next);
+      canvasRef.current?.setView(next);
+      userInteractedRef.current = true;
+    },
+    [view],
+  );
+
   const handleNodeClick = useCallback((id: NotePath): void => {
     setSelectedId((cur) => (cur === id ? null : id));
   }, []);
@@ -499,103 +571,178 @@ export function GlobalGraph(): JSX.Element {
     setSelectedId(null);
   }, []);
 
+  const handleTypeChange = useCallback(
+    (type: string | null): void => {
+      updateGraphQuery({ types: type === null ? [] : [type] });
+    },
+    [updateGraphQuery],
+  );
+
+  const handleKindsChange = useCallback(
+    (next: ReadonlySet<string>): void => {
+      updateGraphQuery({ relationKinds: Array.from(next).sort() });
+    },
+    [updateGraphQuery],
+  );
+
+  const selectedNode = useMemo(
+    () =>
+      selectedId === null ? null : (canvasNodes.find((node) => node.id === selectedId) ?? null),
+    [selectedId, canvasNodes],
+  );
+
+  const selectedConnections = useMemo(
+    () =>
+      selectedId === null
+        ? []
+        : visibleGraph.edges.filter(
+            (edge) => edge.source === selectedId || edge.target === selectedId,
+          ),
+    [selectedId, visibleGraph],
+  );
+
   // ---- Render ------------------------------------------------------
   const isReady = load.kind === 'ready';
-  const nodeCount = isReady ? load.graph.nodes.length : 0;
-  const edgeCount = isReady ? load.graph.edges.length : 0;
+  const totalNodeCount = isReady ? load.graph.nodes.length : 0;
+  const nodeCount = isReady ? visibleGraph.nodes.length : 0;
+  const edgeCount = isReady ? visibleGraph.edges.length : 0;
+  const hiddenNodeCount = graphView?.hiddenNodeCount ?? 0;
+  const hiddenEdgeCount = graphView?.hiddenEdgeCount ?? 0;
+  const hasActiveFilters = (graphView?.activeFilterCount ?? 0) > 0;
 
   return (
-    <div className="flex h-full w-full flex-col bg-bg">
-      <header className="flex shrink-0 flex-col gap-2 border-b border-border bg-bg-subtle px-3 py-2">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex min-w-0 items-baseline gap-3">
-            <h1 className="truncate text-sm font-semibold text-fg">Grafo globale</h1>
-            {isReady && (
-              <span className="truncate text-xs text-fg-muted">
-                {nodeCount} {nodeCount === 1 ? 'nodo' : 'nodi'} · {edgeCount}{' '}
-                {edgeCount === 1 ? 'arco' : 'archi'}
-              </span>
+    <div className="flex h-full w-full flex-col bg-[#1d1d1f] text-[#e6e6e8]">
+      <div
+        ref={graphFrameRef}
+        tabIndex={0}
+        className="relative min-h-0 flex-1 overflow-hidden bg-[#1d1d1f] outline-none"
+        onKeyDown={handleGraphKeyDown}
+        onMouseDownCapture={handleGraphFrameMouseDownCapture}
+      >
+        <div className="pointer-events-none absolute left-4 right-4 top-3 z-10 flex items-start justify-between gap-3">
+          <div className="min-w-0 rounded-lg border border-[#36363a]/90 bg-[#242426]/80 px-3 py-2 shadow-lg shadow-black/20 backdrop-blur">
+            <div className="flex min-w-0 items-baseline gap-3">
+              <h1 className="truncate text-[14px] font-semibold text-[#f0f0f2]">Vista grafo</h1>
+              {isReady && (
+                <span className="truncate font-mono text-[11px] tabular-nums text-[#9d9da4]">
+                  {nodeCount} {nodeCount === 1 ? 'nodo' : 'nodi'} · {edgeCount}{' '}
+                  {edgeCount === 1 ? 'arco' : 'archi'}
+                </span>
+              )}
+            </div>
+            {hasActiveFilters && (
+              <p className="mt-1 truncate text-[11px] text-[#9d9da4]">
+                {hiddenNodeCount} nodi nascosti · {hiddenEdgeCount} collegamenti nascosti
+              </p>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={search}
-              onChange={(e): void => setSearch(e.target.value)}
-              placeholder="Filtra per titolo…"
-              className="w-48 rounded border border-border bg-bg px-2 py-1 text-xs text-fg outline-none placeholder:text-fg-muted focus:border-fg-muted"
-              spellCheck={false}
-              autoComplete="off"
-              autoCorrect="off"
-              aria-label="Filtra nodi per titolo"
-            />
-            <div className="flex items-center gap-0.5">
+
+          <div className="pointer-events-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
+            <label className="flex h-9 w-64 max-w-[38vw] items-center gap-2 rounded-lg border border-[#3a3a3f] bg-[#242426]/86 px-2.5 text-[#b7b7bd] shadow-lg shadow-black/20 backdrop-blur transition focus-within:border-[#5a5a62] focus-within:ring-2 focus-within:ring-white/10">
+              <MagnifyingGlass size={16} aria-hidden="true" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e): void => updateGraphQuery({ search: e.target.value })}
+                placeholder="Cerca nel grafo..."
+                className="min-w-0 flex-1 bg-transparent text-[13px] text-[#f0f0f2] outline-none placeholder:text-[#87878f]"
+                spellCheck={false}
+                autoComplete="off"
+                autoCorrect="off"
+                aria-label="Filtra nodi per titolo"
+              />
+            </label>
+            <div className="flex h-9 items-center overflow-hidden rounded-lg border border-[#3a3a3f] bg-[#242426]/86 shadow-lg shadow-black/20 backdrop-blur">
               <button
                 type="button"
                 onClick={(): void => handleZoom(1 / ZOOM_STEP)}
-                className="rounded px-2 py-1 text-xs text-fg-subtle hover:bg-bg-muted hover:text-fg"
+                className={graphToolbarButtonClass}
                 title="Zoom out"
                 aria-label="Diminuisci zoom"
               >
-                −
+                <Minus size={15} aria-hidden="true" />
               </button>
               <button
                 type="button"
                 onClick={(): void => handleZoom(ZOOM_STEP)}
-                className="rounded px-2 py-1 text-xs text-fg-subtle hover:bg-bg-muted hover:text-fg"
+                className={graphToolbarButtonClass}
                 title="Zoom in"
                 aria-label="Aumenta zoom"
               >
-                +
+                <Plus size={15} aria-hidden="true" />
               </button>
               <button
                 type="button"
                 onClick={fitToScreen}
-                className="rounded px-2 py-1 text-xs text-fg-subtle hover:bg-bg-muted hover:text-fg"
+                className={`${graphToolbarButtonClass} border-l border-[#3a3a3f]`}
                 title="Adatta alla finestra"
                 aria-label="Adatta alla finestra"
               >
-                Adatta
+                <CornersOut size={16} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={(): void => setSettingsOpen(true)}
+                className={`${graphToolbarButtonClass} border-l border-[#3a3a3f]`}
+                title="Controlli grafo"
+                aria-label="Apri controlli grafo"
+              >
+                <Gear size={16} aria-hidden="true" />
               </button>
             </div>
           </div>
         </div>
-        <div className="flex items-center justify-between gap-2">
-          <TypeChips types={typeChips} selectedType={selectedType} onChange={setSelectedType} />
-          <div className="flex items-center gap-2">
-            <KindFilterDropdown
-              kinds={kindOptions}
-              selectedKinds={selectedKinds}
-              onChange={setSelectedKinds}
-            />
-            <label className="flex items-center gap-1 text-xs text-fg-subtle">
-              <input
-                type="checkbox"
-                checked={clusterOverlayOn}
-                onChange={(e): void => setClusterOverlayOn(e.target.checked)}
-                className="h-3 w-3"
-              />
-              Mostra cluster
-            </label>
-          </div>
-        </div>
-      </header>
 
-      <div className="relative min-h-0 flex-1 overflow-hidden">
+        <div className="pointer-events-auto absolute bottom-3 left-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-2">
+          <TypeChips types={typeChips} selectedType={selectedType} onChange={handleTypeChange} />
+          <KindFilterDropdown
+            kinds={kindOptions}
+            selectedKinds={selectedKinds}
+            onChange={handleKindsChange}
+          />
+          <label className="flex h-8 items-center gap-1.5 rounded-lg border border-[#3a3a3f] bg-[#242426]/84 px-2 text-[12px] text-[#c8c8ce] shadow-lg shadow-black/20 backdrop-blur transition hover:border-[#4f4f56] hover:text-[#f0f0f2]">
+            <input
+              type="checkbox"
+              checked={clusterOverlayOn}
+              onChange={(e): void => setClusterOverlayOn(e.target.checked)}
+              className="size-3.5 accent-[#d7d7da]"
+            />
+            Cluster
+          </label>
+        </div>
+
+        <GraphSettingsPanel
+          open={settingsOpen}
+          settings={graphSettings}
+          onClose={(): void => setSettingsOpen(false)}
+          onReset={resetGraphSettings}
+          onQueryChange={updateGraphQuery}
+          onDisplayChange={updateGraphDisplay}
+          onForcesChange={updateGraphForces}
+          onAddGroup={addGraphGroup}
+          onUpdateGroup={updateGraphGroup}
+          onRemoveGroup={removeGraphGroup}
+        />
         {load.kind === 'loading' && (
-          <div className="absolute inset-0 flex items-center justify-center text-sm text-fg-muted">
-            Caricamento grafo…
-          </div>
+          <GraphStatus
+            tone="neutral"
+            title="Caricamento grafo"
+            detail="Preparazione della mappa del vault."
+          />
         )}
         {load.kind === 'error' && (
-          <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-red-500">
-            Impossibile caricare il grafo: {load.message}
-          </div>
+          <GraphStatus tone="danger" title="Impossibile caricare il grafo" detail={load.message} />
         )}
         {load.kind === 'ready' && nodeCount === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center text-sm text-fg-muted">
-            Vault vuoto o nessun collegamento.
-          </div>
+          <GraphStatus
+            tone="neutral"
+            title={totalNodeCount === 0 ? 'Nessun nodo nel grafo' : 'Nessun risultato nel grafo'}
+            detail={
+              totalNodeCount === 0
+                ? 'Il vault non contiene ancora note collegabili.'
+                : 'I filtri correnti nascondono tutti i nodi. Allarga la ricerca o disattiva un filtro.'
+            }
+          />
         )}
         {load.kind === 'ready' && nodeCount > 0 && (
           <Canvas
@@ -617,10 +764,30 @@ export function GlobalGraph(): JSX.Element {
             clusterOverlayOn={clusterOverlayOn}
             highlightType={selectedType}
             highlightKinds={selectedKinds}
+            showLinks={graphSettings.display.showLinks}
+            showNodes={graphSettings.display.showNodes}
+            showText={graphSettings.display.showText}
+            showArrows={graphSettings.display.showArrows}
+            labelFade={graphSettings.display.labelFade}
+            nodeScale={graphSettings.display.nodeScale}
+            linkWidth={graphSettings.display.linkWidth}
+            showGrid={graphSettings.display.showGrid}
+            linkOpacity={graphSettings.forces.linkOpacity}
+            focusMode={graphSettings.query.focusMode}
           />
         )}
         {load.kind === 'ready' && nodeCount > 0 && (
           <Legend visibleTypes={legendTypes} visibleKinds={legendKinds} />
+        )}
+        {load.kind === 'ready' && selectedNode !== null && (
+          <NodeDetailPanel
+            node={selectedNode}
+            edgeCount={selectedConnections.length}
+            onOpen={(): void => {
+              void navigateToNote(selectedNode.id);
+            }}
+            onClose={(): void => setSelectedId(null)}
+          />
         )}
       </div>
     </div>
@@ -628,12 +795,20 @@ export function GlobalGraph(): JSX.Element {
 }
 
 const EMPTY_SET: ReadonlySet<NotePath> = new Set<NotePath>();
-const EMPTY_STRING_SET: ReadonlySet<string> = new Set<string>();
+const EMPTY_GRAPH: FullGraph = { nodes: [], edges: [] };
 
 function clamp(n: number, lo: number, hi: number): number {
   if (n < lo) return lo;
   if (n > hi) return hi;
   return n;
+}
+
+function isKeyboardInputTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return (
+    target.isContentEditable ||
+    target.closest('input, textarea, select, button, [role="button"], [role="textbox"]') !== null
+  );
 }
 
 /**
@@ -645,4 +820,120 @@ function scaleRadius(degree: number, maxDegree: number): number {
   if (maxDegree <= 0) return NODE_R_MIN;
   const t = Math.sqrt(degree) / Math.sqrt(maxDegree);
   return NODE_R_MIN + t * (NODE_R_MAX - NODE_R_MIN);
+}
+
+function groupColorForNode(
+  node: { path: string; title: string; type: string | null },
+  groups: ReadonlyArray<GraphGroupRule>,
+): string | null {
+  for (const group of groups) {
+    if (!group.enabled) continue;
+    if (graphGroupQueryMatchesNode(node, group.query)) return group.color;
+  }
+  return null;
+}
+
+const graphToolbarButtonClass =
+  'grid h-full min-w-9 place-items-center px-2 text-[#b7b7bd] transition hover:bg-[#303034] hover:text-[#f4f4f5] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/25 active:bg-[#343438]';
+
+function GraphStatus({
+  title,
+  detail,
+  tone,
+}: {
+  title: string;
+  detail: string;
+  tone: 'neutral' | 'danger';
+}): JSX.Element {
+  const isDanger = tone === 'danger';
+  return (
+    <div className="absolute inset-0 flex items-center justify-center p-6">
+      <div
+        className={[
+          'w-full max-w-sm rounded-lg border bg-[#242426]/92 p-5 text-center shadow-xl shadow-black/25 backdrop-blur',
+          isDanger ? 'border-[#d53f5f]/55' : 'border-[#3a3a3f]',
+        ].join(' ')}
+      >
+        <div
+          aria-hidden="true"
+          className={[
+            'mx-auto mb-4 h-24 w-48 rounded-md border',
+            isDanger ? 'border-[#d53f5f]/30 bg-[#d53f5f]/10' : 'border-[#38383d] bg-[#1d1d1f]',
+          ].join(' ')}
+        >
+          <div className="flex h-full items-center justify-center gap-3">
+            <span className="h-2.5 w-2.5 rounded-full bg-[#b8babf]" />
+            <span className="h-px w-12 bg-[#484a50]" />
+            <span className="h-4 w-4 rounded-full border border-[#d53f5f]/55 bg-[#d53f5f]/30" />
+            <span className="h-px w-10 bg-[#484a50]" />
+            <span className="h-2 w-2 rounded-full bg-[#6f7178]" />
+          </div>
+        </div>
+        <h2
+          className={
+            isDanger
+              ? 'text-sm font-semibold text-[#f0a2b1]'
+              : 'text-sm font-semibold text-[#f2f2f3]'
+          }
+        >
+          {title}
+        </h2>
+        <p className="mt-1 text-xs leading-5 text-[#a7a7ad]">{detail}</p>
+      </div>
+    </div>
+  );
+}
+
+function NodeDetailPanel({
+  node,
+  edgeCount,
+  onOpen,
+  onClose,
+}: {
+  node: CanvasNode;
+  edgeCount: number;
+  onOpen(): void;
+  onClose(): void;
+}): JSX.Element {
+  return (
+    <aside className="absolute bottom-3 right-3 z-10 w-80 max-w-[calc(100%-1.5rem)] rounded-lg border border-[#3a3a3f] bg-[#242426]/92 p-3 text-xs text-[#e6e6e8] shadow-xl shadow-black/25 backdrop-blur">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-[#f2f2f3]">{node.title}</p>
+          <p className="mt-1 truncate font-mono text-[11px] text-[#9d9da4]">{node.id}</p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-[#a7a7ad] transition hover:bg-[#303034] hover:text-[#f2f2f3]"
+          aria-label="Chiudi dettaglio nodo"
+        >
+          ×
+        </button>
+      </div>
+
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        <NodeMetric label="Collegamenti" value={edgeCount.toString()} />
+        <NodeMetric label="Grado" value={node.degree.toString()} />
+        <NodeMetric label="Tipo" value={node.type ?? 'Nota'} />
+      </div>
+
+      <button
+        type="button"
+        onClick={onOpen}
+        className="mt-3 h-8 w-full rounded-md border border-[#3a3a3f] bg-[#1f1f22] px-3 text-left text-xs font-medium text-[#ededf0] transition hover:border-[#5a5a62] hover:bg-[#303034] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/25"
+      >
+        Apri nota
+      </button>
+    </aside>
+  );
+}
+
+function NodeMetric({ label, value }: { label: string; value: string }): JSX.Element {
+  return (
+    <div className="min-w-0 rounded-md border border-[#38383d] bg-[#1f1f22] px-2 py-1.5">
+      <p className="text-[10px] uppercase tracking-wide text-[#9d9da4]">{label}</p>
+      <p className="truncate text-[12px] font-medium text-[#ededf0]">{value}</p>
+    </div>
+  );
 }

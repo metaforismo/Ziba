@@ -56,9 +56,11 @@ export default defineConfig({
     plugins: [
       // Externalizes anything in `dependencies` of package.json so native /
       // node-only modules aren't bundled. This is critical for better-sqlite3
-      // (native), chokidar (uses fs/path), and electron itself.
+      // (native), chokidar (uses fs/path), and electron itself. Keep
+      // workspace-only packages bundled so electron-builder does not follow
+      // pnpm symlinks outside the app directory when packaging.
       externalizeDepsPlugin({
-        exclude: [],
+        exclude: ['@ziba/core'],
       }),
     ],
   },

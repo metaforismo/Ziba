@@ -1,11 +1,9 @@
 import type { NotePath, NoteSummary } from '@ziba/core';
 
 /**
- * Hierarchical view of a flat NoteSummary list. Folders are derived purely
- * from the path segments — empty folders that no note belongs to don't
- * exist in this tree. They appear naturally once any note inside them is
- * created (folders are not first-class entities at the index layer; they
- * are an artifact of the path structure).
+ * Hierarchical view of a flat NoteSummary list plus real folders from disk.
+ * Empty folders are first-class tree entries even when no note belongs to
+ * them, while note paths still create any missing parent folders.
  */
 export type TreeNode =
   | {
@@ -44,6 +42,12 @@ function getOrCreateFolder(parent: FolderShell, segments: string[], startIdx: nu
   return cursor;
 }
 
+function normalizeFolderPath(path: string): string | null {
+  const normalized = path.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+  if (normalized === '') return null;
+  return normalized;
+}
+
 function sortChildren(node: FolderShell): void {
   // Folders first (alphabetical by name), then files (alphabetical by title).
   node.children.sort((a, b) => {
@@ -65,8 +69,13 @@ function sortChildren(node: FolderShell): void {
  * Build a folder/file tree from a flat NoteSummary[] list. Pure function:
  * no React, no side effects. Sorted with folders before files.
  */
-export function buildTree(notes: NoteSummary[]): TreeNode[] {
+export function buildTree(notes: NoteSummary[], folders: string[] = []): TreeNode[] {
   const root: FolderShell = { kind: 'folder', path: '', name: '', children: [] };
+  for (const folder of folders) {
+    const normalized = normalizeFolderPath(folder);
+    if (normalized === null) continue;
+    getOrCreateFolder(root, normalized.split('/'), 0);
+  }
   for (const note of notes) {
     const segments = note.path.split('/');
     const fileSeg = segments.pop();

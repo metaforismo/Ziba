@@ -19,6 +19,36 @@ function ensureTrailingSlash(p: string): string {
   return p.endsWith('/') ? p : p + '/';
 }
 
+function shouldSkipDir(name: string): boolean {
+  return name === '.ziba' || name === 'node_modules' || name.startsWith('.');
+}
+
+export async function listFolders(): Promise<string[]> {
+  const vault = requireVault();
+  const fs = getFilesystemAdapter();
+  const queue: string[] = [vault.root];
+  const folders: string[] = [];
+
+  while (queue.length > 0) {
+    const dir = queue.shift()!;
+    let entries;
+    try {
+      entries = await fs.readDir(dir);
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      if (!entry.isDirectory) continue;
+      if (shouldSkipDir(entry.name)) continue;
+      folders.push(entry.path);
+      queue.push(fs.resolveAbsolute(vault.root, entry.path));
+    }
+  }
+
+  return folders.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+}
+
 export async function createFolder(args: { path: NotePath }): Promise<void> {
   assertVaultRelative(args.path);
   const vault = requireVault();

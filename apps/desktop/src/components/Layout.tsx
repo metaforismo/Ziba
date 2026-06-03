@@ -3,6 +3,7 @@ import { DatabaseView } from './DatabaseView';
 import { Editor } from './Editor';
 import { GlobalGraph } from './GlobalGraph';
 import { Resizer } from './Resizer';
+import { Ribbon } from './Ribbon';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { useUiStore } from '../stores/ui';
@@ -27,7 +28,8 @@ export function Layout(): JSX.Element {
       />
 
       <div className="flex min-h-0 flex-1">
-        <div style={{ width: `${sidebarWidth}px` }} className="shrink-0 border-r border-border">
+        <Ribbon />
+        <div style={{ width: `${sidebarWidth}px` }} className="shrink-0">
           <Sidebar />
         </div>
         <Resizer

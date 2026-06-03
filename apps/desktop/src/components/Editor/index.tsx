@@ -3,13 +3,18 @@ import { EditorContent, useEditor } from '@tiptap/react';
 import type { Editor as TiptapEditor } from '@tiptap/core';
 import type { SuggestionKeyDownProps, SuggestionProps } from '@tiptap/suggestion';
 import type { Frontmatter } from '@ziba/core';
+import { Check, CheckCircle, NotePencil } from '@phosphor-icons/react';
 import { useEditorStore } from '../../stores/editor';
+import { useUiStore } from '../../stores/ui';
+import { useVaultStore } from '../../stores/vault';
 import { ipc } from '../../lib/ipc';
 import { ipcErrorMessage } from '../../lib/ipc-error';
+import { createStarterVault } from '../../lib/starter-vault';
 import { debounce } from '../../lib/debounce';
 import { AUTOSAVE_DEBOUNCE_MS, PROPERTY_AUTOSAVE_DEBOUNCE_MS } from '../../lib/timings';
 import { setRelationInFrontmatter } from '../../lib/relations-frontmatter';
 import { useTagsStore } from '../../stores/tags';
+import { toast } from '../../stores/toast';
 import { PropertyEditor } from '../PropertyEditor';
 import { buildEditorExtensions, type BuildExtensionsOptions } from './EditorExtensions';
 import { type SlashCommandRenderer, type SlashMenuItem } from './extensions/SlashCommand';
@@ -75,6 +80,26 @@ const INITIAL_RELATION_PICKER_STATE: RelationPickerState = {
   suggestedKinds: [],
 };
 
+function basenameTitle(path: string): string {
+  const last = path.split('/').pop() ?? path;
+  return last.replace(/\.md$/i, '');
+}
+
+function titleToFilename(title: string): string {
+  const cleaned = title
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, '-')
+    .replace(/\s+/g, ' ')
+    .replace(/^\.+$/, '');
+  return `${cleaned.length === 0 ? 'Senza titolo' : cleaned}.md`;
+}
+
+function renamedPath(path: string, title: string): string {
+  const parts = path.split('/');
+  parts[parts.length - 1] = titleToFilename(title);
+  return parts.join('/');
+}
+
 /**
  * Tiptap-backed markdown editor. Replaces the Wave 2 textarea stub.
  *
@@ -98,6 +123,11 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
   const setFrontmatter = useEditorStore((s) => s.setFrontmatter);
   const save = useEditorStore((s) => s.save);
   const openNote = useEditorStore((s) => s.openNote);
+  const createUntitledNote = useEditorStore((s) => s.createUntitledNote);
+  const setMainView = useUiStore((s) => s.setMainView);
+  const notes = useVaultStore((s) => s.notes);
+  const [starterCreating, setStarterCreating] = useState(false);
+  const [titleDraft, setTitleDraft] = useState('');
 
   // Refs let the editor extensions call into the latest store handlers
   // without re-binding extensions every render.
@@ -403,7 +433,7 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
     content: '',
     editorProps: {
       attributes: {
-        class: 'ziba-prose prose prose-sm max-w-none focus:outline-none px-8 py-6',
+        class: 'ziba-prose prose prose-sm max-w-none focus:outline-none py-6',
         spellcheck: 'false',
       },
     },
@@ -520,6 +550,10 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
   const isExternalConflict =
     lastSaveError !== null && lastSaveError.includes('modificato esternamente');
 
+  useEffect(() => {
+    setTitleDraft(currentNote === null ? '' : basenameTitle(currentNote.path));
+  }, [currentNote]);
+
   const handleManualSave = (): void => {
     debouncedAutosave.cancel();
     if (editor !== null) {
@@ -540,31 +574,147 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
     await openNoteRef.current(currentNote.path);
   };
 
+  const handleTitleCommit = async (): Promise<void> => {
+    if (currentNote === null) return;
+    const nextPath = renamedPath(currentNote.path, titleDraft);
+    if (nextPath === currentNote.path) {
+      setTitleDraft(basenameTitle(currentNote.path));
+      return;
+    }
+    try {
+      const result = await ipc.renameNote({ from: currentNote.path, to: nextPath });
+      await useVaultStore.getState().refreshNotes();
+      await openNoteRef.current(result.newPath, { reuseExisting: false });
+    } catch (err: unknown) {
+      setTitleDraft(basenameTitle(currentNote.path));
+      toast.error(ipcErrorMessage(err), 'Impossibile rinominare la nota');
+    }
+  };
+
+  const handleCreateBlankNote = async (): Promise<void> => {
+    try {
+      await createUntitledNote();
+      setMainView('editor');
+    } catch (err: unknown) {
+      toast.error(ipcErrorMessage(err), 'Impossibile creare la nota');
+    }
+  };
+
+  const handleCreateStarter = async (): Promise<void> => {
+    setStarterCreating(true);
+    try {
+      await createStarterVault();
+    } catch (err: unknown) {
+      toast.error(ipcErrorMessage(err), 'Impossibile creare la struttura iniziale');
+    } finally {
+      setStarterCreating(false);
+    }
+  };
+
   if (currentNote === null) {
+    const showStarterAction = notes.length === 0;
+
     return (
-      <section className="flex h-full items-center justify-center bg-bg text-sm text-fg-muted">
-        Seleziona o crea una nota
+      <section className="flex h-full bg-bg">
+        <div className="mx-auto flex w-full max-w-[760px] flex-col px-8 py-10">
+          <div className="mb-10 flex items-center justify-between gap-4 text-sm">
+            <div className="truncate text-fg-muted">
+              <span>Projects</span>
+              <span className="mx-3 text-border">/</span>
+              <span>Ziba.md</span>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {showStarterAction && (
+                <button
+                  type="button"
+                  onClick={(): void => {
+                    void handleCreateStarter();
+                  }}
+                  disabled={starterCreating}
+                  className="inline-flex min-h-8 items-center rounded-md bg-accent px-3 text-xs font-semibold text-accent-fg transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {starterCreating ? 'Creo la base...' : 'Crea struttura iniziale'}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={(): void => {
+                  void handleCreateBlankNote();
+                }}
+                className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-border bg-bg-subtle px-3 text-xs font-medium text-fg-subtle transition hover:bg-bg-muted hover:text-fg"
+              >
+                <NotePencil size={15} aria-hidden="true" />
+                Crea nota
+              </button>
+            </div>
+          </div>
+
+          <article className="max-w-[620px]">
+            <h1 className="text-5xl font-semibold leading-none text-fg">Ziba</h1>
+
+            <div className="mt-6 flex items-center gap-2 text-sm text-fg-muted">
+              <CheckCircle size={16} aria-hidden="true" className="text-accent" />
+              <span>Salvata</span>
+            </div>
+
+            <button
+              type="button"
+              disabled
+              className="mt-8 flex min-h-12 w-full items-center justify-between rounded-lg border border-border bg-bg-subtle px-4 text-left text-sm text-fg-subtle shadow-sm"
+            >
+              <span>Proprietà</span>
+              <span aria-hidden="true">›</span>
+            </button>
+
+            <div className="mt-8 border-t border-border pt-8">
+              <h2 className="text-2xl font-semibold text-fg">
+                Costruire un secondo cervello semplice
+              </h2>
+              <p className="mt-5 max-w-[58ch] text-base leading-8 text-fg-subtle">
+                Ziba è il mio spazio per catturare idee, collegare concetti e costruire conoscenza
+                che resta nel tempo.
+              </p>
+
+              <div className="mt-6 space-y-3 text-base text-fg-subtle">
+                <StarterTask checked label="Raccogliere idee ogni giorno" />
+                <StarterTask label="Collegare le note tra loro" />
+                <StarterTask label="Ritrovare e usare le conoscenze" />
+              </div>
+            </div>
+
+            <div className="mt-8 border-t border-border pt-7">
+              <h3 className="text-xl font-semibold text-fg">Collegamenti utili</h3>
+              <p className="mt-5 text-base leading-8 text-fg-subtle">
+                Approfondimento su{' '}
+                <span className="rounded-md bg-bg-muted px-2 py-1 text-accent">
+                  [[Ricerca semantica]]
+                </span>{' '}
+                e costruzione di reti di conoscenza.
+              </p>
+              <div className="mt-6 inline-flex rounded-full border border-border bg-bg-subtle px-3 py-1 text-sm text-accent">
+                #prodotto
+              </div>
+            </div>
+          </article>
+
+          {notes.length > 0 && (
+            <div className="mt-10 max-w-[620px] rounded-md border border-border bg-bg-subtle px-4 py-3 text-sm text-fg-muted">
+              Seleziona una nota dalla barra laterale per aprirla.
+            </div>
+          )}
+        </div>
       </section>
     );
   }
 
+  const pathParts = currentNote.path.split('/');
+  pathParts.pop();
+  const breadcrumb = pathParts.length > 0 ? pathParts.join(' / ') : 'Note';
+  const saveStatus =
+    lastSaveError !== null ? 'Errore salvataggio' : dirty ? 'Modifiche non salvate' : 'Salvato';
+
   return (
     <section className="relative flex h-full flex-col bg-bg">
-      <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-2">
-        <h2 className="truncate text-sm font-medium text-fg">
-          {currentNote.title}
-          {dirty && <span className="ml-2 text-fg-muted">•</span>}
-        </h2>
-        <button
-          type="button"
-          onClick={handleManualSave}
-          disabled={!dirty}
-          className="rounded bg-accent px-3 py-1 text-xs font-medium text-accent-fg disabled:opacity-50"
-        >
-          Salva
-        </button>
-      </div>
-
       {lastSaveError !== null && (
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border bg-bg-subtle px-4 py-2 text-xs text-fg-subtle">
           <span className="truncate">{lastSaveError}</span>
@@ -597,13 +747,67 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
         // so we don't need a new CSS file. Tailwind utilities cover the
         // rest of the typography via `ziba-prose`.
       >
-        <PropertyEditor
-          frontmatter={currentNote.frontmatter}
-          onChange={handleFrontmatterChange}
-          suggestedRelationKinds={suggestedRelationKinds}
-        />
-        <div className="mx-auto max-w-[720px]">
-          <EditorContent editor={editor} />
+        <div className="mx-auto flex w-full max-w-[760px] flex-col px-8 py-10">
+          <div className="mb-8 flex items-center justify-between gap-4 text-sm">
+            <div className="min-w-0 truncate text-fg-muted">
+              <span>{breadcrumb}</span>
+              <span className="mx-3 text-border">/</span>
+              <span>{basenameTitle(currentNote.path)}</span>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <span
+                className={
+                  'text-xs ' +
+                  (lastSaveError !== null || dirty ? 'text-fg-subtle' : 'text-fg-muted')
+                }
+              >
+                {saveStatus}
+              </span>
+              <button
+                type="button"
+                onClick={handleManualSave}
+                disabled={!dirty}
+                className="rounded-md bg-accent px-3 py-1 text-xs font-medium text-accent-fg disabled:opacity-50"
+              >
+                Salva
+              </button>
+            </div>
+          </div>
+
+          <input
+            type="text"
+            value={titleDraft}
+            aria-label="Titolo nota"
+            onChange={(e): void => setTitleDraft(e.target.value)}
+            onBlur={(): void => {
+              void handleTitleCommit();
+            }}
+            onKeyDown={(e): void => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                e.currentTarget.blur();
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                setTitleDraft(basenameTitle(currentNote.path));
+                e.currentTarget.blur();
+              }
+            }}
+            className="w-full border-0 bg-transparent px-0 py-1 text-5xl font-semibold leading-none text-fg outline-none placeholder:text-fg-muted"
+            placeholder="Senza titolo"
+            spellCheck={false}
+          />
+
+          <div className="mt-6 overflow-hidden rounded-lg border border-border bg-bg-subtle/60">
+            <PropertyEditor
+              frontmatter={currentNote.frontmatter}
+              onChange={handleFrontmatterChange}
+              suggestedRelationKinds={suggestedRelationKinds}
+            />
+          </div>
+
+          <div className="mt-4">
+            <EditorContent editor={editor} />
+          </div>
         </div>
       </div>
 
@@ -662,3 +866,28 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
 // Re-export the editor type so callers can pass refs around without
 // importing from `@tiptap/core` directly.
 export type { TiptapEditor };
+
+function StarterTask({
+  label,
+  checked = false,
+}: {
+  label: string;
+  checked?: boolean;
+}): JSX.Element {
+  return (
+    <div className="flex items-center gap-3">
+      <span
+        aria-hidden="true"
+        className={
+          'inline-flex size-5 shrink-0 items-center justify-center rounded border ' +
+          (checked
+            ? 'border-accent bg-accent text-accent-fg'
+            : 'border-border bg-bg text-transparent')
+        }
+      >
+        {checked && <Check size={13} weight="bold" />}
+      </span>
+      <span>{label}</span>
+    </div>
+  );
+}

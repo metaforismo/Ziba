@@ -11,7 +11,7 @@
 // server; in a packaged build it's unset and we fall back to the bundled
 // HTML on disk.
 
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, nativeImage, type NativeImage } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { registerIpcHandlers, unregisterIpcHandlers } from './ipc/index.js';
@@ -22,18 +22,32 @@ const __dirname = path.dirname(__filename);
 
 let mainWindow: BrowserWindow | null = null;
 
+function loadAppIcon(): NativeImage | undefined {
+  const iconPath = path.join(__dirname, '..', '..', 'build', 'icon.png');
+  const icon = nativeImage.createFromPath(iconPath);
+  return icon.isEmpty() ? undefined : icon;
+}
+
 function createWindow(): BrowserWindow {
   // electron-vite outputs main to `out/main/main.js` and preload to
   // `out/preload/preload.mjs`. From the running main.js, the preload
   // sibling is one directory up, in `preload/preload.mjs`.
   const preload = path.join(__dirname, '..', 'preload', 'preload.mjs');
+  const appIcon = loadAppIcon();
 
   const win = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 800,
     minHeight: 600,
-    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    backgroundColor: '#f8f7f4',
+    ...(process.platform === 'darwin'
+      ? {
+          titleBarStyle: 'hiddenInset' as const,
+          trafficLightPosition: { x: 18, y: 17 },
+        }
+      : { titleBarStyle: 'default' as const }),
+    ...(appIcon !== undefined ? { icon: appIcon } : {}),
     show: false,
     webPreferences: {
       preload,
@@ -84,6 +98,11 @@ function createWindow(): BrowserWindow {
 }
 
 app.whenReady().then(() => {
+  const appIcon = loadAppIcon();
+  if (process.platform === 'darwin' && appIcon !== undefined) {
+    app.dock.setIcon(appIcon);
+  }
+
   mainWindow = createWindow();
 
   app.on('activate', () => {

@@ -68,6 +68,9 @@ export const ipc = {
   createNote(args: { path: NotePath; initialBody?: string }): Promise<Note> {
     return api().invoke(IpcChannels.createNote, args);
   },
+  duplicateNote(args: { path: NotePath }): Promise<Note> {
+    return api().invoke(IpcChannels.duplicateNote, args);
+  },
   renameNote(args: { from: NotePath; to: NotePath }): Promise<{ newPath: NotePath }> {
     return api().invoke(IpcChannels.renameNote, args);
   },
@@ -79,6 +82,9 @@ export const ipc = {
   },
 
   // Folders
+  listFolders(): Promise<string[]> {
+    return api().invoke(IpcChannels.listFolders);
+  },
   createFolder(args: { path: NotePath }): Promise<void> {
     return api().invoke(IpcChannels.createFolder, args);
   },
@@ -87,6 +93,9 @@ export const ipc = {
   },
   deleteFolder(args: { path: NotePath }): Promise<void> {
     return api().invoke(IpcChannels.deleteFolder, args);
+  },
+  showInFinder(args: { path: NotePath }): Promise<void> {
+    return api().invoke(IpcChannels.showInFinder, args);
   },
 
   // Links

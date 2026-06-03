@@ -52,7 +52,7 @@ export function KindFilterDropdown({ kinds, selectedKinds, onChange }: Props): J
         onClick={(): void => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="menu"
-        className="rounded border border-border bg-bg-subtle px-2 py-1 text-xs text-fg-subtle hover:bg-bg-muted hover:text-fg"
+        className="h-8 rounded-md border border-[#3a3a3f] bg-[#242426]/84 px-2 text-[12px] text-[#bfc0c6] shadow-lg shadow-black/10 backdrop-blur transition hover:border-[#4d4d54] hover:bg-[#303034] hover:text-[#f4f4f5]"
       >
         {buttonLabel}
       </button>
@@ -60,10 +60,10 @@ export function KindFilterDropdown({ kinds, selectedKinds, onChange }: Props): J
         <div
           role="menu"
           aria-label="Filtra per tipo di relazione"
-          className="absolute right-0 top-[calc(100%+4px)] z-20 max-h-72 w-56 overflow-auto rounded-md border border-border bg-bg-subtle p-1 shadow-lg"
+          className="absolute right-0 top-[calc(100%+6px)] z-20 max-h-72 w-56 overflow-auto rounded-md border border-[#3a3a3f] bg-[#242426] p-1 shadow-xl shadow-black/30"
         >
           {kinds.length === 0 && (
-            <p className="px-2 py-1.5 text-xs italic text-fg-muted">
+            <p className="px-2 py-1.5 text-xs italic text-[#9d9da4]">
               Nessuna relazione tipizzata nel grafo.
             </p>
           )}
@@ -72,13 +72,13 @@ export function KindFilterDropdown({ kinds, selectedKinds, onChange }: Props): J
             return (
               <label
                 key={k}
-                className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs text-fg-subtle hover:bg-bg-muted"
+                className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs text-[#d2d2d7] hover:bg-[#303034]"
               >
                 <input
                   type="checkbox"
                   checked={checked}
                   onChange={(): void => toggle(k)}
-                  className="h-3 w-3"
+                  className="h-3 w-3 accent-[#d7d7da]"
                 />
                 <span
                   aria-hidden="true"
@@ -93,7 +93,7 @@ export function KindFilterDropdown({ kinds, selectedKinds, onChange }: Props): J
             <button
               type="button"
               onClick={(): void => onChange(new Set())}
-              className="mt-1 w-full rounded px-2 py-1 text-left text-xs text-fg-muted hover:bg-bg-muted hover:text-fg"
+              className="mt-1 w-full rounded px-2 py-1 text-left text-xs text-[#9d9da4] hover:bg-[#303034] hover:text-[#f4f4f5]"
             >
               Mostra tutte
             </button>

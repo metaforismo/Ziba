@@ -1,5 +1,9 @@
 import type { NotePath } from '@ziba/core';
+import { CaretDown, CaretRight, FileText } from '@phosphor-icons/react';
 import type { TreeNode } from '../../lib/tree';
+import type { FolderIconId } from '../../stores/ui';
+import { DEFAULT_FOLDER_ICON_ID } from '../../stores/ui';
+import { FolderGlyph } from './FolderIconPicker';
 
 /**
  * Click target for context-menu / row interactions. The "empty" target
@@ -28,6 +32,10 @@ export type FileTreeProps = {
   focusedPath: string | null;
   /** Called with the row path when the user clicks/focuses it. */
   onFocusPath(path: string): void;
+  /** Per-folder icon preferences for the current vault. */
+  folderIcons: Readonly<Record<string, FolderIconId>>;
+  onCreateStarter?: (() => void) | undefined;
+  starterCreating?: boolean | undefined;
 };
 
 type FlatRow =
@@ -83,17 +91,43 @@ export function FileTree({
   onSelectFile,
   onContextMenu,
   onFocusPath,
+  folderIcons,
+  onCreateStarter,
+  starterCreating = false,
 }: FileTreeProps): JSX.Element {
   if (rows.length === 0) {
     return (
       <div
-        className="px-3 py-4 text-xs text-fg-muted"
+        className="px-2 py-3"
         onContextMenu={(e): void => {
           e.preventDefault();
           onContextMenu({ kind: 'empty' }, e.clientX, e.clientY);
         }}
       >
-        Nessuna nota. Crea la prima con &quot;Nuova nota&quot;.
+        <div className="rounded-md border border-border/80 bg-bg/70 px-2 py-2 shadow-sm">
+          <div className="space-y-0.5">
+            <StarterFolderRow label="Inbox" iconId="archive" />
+            <StarterFolderRow label="Daily" iconId="star" />
+            <StarterFolderRow label="Projects" iconId="briefcase" active />
+            <div className="ml-7 space-y-0.5 pb-1">
+              <StarterFileRow label="Roadmap.md" />
+              <StarterFileRow label="Ziba.md" active />
+              <StarterFileRow label="Idee di prodotto.md" />
+            </div>
+            <StarterFolderRow label="Books" iconId="book" />
+            <StarterFolderRow label="People" iconId="folder" />
+          </div>
+          {onCreateStarter !== undefined && (
+            <button
+              type="button"
+              onClick={onCreateStarter}
+              disabled={starterCreating}
+              className="mt-3 inline-flex min-h-8 w-full items-center justify-center rounded-md bg-accent px-2 text-xs font-semibold text-accent-fg transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {starterCreating ? 'Creo la base...' : 'Crea struttura iniziale'}
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -101,7 +135,7 @@ export function FileTree({
   return (
     <ul
       role="tree"
-      className="px-1 pb-2"
+      className="px-2 pb-2"
       onContextMenu={(e): void => {
         // Right-click on the empty area below the rows (delegated handler
         // catches this only when the click didn't hit a row, since rows
@@ -113,6 +147,7 @@ export function FileTree({
       {rows.map((row) => {
         if (row.kind === 'folder') {
           const isFocused = focusedPath === row.path;
+          const iconId = folderIcons[row.path] ?? DEFAULT_FOLDER_ICON_ID;
           return (
             <li key={`folder:${row.path}`} role="treeitem" aria-expanded={row.expanded}>
               <button
@@ -133,7 +168,7 @@ export function FileTree({
                 }}
                 style={{ paddingLeft: `${row.depth * INDENT_PX + 6}px` }}
                 className={
-                  'flex w-full items-center gap-1 rounded px-1 py-1 text-left text-sm ' +
+                  'flex min-h-8 w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-sm ' +
                   (isFocused
                     ? 'bg-bg-muted text-fg'
                     : 'text-fg-subtle hover:bg-bg-muted hover:text-fg')
@@ -142,13 +177,11 @@ export function FileTree({
               >
                 <span
                   aria-hidden="true"
-                  className="inline-block w-3 shrink-0 text-center text-xs text-fg-muted"
+                  className="inline-flex w-3 shrink-0 justify-center text-fg-muted"
                 >
-                  {row.expanded ? '▾' : '▸'}
+                  {row.expanded ? <CaretDown size={12} /> : <CaretRight size={12} />}
                 </span>
-                <span aria-hidden="true" className="shrink-0">
-                  {row.expanded ? '📂' : '📁'}
-                </span>
+                <FolderGlyph id={iconId} open={row.expanded} className="shrink-0" />
                 <span className="truncate">{row.name}</span>
               </button>
             </li>
@@ -176,9 +209,9 @@ export function FileTree({
               }}
               style={{ paddingLeft: `${row.depth * INDENT_PX + 6}px` }}
               className={
-                'flex w-full items-center gap-1 rounded px-1 py-1 text-left text-sm ' +
+                'flex min-h-8 w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-sm ' +
                 (active
-                  ? 'bg-accent/10 text-fg'
+                  ? 'bg-bg text-fg shadow-sm'
                   : isFocused
                     ? 'bg-bg-muted text-fg'
                     : 'text-fg-subtle hover:bg-bg-muted hover:text-fg')
@@ -186,8 +219,8 @@ export function FileTree({
               title={row.path}
             >
               <span aria-hidden="true" className="inline-block w-3 shrink-0" />
-              <span aria-hidden="true" className="shrink-0">
-                📄
+              <span aria-hidden="true" className="shrink-0 text-fg-muted">
+                <FileText size={15} />
               </span>
               <span className="truncate">{row.title}</span>
             </button>
@@ -210,3 +243,51 @@ export function flattenTree(tree: TreeNode[], expanded: ReadonlySet<string>): Fl
 }
 
 export type { FlatRow };
+
+function StarterFolderRow({
+  label,
+  iconId,
+  active = false,
+}: {
+  label: string;
+  iconId: FolderIconId;
+  active?: boolean;
+}): JSX.Element {
+  return (
+    <div
+      className={
+        'flex min-h-8 items-center gap-1.5 rounded-md px-1.5 text-sm ' +
+        (active ? 'bg-bg-muted text-fg' : 'text-fg-subtle')
+      }
+    >
+      <span className="inline-flex w-3 shrink-0 justify-center text-fg-muted">
+        {active ? <CaretDown size={12} /> : <CaretRight size={12} />}
+      </span>
+      <FolderGlyph id={iconId} open={active} className="shrink-0" />
+      <span className="truncate">{label}</span>
+    </div>
+  );
+}
+
+function StarterFileRow({
+  label,
+  active = false,
+}: {
+  label: string;
+  active?: boolean;
+}): JSX.Element {
+  return (
+    <div
+      className={
+        'flex min-h-8 items-center gap-1.5 rounded-md px-1.5 text-sm ' +
+        (active ? 'bg-bg text-fg shadow-sm' : 'text-fg-subtle')
+      }
+    >
+      <span aria-hidden="true" className="inline-block w-3 shrink-0" />
+      <span aria-hidden="true" className="shrink-0 text-fg-muted">
+        <FileText size={15} />
+      </span>
+      <span className="truncate">{label}</span>
+    </div>
+  );
+}

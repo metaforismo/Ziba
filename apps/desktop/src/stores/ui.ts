@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { applyTheme, DEFAULT_THEME_ID, isThemeId, type ThemeId } from '../lib/theme';
 
 const STORAGE_KEY = 'ziba.ui.v1';
 
@@ -23,6 +24,32 @@ export type MainView = 'editor' | 'database' | 'graph';
  * grouped by a date property (v0.4). One DatabaseQuery, multiple shapes.
  */
 export type DatabaseViewMode = 'table' | 'board' | 'calendar';
+
+export const FOLDER_ICON_IDS = [
+  'folder',
+  'briefcase',
+  'book',
+  'archive',
+  'star',
+  'database',
+  'image',
+] as const;
+
+export type FolderIconId = (typeof FOLDER_ICON_IDS)[number];
+
+export const DEFAULT_FOLDER_ICON_ID: FolderIconId = 'folder';
+
+export const FOLDER_ICON_LABELS: Record<FolderIconId, string> = {
+  folder: 'cartella',
+  briefcase: 'valigetta',
+  book: 'libro',
+  archive: 'archivio',
+  star: 'stella',
+  database: 'database',
+  image: 'immagine',
+};
+
+export type FolderIconsByVault = Record<string, Record<string, FolderIconId>>;
 
 type Persisted = {
   sidebarWidth: number;
@@ -57,18 +84,22 @@ type Persisted = {
    * preferred visualization without forcing a re-pick.
    */
   databaseViewMode: DatabaseViewMode;
+  themeId: ThemeId;
+  folderIconsByVault: FolderIconsByVault;
 };
 
 const DEFAULTS: Persisted = {
   sidebarWidth: 240,
   backlinksWidth: 280,
-  backlinksOpen: true,
+  backlinksOpen: false,
   expandedFolders: [],
   tagsExpanded: true,
   typesExpanded: true,
   rightPaneTab: 'backlinks',
   mainView: 'editor',
   databaseViewMode: 'table',
+  themeId: DEFAULT_THEME_ID,
+  folderIconsByVault: {},
 };
 
 function isRightPaneTab(v: unknown): v is RightPaneTab {
@@ -81,6 +112,59 @@ function isMainView(v: unknown): v is MainView {
 
 function isDatabaseViewMode(v: unknown): v is DatabaseViewMode {
   return v === 'table' || v === 'board' || v === 'calendar';
+}
+
+function isFolderIconId(v: unknown): v is FolderIconId {
+  return typeof v === 'string' && (FOLDER_ICON_IDS as readonly string[]).includes(v);
+}
+
+function isPlainRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+function normalizeFolderPath(path: string): string {
+  return path.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+}
+
+function matchesPathOrDescendant(path: string, target: string): boolean {
+  return path === target || path.startsWith(`${target}/`);
+}
+
+function remapPath(path: string, from: string, to: string): string {
+  if (path === from) return to;
+  return `${to}/${path.slice(from.length + 1)}`;
+}
+
+function dedupe(paths: string[]): string[] {
+  const seen = new Set<string>();
+  const next: string[] = [];
+  for (const p of paths) {
+    if (!seen.has(p)) {
+      seen.add(p);
+      next.push(p);
+    }
+  }
+  return next;
+}
+
+function loadFolderIconsByVault(raw: unknown): FolderIconsByVault {
+  if (!isPlainRecord(raw)) return DEFAULTS.folderIconsByVault;
+  const out: FolderIconsByVault = {};
+
+  for (const [vaultRoot, value] of Object.entries(raw)) {
+    if (!isPlainRecord(value)) continue;
+    const folderIcons: Record<string, FolderIconId> = {};
+    for (const [folderPath, iconId] of Object.entries(value)) {
+      const normalized = normalizeFolderPath(folderPath);
+      if (normalized === '' || !isFolderIconId(iconId)) continue;
+      folderIcons[normalized] = iconId;
+    }
+    if (Object.keys(folderIcons).length > 0) {
+      out[vaultRoot] = folderIcons;
+    }
+  }
+
+  return out;
 }
 
 const MIN_SIDEBAR = 160;
@@ -126,6 +210,8 @@ function loadPersisted(): Persisted {
       databaseViewMode: isDatabaseViewMode(p.databaseViewMode)
         ? p.databaseViewMode
         : DEFAULTS.databaseViewMode,
+      themeId: isThemeId(p.themeId) ? p.themeId : DEFAULTS.themeId,
+      folderIconsByVault: loadFolderIconsByVault(p.folderIconsByVault),
     };
   } catch {
     return DEFAULTS;
@@ -160,12 +246,18 @@ type UiState = Persisted & {
   setRightPaneTab(tab: RightPaneTab): void;
   setMainView(view: MainView): void;
   setDatabaseViewMode(mode: DatabaseViewMode): void;
+  setThemeId(themeId: ThemeId): void;
+  setFolderIcon(vaultRoot: string, folderPath: string, iconId: FolderIconId): void;
+  resetFolderIcon(vaultRoot: string, folderPath: string): void;
+  remapFolderPrefsOnRename(vaultRoot: string, from: string, to: string): void;
+  removeFolderPrefsOnDelete(vaultRoot: string, path: string): void;
   requestNewNotePrompt(): void;
   closeNewNotePrompt(): void;
 };
 
 export const useUiStore = create<UiState>((set, get) => {
   const initial = loadPersisted();
+  applyTheme(initial.themeId);
 
   const persist = (): void => {
     const {
@@ -178,6 +270,8 @@ export const useUiStore = create<UiState>((set, get) => {
       rightPaneTab,
       mainView,
       databaseViewMode,
+      themeId,
+      folderIconsByVault,
     } = get();
     savePersisted({
       sidebarWidth,
@@ -189,6 +283,8 @@ export const useUiStore = create<UiState>((set, get) => {
       rightPaneTab,
       mainView,
       databaseViewMode,
+      themeId,
+      folderIconsByVault,
     });
   };
 
@@ -221,15 +317,7 @@ export const useUiStore = create<UiState>((set, get) => {
     },
     setExpandedFolders(paths) {
       // De-dupe defensively so callers can pass overlapping snapshots.
-      const seen = new Set<string>();
-      const next: string[] = [];
-      for (const p of paths) {
-        if (!seen.has(p)) {
-          seen.add(p);
-          next.push(p);
-        }
-      }
-      set({ expandedFolders: next });
+      set({ expandedFolders: dedupe(paths) });
       persist();
     },
     toggleTags() {
@@ -253,6 +341,102 @@ export const useUiStore = create<UiState>((set, get) => {
     setDatabaseViewMode(mode) {
       if (get().databaseViewMode === mode) return;
       set({ databaseViewMode: mode });
+      persist();
+    },
+    setThemeId(themeId) {
+      if (get().themeId === themeId) return;
+      set({ themeId });
+      applyTheme(themeId);
+      persist();
+    },
+    setFolderIcon(vaultRoot, folderPath, iconId) {
+      const normalized = normalizeFolderPath(folderPath);
+      if (normalized === '' || !isFolderIconId(iconId)) return;
+      const byVault = get().folderIconsByVault;
+      set({
+        folderIconsByVault: {
+          ...byVault,
+          [vaultRoot]: {
+            ...(byVault[vaultRoot] ?? {}),
+            [normalized]: iconId,
+          },
+        },
+      });
+      persist();
+    },
+    resetFolderIcon(vaultRoot, folderPath) {
+      const normalized = normalizeFolderPath(folderPath);
+      const current = get().folderIconsByVault[vaultRoot];
+      if (current === undefined || normalized === '') return;
+      const nextVault = { ...current };
+      delete nextVault[normalized];
+      const next = { ...get().folderIconsByVault };
+      if (Object.keys(nextVault).length === 0) {
+        delete next[vaultRoot];
+      } else {
+        next[vaultRoot] = nextVault;
+      }
+      set({ folderIconsByVault: next });
+      persist();
+    },
+    remapFolderPrefsOnRename(vaultRoot, from, to) {
+      const normalizedFrom = normalizeFolderPath(from);
+      const normalizedTo = normalizeFolderPath(to);
+      if (normalizedFrom === '' || normalizedTo === '') return;
+
+      const currentIcons = get().folderIconsByVault[vaultRoot] ?? {};
+      const remappedIcons: Record<string, FolderIconId> = {};
+      for (const [path, iconId] of Object.entries(currentIcons)) {
+        const nextPath = matchesPathOrDescendant(path, normalizedFrom)
+          ? remapPath(path, normalizedFrom, normalizedTo)
+          : path;
+        remappedIcons[nextPath] = iconId;
+      }
+
+      const nextIcons = { ...get().folderIconsByVault };
+      if (Object.keys(remappedIcons).length > 0) {
+        nextIcons[vaultRoot] = remappedIcons;
+      } else {
+        delete nextIcons[vaultRoot];
+      }
+
+      set({
+        expandedFolders: dedupe(
+          get().expandedFolders.map((path) =>
+            matchesPathOrDescendant(path, normalizedFrom)
+              ? remapPath(path, normalizedFrom, normalizedTo)
+              : path,
+          ),
+        ),
+        folderIconsByVault: nextIcons,
+      });
+      persist();
+    },
+    removeFolderPrefsOnDelete(vaultRoot, path) {
+      const normalized = normalizeFolderPath(path);
+      if (normalized === '') return;
+
+      const currentIcons = get().folderIconsByVault[vaultRoot] ?? {};
+      const keptIcons: Record<string, FolderIconId> = {};
+      for (const [folderPath, iconId] of Object.entries(currentIcons)) {
+        if (!matchesPathOrDescendant(folderPath, normalized)) {
+          keptIcons[folderPath] = iconId;
+        }
+      }
+
+      const nextIcons = { ...get().folderIconsByVault };
+      if (Object.keys(keptIcons).length > 0) {
+        nextIcons[vaultRoot] = keptIcons;
+      } else {
+        delete nextIcons[vaultRoot];
+      }
+
+      set({
+        expandedFolders: get().expandedFolders.filter(
+          (p) => !matchesPathOrDescendant(p, normalized),
+        ),
+        folderIconsByVault: nextIcons,
+      });
       persist();
     },
   };

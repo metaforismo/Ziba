@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { CaretDown, CaretRight } from '@phosphor-icons/react';
 import type { Frontmatter, PropertyType, SwitchableType } from './types';
 import { SWITCHABLE_TYPES, detectPropertyType } from './types';
 import { PropertyHeader } from './PropertyHeader';
@@ -113,9 +114,9 @@ export function PropertyEditor({
   const [newKeyDraft, setNewKeyDraft] = useState('');
   const [addError, setAddError] = useState<string | null>(null);
 
-  // Collapsed-by-default when there are no properties yet — keeps the
-  // editor real estate for the body in the empty case.
-  const [collapsed, setCollapsed] = useState(() => Object.keys(frontmatter).length === 0);
+  // Keep metadata out of the way on first open; users can expand it
+  // when they need structured fields.
+  const [collapsed, setCollapsed] = useState(true);
 
   const entries = useMemo(() => Object.entries(frontmatter), [frontmatter]);
 
@@ -270,8 +271,8 @@ export function PropertyEditor({
             onClick={(): void => setCollapsed((v) => !v)}
             className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-fg-muted hover:text-fg"
           >
-            <span className="inline-block w-3" aria-hidden="true">
-              {collapsed ? '▸' : '▾'}
+            <span className="inline-flex w-3 justify-center" aria-hidden="true">
+              {collapsed ? <CaretRight size={12} /> : <CaretDown size={12} />}
             </span>
             <span>Proprietà{propertyCountLabel}</span>
           </button>

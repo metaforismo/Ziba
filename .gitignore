@@ -10,6 +10,13 @@ dist/
 out/
 build/
 release/
+!apps/desktop/build/
+apps/desktop/build/*
+!apps/desktop/build/icon-4096.png
+!apps/desktop/build/icon-master-source.png
+!apps/desktop/build/icon.icns
+!apps/desktop/build/icon.ico
+!apps/desktop/build/icon.png
 
 # Distributable artifacts
 *.app

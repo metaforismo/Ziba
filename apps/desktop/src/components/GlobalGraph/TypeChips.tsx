@@ -58,9 +58,9 @@ export function TypeChips({ types, selectedType, onChange }: Props): JSX.Element
 
 function chipClasses(active: boolean): string {
   return [
-    'rounded border px-2 py-0.5 text-xs transition-colors',
+    'rounded-md border px-2 py-1 text-[12px] shadow-lg shadow-black/10 backdrop-blur transition-colors',
     active
-      ? 'border-accent bg-accent/10 text-fg'
-      : 'border-border bg-bg-subtle text-fg-subtle hover:bg-bg-muted hover:text-fg',
+      ? 'border-[#85858c] bg-[#343438]/90 text-[#f4f4f5]'
+      : 'border-[#3a3a3f] bg-[#242426]/82 text-[#bfc0c6] hover:border-[#4d4d54] hover:bg-[#303034] hover:text-[#f4f4f5]',
   ].join(' ');
 }

@@ -39,6 +39,7 @@ export type SidebarMutations = {
   doRefresh: () => Promise<void>;
   createNoteIn: (rawName: string, parentFolder: string) => Promise<void>;
   createFolderIn: (rawName: string, parentFolder: string) => Promise<void>;
+  duplicateFile: (path: NotePath) => Promise<void>;
   renameFile: (oldPath: NotePath, newName: string) => Promise<void>;
   renameFolder: (oldPath: string, newName: string) => Promise<void>;
   deleteFile: (path: NotePath) => Promise<void>;
@@ -74,8 +75,12 @@ export function useSidebarMutations(): SidebarMutations {
   const currentPath = useEditorStore((s) => s.currentPath);
   const openNote = useEditorStore((s) => s.openNote);
   const closeNote = useEditorStore((s) => s.closeNote);
+  const currentVault = useVaultStore((s) => s.current);
   const expandedFolders = useUiStore((s) => s.expandedFolders);
+  const setMainView = useUiStore((s) => s.setMainView);
   const toggleFolder = useUiStore((s) => s.toggleFolder);
+  const remapFolderPrefsOnRename = useUiStore((s) => s.remapFolderPrefsOnRename);
+  const removeFolderPrefsOnDelete = useUiStore((s) => s.removeFolderPrefsOnDelete);
 
   const [refreshing, setRefreshing] = useState(false);
 
@@ -99,10 +104,11 @@ export function useSidebarMutations(): SidebarMutations {
       }
       await runFollowUp('Creazione nota', async () => {
         await doRefresh();
+        setMainView('editor');
         await openNote(path);
       });
     },
-    [doRefresh, openNote],
+    [doRefresh, openNote, setMainView],
   );
 
   const createFolderIn = useCallback(
@@ -138,11 +144,31 @@ export function useSidebarMutations(): SidebarMutations {
       await runFollowUp('Rinomina nota', async () => {
         await doRefresh();
         if (currentPath === oldPath) {
+          setMainView('editor');
           await openNote(resultNewPath);
         }
       });
     },
-    [currentPath, doRefresh, openNote],
+    [currentPath, doRefresh, openNote, setMainView],
+  );
+
+  const duplicateFile = useCallback(
+    async (path: NotePath): Promise<void> => {
+      let copyPath: NotePath;
+      try {
+        const copy = await ipc.duplicateNote({ path });
+        copyPath = copy.path;
+      } catch (err: unknown) {
+        toast.error(ipcErrorMessage(err), 'Impossibile duplicare la nota');
+        return;
+      }
+      await runFollowUp('Duplicazione nota', async () => {
+        await doRefresh();
+        setMainView('editor');
+        await openNote(copyPath);
+      });
+    },
+    [doRefresh, openNote, setMainView],
   );
 
   const renameFolder = useCallback(
@@ -155,16 +181,20 @@ export function useSidebarMutations(): SidebarMutations {
         toast.error(ipcErrorMessage(err), 'Impossibile rinominare la cartella');
         return;
       }
+      if (currentVault !== null) {
+        remapFolderPrefsOnRename(currentVault.root, oldPath, newPath);
+      }
       await runFollowUp('Rinomina cartella', async () => {
         await doRefresh();
         // Re-resolve the open note when it lived inside the renamed folder.
         if (currentPath !== null && currentPath.startsWith(`${oldPath}/`)) {
           const remapped = newPath + currentPath.slice(oldPath.length);
+          setMainView('editor');
           await openNote(remapped);
         }
       });
     },
-    [currentPath, doRefresh, openNote],
+    [currentPath, currentVault, doRefresh, openNote, remapFolderPrefsOnRename, setMainView],
   );
 
   const deleteFile = useCallback(
@@ -191,6 +221,9 @@ export function useSidebarMutations(): SidebarMutations {
         toast.error(ipcErrorMessage(err), 'Impossibile eliminare la cartella');
         return;
       }
+      if (currentVault !== null) {
+        removeFolderPrefsOnDelete(currentVault.root, path);
+      }
       await runFollowUp('Eliminazione cartella', async () => {
         if (currentPath !== null && currentPath.startsWith(`${path}/`)) {
           closeNote();
@@ -198,7 +231,7 @@ export function useSidebarMutations(): SidebarMutations {
         await doRefresh();
       });
     },
-    [closeNote, currentPath, doRefresh],
+    [closeNote, currentPath, currentVault, doRefresh, removeFolderPrefsOnDelete],
   );
 
   return {
@@ -206,6 +239,7 @@ export function useSidebarMutations(): SidebarMutations {
     doRefresh,
     createNoteIn,
     createFolderIn,
+    duplicateFile,
     renameFile,
     renameFolder,
     deleteFile,

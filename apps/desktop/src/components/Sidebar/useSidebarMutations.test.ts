@@ -3,6 +3,7 @@ import { renderHook } from '@testing-library/react';
 import { installMockIpc, type MockController } from '../../test/mock-ipc';
 import { useEditorStore } from '../../stores/editor';
 import { useToastStore } from '../../stores/toast';
+import { useUiStore } from '../../stores/ui';
 import { useVaultStore } from '../../stores/vault';
 import { useSidebarMutations } from './useSidebarMutations';
 
@@ -33,6 +34,7 @@ beforeEach(() => {
     dirty: false,
     lastSaveError: null,
   });
+  useUiStore.setState({ mainView: 'editor' });
 });
 
 afterEach(() => {
@@ -164,5 +166,14 @@ describe('useSidebarMutations — createNoteIn two-stage split', () => {
     expect(t?.kind).toBe('warning');
     expect(t?.title).toBe('Aggiornamento incompleto');
     expect(t?.message).not.toMatch(/Impossibile/);
+  });
+
+  it('switches to the editor when a newly-created note opens', async () => {
+    useUiStore.getState().setMainView('graph');
+
+    const { result } = renderHook(() => useSidebarMutations());
+    await result.current.createNoteIn('new', '');
+
+    expect(useUiStore.getState().mainView).toBe('editor');
   });
 });

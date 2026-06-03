@@ -3,8 +3,8 @@ import type { SearchHit } from '../../shared/ipc';
 import { debounce } from '../lib/debounce';
 import { ipc } from '../lib/ipc';
 import { ipcErrorMessage } from '../lib/ipc-error';
+import { navigateToNote } from '../lib/navigate';
 import { SEARCH_DEBOUNCE_MS } from '../lib/timings';
-import { useEditorStore } from './editor';
 
 /** Maximum hits returned by a single FTS5 query — keeps the palette list
  *  bounded and the snippet rendering work small. */
@@ -136,7 +136,7 @@ export const useSearchStore = create<SearchState>((set, get) => {
       // before the editor takes focus — avoids a flash where the
       // closing palette swallows the editor's mount transitions.
       get().closePalette();
-      await useEditorStore.getState().openNote(hit.path);
+      await navigateToNote(hit.path);
     },
   };
 });

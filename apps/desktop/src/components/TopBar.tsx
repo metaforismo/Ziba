@@ -1,164 +1,157 @@
-import { useUiStore, type MainView } from '../stores/ui';
+import { CaretDown, FolderOpen, LinkSimple, Plus, X } from '@phosphor-icons/react';
+import { ipcErrorMessage } from '../lib/ipc-error';
+import { useEditorStore, type EditorPane, type EditorTab } from '../stores/editor';
+import { toast } from '../stores/toast';
+import { useUiStore } from '../stores/ui';
 import { useVaultStore } from '../stores/vault';
 
 type TopBarProps = {
   onChangeVault: () => void;
 };
 
-type ViewSpec = {
-  id: MainView;
-  label: string;
-  title: string;
-  icon: JSX.Element;
-};
-
-const VIEWS: readonly ViewSpec[] = [
-  {
-    id: 'editor',
-    label: 'Editor',
-    title: 'Editor (note)',
-    icon: (
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-      </svg>
-    ),
-  },
-  {
-    id: 'database',
-    label: 'Database',
-    title: 'Vista database (tabella)',
-    icon: (
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
-      >
-        <ellipse cx="12" cy="5" rx="9" ry="3" />
-        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
-        <path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3" />
-      </svg>
-    ),
-  },
-  {
-    id: 'graph',
-    label: 'Grafo',
-    title: 'Grafo globale del vault',
-    icon: (
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
-      >
-        <circle cx="5" cy="5" r="2" />
-        <circle cx="19" cy="5" r="2" />
-        <circle cx="12" cy="19" r="2" />
-        <path d="M7 5h10" />
-        <path d="M6 7l5 10" />
-        <path d="M18 7l-5 10" />
-      </svg>
-    ),
-  },
-];
+function activePaneAndTabs(
+  panes: EditorPane[],
+  activePaneId: string,
+  tabsById: Record<string, EditorTab>,
+): { pane: EditorPane | null; tabs: EditorTab[] } {
+  const pane = panes.find((p) => p.id === activePaneId) ?? panes[0] ?? null;
+  if (pane === null) return { pane: null, tabs: [] };
+  return {
+    pane,
+    tabs: pane.tabIds
+      .map((id) => tabsById[id])
+      .filter((tab): tab is EditorTab => tab !== undefined),
+  };
+}
 
 export function TopBar({ onChangeVault }: TopBarProps): JSX.Element {
   const current = useVaultStore((s) => s.current);
   const indexProgress = useVaultStore((s) => s.indexProgress);
+  const workspace = useEditorStore((s) => s.workspace);
+  const selectTab = useEditorStore((s) => s.selectTab);
+  const closeTab = useEditorStore((s) => s.closeTab);
+  const createUntitledNote = useEditorStore((s) => s.createUntitledNote);
   const backlinksOpen = useUiStore((s) => s.backlinksOpen);
   const toggleBacklinks = useUiStore((s) => s.toggleBacklinks);
-  const mainView = useUiStore((s) => s.mainView);
   const setMainView = useUiStore((s) => s.setMainView);
+  const vaultName = current === null ? 'ziba' : current.name;
+  const { pane, tabs } = activePaneAndTabs(
+    workspace.panes,
+    workspace.activePaneId,
+    workspace.tabsById,
+  );
+
+  const handleNewTab = async (): Promise<void> => {
+    try {
+      await createUntitledNote({ mode: 'new-tab' });
+      setMainView('editor');
+    } catch (err: unknown) {
+      toast.error(ipcErrorMessage(err), 'Impossibile creare la nota');
+    }
+  };
 
   return (
-    <header className="flex h-9 shrink-0 items-center justify-between border-b border-border bg-bg-subtle px-3 text-sm">
-      <div className="flex min-w-0 items-center gap-3">
-        <span className="truncate font-medium text-fg">
-          {current === null ? 'ziba' : current.name}
-        </span>
-        {indexProgress !== null && (
-          <span className="text-xs text-fg-muted">
-            Indicizzo… {indexProgress.processed}
-            {indexProgress.total !== null && `/${indexProgress.total}`}
-          </span>
-        )}
-      </div>
-      <div role="tablist" aria-label="Vista principale" className="flex items-center gap-0.5">
-        {VIEWS.map((v) => {
-          const active = v.id === mainView;
-          return (
-            <button
-              key={v.id}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              title={v.title}
-              onClick={(): void => {
-                setMainView(v.id);
-              }}
-              className={`flex items-center gap-1.5 rounded px-2 py-1 ${
-                active ? 'bg-bg-muted text-fg' : 'text-fg-subtle hover:bg-bg-muted hover:text-fg'
-              }`}
-            >
-              {v.icon}
-              <span className="hidden sm:inline">{v.label}</span>
-            </button>
-          );
-        })}
-      </div>
-      <div className="flex items-center gap-2">
+    <header className="app-drag flex h-11 shrink-0 items-stretch border-b border-border/80 bg-bg-subtle/95 pl-[86px] text-sm shadow-[0_1px_0_rgba(30,29,27,0.04)] backdrop-blur-xl">
+      <div className="flex w-[15rem] shrink-0 items-center border-r border-border/70 pr-2">
         <button
           type="button"
           onClick={onChangeVault}
-          className="rounded px-2 py-1 text-fg-subtle hover:bg-bg-muted hover:text-fg"
+          aria-label={`Cambia vault: ${vaultName}`}
+          title="Cambia vault"
+          className="app-no-drag inline-flex h-8 min-w-0 max-w-full items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-semibold text-fg transition hover:bg-bg-muted/80 active:translate-y-px"
         >
-          Cambia vault
+          <FolderOpen size={16} aria-hidden="true" className="shrink-0 text-fg-subtle" />
+          <span className="truncate">{vaultName}</span>
+          <CaretDown size={12} aria-hidden="true" className="shrink-0 text-fg-muted" />
         </button>
+        {indexProgress !== null && (
+          <span
+            className="ml-1 h-1.5 w-1.5 shrink-0 rounded-full bg-accent"
+            aria-label="Indicizzazione in corso"
+          />
+        )}
+      </div>
+
+      <div className="flex min-w-0 flex-1 items-end overflow-hidden">
+        {tabs.length === 0 ? (
+          <div className="flex h-full items-center px-3 text-xs text-fg-muted">
+            Nessuna nota aperta
+          </div>
+        ) : (
+          tabs.map((tab) => {
+            const active = pane?.activeTabId === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                aria-label={tab.title}
+                onClick={(): void => {
+                  selectTab(tab.id);
+                  setMainView('editor');
+                }}
+                title={tab.path}
+                className={
+                  'app-no-drag group relative flex h-10 max-w-[13rem] min-w-[8rem] items-center gap-2 rounded-t-lg border-x border-t px-3 text-left text-[13px] transition ' +
+                  (active
+                    ? 'z-10 border-border bg-bg text-fg shadow-[0_-1px_0_rgb(var(--bg))_inset]'
+                    : 'border-transparent text-fg-muted hover:bg-bg-muted/70 hover:text-fg')
+                }
+              >
+                <span className="min-w-0 flex-1 truncate">{tab.title}</span>
+                {tab.dirty && (
+                  <span
+                    aria-label="Modifiche non salvate"
+                    className="size-1.5 shrink-0 rounded-full bg-accent"
+                  />
+                )}
+                <span
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Chiudi ${tab.title}`}
+                  onClick={(event): void => {
+                    event.stopPropagation();
+                    closeTab(tab.id);
+                  }}
+                  onKeyDown={(event): void => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      closeTab(tab.id);
+                    }
+                  }}
+                  className="inline-flex size-5 shrink-0 items-center justify-center rounded text-fg-muted opacity-0 transition hover:bg-bg-muted hover:text-fg group-hover:opacity-100"
+                >
+                  <X size={12} aria-hidden="true" />
+                </span>
+              </button>
+            );
+          })
+        )}
+        <button
+          type="button"
+          aria-label="Nuova tab"
+          title="Nuova nota"
+          onClick={(): void => {
+            void handleNewTab();
+          }}
+          className="app-no-drag mb-1 ml-1 inline-flex size-8 shrink-0 items-center justify-center rounded-md text-fg-muted hover:bg-bg-muted hover:text-fg"
+        >
+          <Plus size={16} aria-hidden="true" />
+        </button>
+      </div>
+
+      <div className="app-no-drag flex w-14 shrink-0 items-center justify-end pr-2">
         <button
           type="button"
           onClick={toggleBacklinks}
-          aria-label={backlinksOpen ? 'Nascondi backlink' : 'Mostra backlink'}
+          aria-label={backlinksOpen ? 'Nascondi pannello destro' : 'Mostra pannello destro'}
           aria-pressed={backlinksOpen}
-          className={`rounded p-1 hover:bg-bg-muted hover:text-fg ${
-            backlinksOpen ? 'text-fg' : 'text-fg-subtle'
+          title={backlinksOpen ? 'Nascondi pannello destro' : 'Mostra pannello destro'}
+          className={`inline-flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-bg-muted/80 hover:text-fg active:translate-y-px ${
+            backlinksOpen ? 'bg-bg-muted text-fg' : 'text-fg-subtle'
           }`}
         >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M9 17H7A5 5 0 0 1 7 7h2" />
-            <path d="M15 7h2a5 5 0 0 1 0 10h-2" />
-            <line x1="8" y1="12" x2="16" y2="12" />
-          </svg>
+          <LinkSimple size={16} aria-hidden="true" />
         </button>
       </div>
     </header>

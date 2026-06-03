@@ -10,11 +10,17 @@ import { installMockIpc, type MockController } from '../test/mock-ipc';
 async function loadStores(): Promise<{
   useSearchStore: typeof import('./search').useSearchStore;
   useEditorStore: typeof import('./editor').useEditorStore;
+  useUiStore: typeof import('./ui').useUiStore;
 }> {
   vi.resetModules();
   const search = await import('./search');
   const editor = await import('./editor');
-  return { useSearchStore: search.useSearchStore, useEditorStore: editor.useEditorStore };
+  const ui = await import('./ui');
+  return {
+    useSearchStore: search.useSearchStore,
+    useEditorStore: editor.useEditorStore,
+    useUiStore: ui.useUiStore,
+  };
 }
 
 const HIT_A: SearchHit = { path: 'a.md', title: 'A', snippet: 'hello' };
@@ -211,6 +217,21 @@ describe('useSearchStore — chooseSelected', () => {
     expect(openNote).toHaveBeenCalledWith('b.md');
     expect(useSearchStore.getState().open).toBe(false);
     expect(useSearchStore.getState().query).toBe('');
+  });
+
+  it('switches back to the editor when choosing a result from another main view', async () => {
+    const { useSearchStore, useUiStore } = await loadStores();
+    useUiStore.getState().setMainView('graph');
+    useSearchStore.setState({
+      open: true,
+      query: 'foo',
+      results: [HIT_A],
+      selectedIndex: 0,
+    });
+
+    await useSearchStore.getState().chooseSelected();
+
+    expect(useUiStore.getState().mainView).toBe('editor');
   });
 
   it('is a no-op when results are empty (no IPC, no openNote)', async () => {

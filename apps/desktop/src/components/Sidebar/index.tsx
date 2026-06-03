@@ -1,18 +1,41 @@
 import type { NotePath } from '@ziba/core';
+import {
+  CaretDown,
+  CaretRight,
+  Copy,
+  Database,
+  Files,
+  Gear,
+  Graph,
+  MagnifyingGlass,
+  NoteBlank,
+  PencilSimple,
+  Plus,
+  SlidersHorizontal,
+  Trash,
+} from '@phosphor-icons/react';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ipc } from '../../lib/ipc';
+import { ipcErrorMessage } from '../../lib/ipc-error';
+import { navigateToNote } from '../../lib/navigate';
+import { createStarterVault } from '../../lib/starter-vault';
 import { buildTree } from '../../lib/tree';
 import { useEditorStore } from '../../stores/editor';
+import { useSearchStore } from '../../stores/search';
 import { useTagsStore } from '../../stores/tags';
+import { toast } from '../../stores/toast';
 import { useUiStore } from '../../stores/ui';
 import { useVaultStore } from '../../stores/vault';
 import { FileTree, flattenTree, type TreeTarget } from './FileTree';
+import { FolderIconPicker } from './FolderIconPicker';
 import { NewNoteButton } from './NewNoteButton';
 import { stripMdExtension } from './path-utils';
 import { SidebarDialogs, type DialogState } from './SidebarDialogs';
 import { TagsSection } from './TagsSection';
 import { TypesSection } from './TypesSection';
 import { TreeContextMenu } from './TreeContextMenu';
+import type { ContextMenuItem } from './TreeContextMenu';
 import { useSidebarMutations } from './useSidebarMutations';
 
 export type SidebarProps = {
@@ -22,6 +45,12 @@ export type SidebarProps = {
 
 type ContextMenuState = {
   target: TreeTarget;
+  x: number;
+  y: number;
+};
+
+type FolderIconPickerState = {
+  path: string;
   x: number;
   y: number;
 };
@@ -41,9 +70,19 @@ type ContextMenuState = {
  */
 export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
   const notes = useVaultStore((s) => s.notes);
+  const folders = useVaultStore((s) => s.folders);
+  const currentVault = useVaultStore((s) => s.current);
   const currentPath = useEditorStore((s) => s.currentPath);
+  const openNote = useEditorStore((s) => s.openNote);
+  const createUntitledNote = useEditorStore((s) => s.createUntitledNote);
   const expandedFolders = useUiStore((s) => s.expandedFolders);
   const toggleFolder = useUiStore((s) => s.toggleFolder);
+  const mainView = useUiStore((s) => s.mainView);
+  const setMainView = useUiStore((s) => s.setMainView);
+  const folderIconsByVault = useUiStore((s) => s.folderIconsByVault);
+  const setFolderIcon = useUiStore((s) => s.setFolderIcon);
+  const resetFolderIcon = useUiStore((s) => s.resetFolderIcon);
+  const openPalette = useSearchStore((s) => s.openPalette);
   // Either a tag OR a type filter (mutually exclusive — see
   // useTagsStore docstring) restricts the file tree to a subset of
   // visible notes. The filter happens here (rather than as FileTree
@@ -61,8 +100,11 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
   const { refreshing } = mutations;
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [folderIconPicker, setFolderIconPicker] = useState<FolderIconPickerState | null>(null);
   const [dialog, setDialog] = useState<DialogState>({ kind: 'none' });
   const [focusedPath, setFocusedPath] = useState<string | null>(null);
+  const [organizeOpen, setOrganizeOpen] = useState(false);
+  const [starterCreating, setStarterCreating] = useState(false);
 
   const visibleNotes = useMemo(() => {
     // Tag wins if active. Type wins next. Otherwise show everything.
@@ -78,8 +120,16 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
     return notes;
   }, [notes, selectedTag, selectedType, notesForSelectedTag, notesForSelectedType]);
 
-  const tree = useMemo(() => buildTree(visibleNotes), [visibleNotes]);
+  const visibleFolders = useMemo(
+    () => (selectedTag === null && selectedType === null ? folders : []),
+    [folders, selectedTag, selectedType],
+  );
+  const tree = useMemo(
+    () => buildTree(visibleNotes, visibleFolders),
+    [visibleNotes, visibleFolders],
+  );
   const expandedSet = useMemo(() => new Set(expandedFolders), [expandedFolders]);
+  const folderIcons = currentVault === null ? {} : (folderIconsByVault[currentVault.root] ?? {});
   // Pre-flattened row list shared between <FileTree> and the keyboard
   // handler. One walk per tree mutation instead of one per keystroke
   // — matters at vault scale (~1000+ notes) where the recursive walk
@@ -111,31 +161,87 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPath]);
 
-  const openNote = useEditorStore((s) => s.openNote);
   const handleSelectFile = useCallback(
     (path: NotePath): void => {
       if (onSelectNote !== undefined) {
         onSelectNote(path);
       } else {
-        void openNote(path);
+        void navigateToNote(path);
       }
     },
-    [onSelectNote, openNote],
+    [onSelectNote],
   );
 
   const handleContextMenu = useCallback((target: TreeTarget, x: number, y: number): void => {
     setContextMenu({ target, x, y });
   }, []);
 
+  const handleCreateStarter = useCallback(async (): Promise<void> => {
+    setStarterCreating(true);
+    try {
+      await createStarterVault();
+    } catch (err: unknown) {
+      toast.error(ipcErrorMessage(err), 'Impossibile creare la struttura iniziale');
+    } finally {
+      setStarterCreating(false);
+    }
+  }, []);
+
   // ----- Context-menu items -----
 
+  const copyPath = useCallback((path: string): void => {
+    void navigator.clipboard?.writeText(path);
+  }, []);
+
+  const absolutePathFor = useCallback(
+    (path: string): string => {
+      const root = currentVault?.root ?? '';
+      if (root === '') return path;
+      return `${root.replace(/[\\/]+$/, '')}/${path}`;
+    },
+    [currentVault?.root],
+  );
+
+  const showInFinder = useCallback(async (path: string): Promise<void> => {
+    try {
+      await ipc.showInFinder({ path });
+    } catch (err: unknown) {
+      toast.error(ipcErrorMessage(err), 'Impossibile mostrare in Finder');
+    }
+  }, []);
+
+  const createUntitledIn = useCallback(
+    async (parentFolder: string): Promise<void> => {
+      try {
+        await createUntitledNote({ parentFolder });
+        setMainView('editor');
+      } catch (err: unknown) {
+        toast.error(ipcErrorMessage(err), 'Impossibile creare la nota');
+      }
+    },
+    [createUntitledNote, setMainView],
+  );
+
   const buildMenuItems = useCallback(
-    (target: TreeTarget): { label: string; onSelect: () => void; destructive?: boolean }[] => {
+    (target: TreeTarget): ContextMenuItem[] => {
       if (target.kind === 'file') {
         return [
-          { label: 'Apri', onSelect: (): void => handleSelectFile(target.path) },
           {
-            label: 'Rinomina…',
+            label: 'Apri',
+            icon: <NoteBlank size={15} />,
+            onSelect: (): void => handleSelectFile(target.path),
+          },
+          {
+            label: 'Apri in nuova tab',
+            icon: <NoteBlank size={15} />,
+            onSelect: (): void => {
+              setMainView('editor');
+              void openNote(target.path, { mode: 'new-tab', reuseExisting: true });
+            },
+          },
+          {
+            label: 'Rinomina',
+            icon: <PencilSimple size={15} />,
             onSelect: (): void => {
               const segments = target.path.split('/');
               const last = segments[segments.length - 1] ?? target.path;
@@ -147,7 +253,8 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
             },
           },
           {
-            label: 'Elimina…',
+            label: 'Elimina',
+            icon: <Trash size={15} />,
             destructive: true,
             onSelect: (): void => {
               setDialog({
@@ -157,24 +264,67 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
               });
             },
           },
+          {
+            label: 'Altro',
+            separatorBefore: true,
+            children: [
+              {
+                label: 'Duplica',
+                icon: <Files size={15} />,
+                onSelect: (): void => {
+                  void mutations.duplicateFile(target.path);
+                },
+              },
+              {
+                label: 'Copia percorso relativo',
+                icon: <Copy size={15} />,
+                onSelect: (): void => copyPath(target.path),
+              },
+              {
+                label: 'Copia percorso assoluto',
+                icon: <Copy size={15} />,
+                onSelect: (): void => copyPath(absolutePathFor(target.path)),
+              },
+              {
+                label: 'Mostra in Finder',
+                onSelect: (): void => {
+                  void showInFinder(target.path);
+                },
+              },
+            ],
+          },
         ];
       }
       if (target.kind === 'folder') {
         return [
           {
             label: 'Nuova nota qui',
+            icon: <Plus size={15} />,
             onSelect: (): void => {
-              setDialog({ kind: 'newNoteIn', parentFolder: target.path });
+              void createUntitledIn(target.path);
             },
           },
           {
             label: 'Nuova cartella qui',
+            icon: <Plus size={15} />,
             onSelect: (): void => {
               setDialog({ kind: 'newFolderIn', parentFolder: target.path });
             },
           },
           {
-            label: 'Rinomina…',
+            label: 'Cambia icona',
+            separatorBefore: true,
+            onSelect: (): void => {
+              setFolderIconPicker({
+                path: target.path,
+                x: contextMenu?.x ?? 0,
+                y: contextMenu?.y ?? 0,
+              });
+            },
+          },
+          {
+            label: 'Rinomina',
+            icon: <PencilSimple size={15} />,
             onSelect: (): void => {
               setDialog({
                 kind: 'renameFolder',
@@ -184,7 +334,8 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
             },
           },
           {
-            label: 'Elimina cartella…',
+            label: 'Elimina',
+            icon: <Trash size={15} />,
             destructive: true,
             onSelect: (): void => {
               setDialog({
@@ -194,25 +345,60 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
               });
             },
           },
+          {
+            label: 'Altro',
+            separatorBefore: true,
+            children: [
+              {
+                label: 'Copia percorso relativo',
+                icon: <Copy size={15} />,
+                onSelect: (): void => copyPath(target.path),
+              },
+              {
+                label: 'Copia percorso assoluto',
+                icon: <Copy size={15} />,
+                onSelect: (): void => copyPath(absolutePathFor(target.path)),
+              },
+              {
+                label: 'Mostra in Finder',
+                onSelect: (): void => {
+                  void showInFinder(target.path);
+                },
+              },
+            ],
+          },
         ];
       }
       // Empty area
       return [
         {
           label: 'Nuova nota',
+          icon: <Plus size={15} />,
           onSelect: (): void => {
-            setDialog({ kind: 'newNoteIn', parentFolder: '' });
+            void createUntitledIn('');
           },
         },
         {
           label: 'Nuova cartella',
+          icon: <Plus size={15} />,
           onSelect: (): void => {
             setDialog({ kind: 'newFolderIn', parentFolder: '' });
           },
         },
       ];
     },
-    [handleSelectFile],
+    [
+      absolutePathFor,
+      contextMenu?.x,
+      contextMenu?.y,
+      copyPath,
+      createUntitledIn,
+      handleSelectFile,
+      mutations,
+      openNote,
+      setMainView,
+      showInFinder,
+    ],
   );
 
   // ----- Keyboard navigation (arrow up/down, Enter, F2, Delete) -----
@@ -298,17 +484,27 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
 
   return (
     <aside
-      className="flex h-full flex-col overflow-hidden bg-bg-subtle"
+      className="flex h-full flex-col overflow-hidden border-r border-border bg-bg-subtle"
       tabIndex={0}
       onKeyDown={handleKeyDown}
       aria-label="Esplora vault"
     >
-      <TypesSection />
-      <TagsSection />
-
-      <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2">
-        <span className="text-xs font-semibold uppercase tracking-wide text-fg-muted">Note</span>
-        <NewNoteButton />
+      <div className="shrink-0 px-3 pb-2 pt-3">
+        <div className="flex min-h-8 items-center justify-between gap-2">
+          <span className="text-[15px] font-semibold text-fg">Note</span>
+          <div className="flex items-center gap-0.5">
+            <NewNoteButton />
+            <button
+              type="button"
+              aria-label="Cerca note"
+              title="Cerca note"
+              onClick={openPalette}
+              className="inline-flex size-7 items-center justify-center rounded-md text-fg-muted hover:bg-bg-muted hover:text-fg"
+            >
+              <MagnifyingGlass size={16} aria-hidden="true" />
+            </button>
+          </div>
+        </div>
       </div>
 
       {selectedTag !== null && (
@@ -345,11 +541,16 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
         </div>
       )}
 
-      <div className="relative flex-1 overflow-y-auto">
+      <div className="relative flex-1 overflow-y-auto border-t border-border/70 pt-2">
         <FileTree
           rows={flatRows}
           currentPath={currentPath}
           focusedPath={focusedPath}
+          folderIcons={folderIcons}
+          onCreateStarter={
+            flatRows.length === 0 ? (): void => void handleCreateStarter() : undefined
+          }
+          starterCreating={starterCreating}
           onToggleFolder={toggleFolder}
           onSelectFile={handleSelectFile}
           onContextMenu={handleContextMenu}
@@ -365,6 +566,53 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
         )}
       </div>
 
+      <div className="shrink-0 border-t border-border bg-bg-subtle">
+        <div className="px-3 pt-2 text-[11px] font-semibold uppercase tracking-wide text-fg-muted">
+          Strumenti
+        </div>
+        <div className="space-y-0.5 px-2 py-2">
+          <ToolButton
+            label="Grafo"
+            active={mainView === 'graph'}
+            icon={<Graph size={16} aria-hidden="true" />}
+            onClick={(): void => setMainView('graph')}
+          />
+          <ToolButton
+            label="Database"
+            active={mainView === 'database'}
+            icon={<Database size={16} aria-hidden="true" />}
+            onClick={(): void => setMainView('database')}
+          />
+          <ToolButton
+            label="Organizza"
+            active={organizeOpen}
+            icon={<SlidersHorizontal size={16} aria-hidden="true" />}
+            trailing={
+              organizeOpen ? (
+                <CaretDown size={13} aria-hidden="true" />
+              ) : (
+                <CaretRight size={13} aria-hidden="true" />
+              )
+            }
+            onClick={(): void => setOrganizeOpen((open) => !open)}
+          />
+        </div>
+        {organizeOpen && (
+          <div className="max-h-[38vh] overflow-y-auto border-t border-border bg-bg">
+            <TypesSection />
+            <TagsSection />
+          </div>
+        )}
+        <div className="border-t border-border px-2 py-2">
+          <ToolButton
+            label="Impostazioni"
+            active={false}
+            disabled
+            icon={<Gear size={16} aria-hidden="true" />}
+          />
+        </div>
+      </div>
+
       {contextMenu !== null && (
         <TreeContextMenu
           x={contextMenu.x}
@@ -374,7 +622,62 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
         />
       )}
 
+      {folderIconPicker !== null && currentVault !== null && (
+        <FolderIconPicker
+          x={folderIconPicker.x}
+          y={folderIconPicker.y}
+          value={folderIcons[folderIconPicker.path] ?? 'folder'}
+          onSelect={(iconId): void =>
+            setFolderIcon(currentVault.root, folderIconPicker.path, iconId)
+          }
+          onReset={(): void => resetFolderIcon(currentVault.root, folderIconPicker.path)}
+          onClose={(): void => setFolderIconPicker(null)}
+        />
+      )}
+
       <SidebarDialogs dialog={dialog} mutations={mutations} onClose={closeDialog} />
     </aside>
+  );
+}
+
+function ToolButton({
+  label,
+  active,
+  disabled = false,
+  icon,
+  trailing,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  disabled?: boolean;
+  icon: JSX.Element;
+  trailing?: JSX.Element;
+  onClick?: () => void;
+}): JSX.Element {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      aria-disabled={disabled ? true : undefined}
+      disabled={disabled}
+      onClick={onClick}
+      className={
+        'flex min-h-8 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs font-medium ' +
+        (active
+          ? 'bg-bg-muted text-fg'
+          : disabled
+            ? 'cursor-not-allowed text-fg-muted/65'
+            : 'text-fg-subtle hover:bg-bg-muted hover:text-fg')
+      }
+    >
+      <span className="inline-flex size-5 shrink-0 items-center justify-center text-current">
+        {icon}
+      </span>
+      <span className="truncate">{label}</span>
+      {trailing !== undefined && (
+        <span className="ml-auto inline-flex shrink-0 text-fg-muted">{trailing}</span>
+      )}
+    </button>
   );
 }

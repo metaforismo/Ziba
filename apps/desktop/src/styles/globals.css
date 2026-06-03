@@ -19,21 +19,23 @@
  * Semantic color tokens. Values are space-separated R G B triplets so that
  * Tailwind's `<alpha-value>` syntax can compose them with opacity.
  */
-:root {
-  --bg: 255 255 255;
-  --bg-subtle: 250 250 250;
-  --bg-muted: 244 244 245;
+:root,
+:root[data-theme='ziba-light'] {
+  --bg: 253 252 249;
+  --bg-subtle: 248 247 244;
+  --bg-muted: 239 238 233;
 
-  --fg: 24 24 27;
-  --fg-subtle: 63 63 70;
-  --fg-muted: 113 113 122;
+  --fg: 30 29 27;
+  --fg-subtle: 74 72 67;
+  --fg-muted: 126 123 115;
 
-  --border: 228 228 231;
+  --border: 224 222 216;
 
-  --accent: 99 102 241; /* indigo-500 */
+  --accent: 90 108 80;
   --accent-fg: 255 255 255;
 }
 
+:root[data-theme='obsidian-dark'],
 .dark {
   --bg: 24 24 27;
   --bg-subtle: 39 39 42;
@@ -45,8 +47,53 @@
 
   --border: 63 63 70;
 
-  --accent: 129 140 248; /* indigo-400 */
+  --accent: 148 169 123;
   --accent-fg: 24 24 27;
+}
+
+:root[data-theme='warm-paper'] {
+  --bg: 252 248 239;
+  --bg-subtle: 246 239 226;
+  --bg-muted: 232 221 203;
+
+  --fg: 38 32 25;
+  --fg-subtle: 92 78 63;
+  --fg-muted: 137 119 96;
+
+  --border: 220 207 187;
+
+  --accent: 129 92 58;
+  --accent-fg: 255 250 242;
+}
+
+:root[data-theme='graphite'] {
+  --bg: 31 32 32;
+  --bg-subtle: 43 45 45;
+  --bg-muted: 60 62 62;
+
+  --fg: 241 241 238;
+  --fg-subtle: 205 204 198;
+  --fg-muted: 158 157 150;
+
+  --border: 78 80 80;
+
+  --accent: 183 162 104;
+  --accent-fg: 24 24 22;
+}
+
+:root[data-theme='high-contrast'] {
+  --bg: 0 0 0;
+  --bg-subtle: 16 16 16;
+  --bg-muted: 38 38 38;
+
+  --fg: 255 255 255;
+  --fg-subtle: 238 238 238;
+  --fg-muted: 214 214 214;
+
+  --border: 255 255 255;
+
+  --accent: 255 214 0;
+  --accent-fg: 0 0 0;
 }
 
 html,
@@ -63,6 +110,14 @@ body {
   color: rgb(var(--fg));
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+.app-drag {
+  -webkit-app-region: drag;
+}
+
+.app-no-drag {
+  -webkit-app-region: no-drag;
 }
 
 *,

@@ -10,6 +10,7 @@ type IndexProgress = { processed: number; total: number | null };
 type VaultState = {
   current: VaultInfo | null;
   notes: NoteSummary[];
+  folders: string[];
   /**
    * path → type slug for every note that declares `type:` in its frontmatter.
    * Populated alongside `notes` on every refresh so the two are always in
@@ -41,20 +42,21 @@ export const useVaultStore = create<VaultState>((set, get) => {
   return {
     current: null,
     notes: [],
+    folders: [],
     typedPaths: new Map(),
     recentVaults: [],
     indexProgress: null,
 
     async openVault(root) {
       const info = await ipc.openVault({ root });
-      set({ current: info, notes: [], typedPaths: new Map() });
+      set({ current: info, notes: [], folders: [], typedPaths: new Map() });
       await get().refreshNotes();
       await get().loadRecentVaults();
     },
 
     async closeVault() {
       await ipc.closeVault();
-      set({ current: null, notes: [], typedPaths: new Map(), indexProgress: null });
+      set({ current: null, notes: [], folders: [], typedPaths: new Map(), indexProgress: null });
     },
 
     async pickAndOpenVault() {
@@ -67,8 +69,12 @@ export const useVaultStore = create<VaultState>((set, get) => {
     async refreshNotes() {
       const current = get().current;
       if (current === null) return;
-      const [notes, typedPaths] = await Promise.all([ipc.listNotes(), ipc.getTypedPaths()]);
-      set({ notes, typedPaths });
+      const [notes, typedPaths, folders] = await Promise.all([
+        ipc.listNotes(),
+        ipc.getTypedPaths(),
+        ipc.listFolders(),
+      ]);
+      set({ notes, typedPaths, folders });
     },
 
     async loadRecentVaults() {

@@ -19,6 +19,7 @@ asarUnpack:
 
 # v0.1: no signing, no notarization. Builds will be unsigned for now.
 mac:
+  icon: build/icon.icns
   category: public.app-category.productivity
   target:
     - target: dmg
@@ -34,12 +35,14 @@ mac:
   gatekeeperAssess: false
 
 win:
+  icon: build/icon.ico
   target:
     - target: nsis
       arch:
         - x64
 
 linux:
+  icon: build/icon.png
   target:
     - target: AppImage
       arch:
