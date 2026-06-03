@@ -25,6 +25,7 @@ import { useGraphSettingsStore } from '../../stores/graph';
 import { GraphSettingsPanel } from './GraphSettingsPanel';
 import type { GraphGroupRule } from '../../lib/graph-settings';
 import { graphGroupQueryMatchesNode } from '../../lib/graph-groups';
+import { nextGraphKeyboardView } from './keyboard';
 
 // Logical canvas the simulation runs on. The SVG `viewBox` matches
 // these numbers; on screen we just stretch to fill the container, with
@@ -65,6 +66,7 @@ export function GlobalGraph(): JSX.Element {
   const [panning, setPanning] = useState(false);
   const requestSeq = useRef(0);
   const canvasRef = useRef<CanvasHandle | null>(null);
+  const graphFrameRef = useRef<HTMLDivElement | null>(null);
 
   const objectTypeSchemas = useTagsStore((s) => s.objectTypeSchemas);
   const currentVaultRoot = useVaultStore((s) => s.current?.root ?? null);
@@ -411,6 +413,7 @@ export function GlobalGraph(): JSX.Element {
       };
       setView(next);
       canvasRef.current?.setView(next);
+      userInteractedRef.current = true;
     },
     [view],
   );
@@ -522,6 +525,35 @@ export function GlobalGraph(): JSX.Element {
     // from yanking the camera back.
   }, []);
 
+  const handleGraphFrameMouseDownCapture = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (isKeyboardInputTarget(e.target)) return;
+    graphFrameRef.current?.focus({ preventScroll: true });
+  }, []);
+
+  const handleGraphKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (isKeyboardInputTarget(e.target)) return;
+      const cur = canvasRef.current?.getView() ?? view;
+      const next = nextGraphKeyboardView(
+        cur,
+        { key: e.key, shiftKey: e.shiftKey },
+        {
+          width: CANVAS_W,
+          height: CANVAS_H,
+          minScale: ZOOM_MIN,
+          maxScale: ZOOM_MAX,
+          zoomStep: ZOOM_STEP,
+        },
+      );
+      if (next === null) return;
+      e.preventDefault();
+      setView(next);
+      canvasRef.current?.setView(next);
+      userInteractedRef.current = true;
+    },
+    [view],
+  );
+
   const handleNodeClick = useCallback((id: NotePath): void => {
     setSelectedId((cur) => (cur === id ? null : id));
   }, []);
@@ -580,7 +612,13 @@ export function GlobalGraph(): JSX.Element {
 
   return (
     <div className="flex h-full w-full flex-col bg-[#1d1d1f] text-[#e6e6e8]">
-      <div className="relative min-h-0 flex-1 overflow-hidden bg-[#1d1d1f]">
+      <div
+        ref={graphFrameRef}
+        tabIndex={0}
+        className="relative min-h-0 flex-1 overflow-hidden bg-[#1d1d1f] outline-none"
+        onKeyDown={handleGraphKeyDown}
+        onMouseDownCapture={handleGraphFrameMouseDownCapture}
+      >
         <div className="pointer-events-none absolute left-4 right-4 top-3 z-10 flex items-start justify-between gap-3">
           <div className="min-w-0 rounded-lg border border-[#36363a]/90 bg-[#242426]/80 px-3 py-2 shadow-lg shadow-black/20 backdrop-blur">
             <div className="flex min-w-0 items-baseline gap-3">
@@ -763,6 +801,14 @@ function clamp(n: number, lo: number, hi: number): number {
   if (n < lo) return lo;
   if (n > hi) return hi;
   return n;
+}
+
+function isKeyboardInputTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return (
+    target.isContentEditable ||
+    target.closest('input, textarea, select, button, [role="button"], [role="textbox"]') !== null
+  );
 }
 
 /**

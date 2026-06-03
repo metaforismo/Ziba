@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createRef } from 'react';
-import { render } from '@testing-library/react';
+import { fireEvent, render } from '@testing-library/react';
 import { Canvas, type CanvasHandle, type CanvasNode, type CanvasEdge } from './Canvas';
 
 function makeNode(id: string, opts?: Partial<CanvasNode>): CanvasNode {
@@ -169,14 +169,15 @@ describe('<Canvas> — dim precedence', () => {
 
     const edge = container.querySelector('path[data-graph-edge="true"]');
     expect(edge).not.toBeNull();
-    expect(edge?.getAttribute('d')).toContain('Q');
+    expect(edge?.getAttribute('d')).toContain('L');
+    expect(edge?.getAttribute('d')).not.toContain('Q');
     expect(edge?.getAttribute('opacity')).toBe('0.42');
     expect(edge?.getAttribute('marker-end')).toBeNull();
     expect(container.querySelectorAll('circle[stroke]').length).toBeGreaterThan(0);
     expect(container.querySelectorAll('text').length).toBeGreaterThan(0);
   });
 
-  it('uses the Obsidian-style dark surface with grid off and neutral links by default', () => {
+  it('uses a flat Obsidian-style dark surface with grid off and neutral links by default', () => {
     const nodes: CanvasNode[] = [
       makeNode('a', { x: 100, y: 100, degree: 5 }),
       makeNode('b', { x: 200, y: 200, degree: 5 }),
@@ -206,7 +207,9 @@ describe('<Canvas> — dim precedence', () => {
       />,
     );
 
-    expect(container.querySelector('[data-graph-surface="obsidian-dark"]')).not.toBeNull();
+    const surface = container.querySelector('[data-graph-surface="obsidian-dark"]');
+    expect(surface?.getAttribute('fill')).toBe('#1d1d1f');
+    expect(container.querySelector('radialGradient')).toBeNull();
     expect(container.querySelector('[data-graph-grid="true"]')).toBeNull();
     const edge = container.querySelector('path[data-graph-edge="true"]');
     expect(edge?.getAttribute('stroke')).toBe('#484a50');
@@ -256,5 +259,94 @@ describe('<Canvas> — dim precedence', () => {
     const label = container.querySelector('text');
     expect(label).not.toBeNull();
     expect(label?.getAttribute('paint-order')).toBe('stroke');
+  });
+
+  it('temporarily focuses the hovered node, its direct links, and labels the hovered constellation', () => {
+    const nodes: CanvasNode[] = [
+      makeNode('a', { x: 100, y: 100, degree: 1, title: 'Alpha' }),
+      makeNode('b', { x: 200, y: 200, degree: 1, title: 'Beta' }),
+      makeNode('c', { x: 300, y: 300, degree: 0, title: 'Gamma' }),
+    ];
+    const edges: CanvasEdge[] = [
+      { source: 'a', target: 'b', kind: '' },
+      { source: 'b', target: 'c', kind: '' },
+    ];
+    const ref = createRef<CanvasHandle>();
+    const { container } = render(
+      <Canvas
+        ref={ref}
+        nodes={nodes}
+        edges={edges}
+        width={500}
+        height={500}
+        initialView={{ tx: 0, ty: 0, scale: 0.8 }}
+        selectedId={null}
+        matchedIds={new Set()}
+        neighborIds={new Set()}
+        onNodeClick={vi.fn()}
+        onNodeDoubleClick={vi.fn()}
+        onBackgroundMouseDown={vi.fn()}
+        onWheel={vi.fn()}
+        onBackgroundClick={vi.fn()}
+        panning={false}
+        clusterOverlayOn={false}
+        highlightType={null}
+        highlightKinds={new Set()}
+        linkOpacity={0.2}
+      />,
+    );
+
+    expect(container.querySelector('text')).toBeNull();
+
+    const nodeA = container.querySelector('g[transform^="translate(100"]');
+    expect(nodeA).not.toBeNull();
+    fireEvent.mouseEnter(nodeA!);
+
+    const nodeB = container.querySelector('g[transform^="translate(200"]');
+    const nodeC = container.querySelector('g[transform^="translate(300"]');
+    expect(nodeB?.getAttribute('opacity')).toBe('1');
+    expect(Number(nodeC?.getAttribute('opacity'))).toBeLessThan(1);
+
+    const graphEdges = container.querySelectorAll('path[data-graph-edge="true"]');
+    expect(Number(graphEdges[0]?.getAttribute('opacity'))).toBeGreaterThan(0.2);
+    expect(Number(graphEdges[1]?.getAttribute('opacity'))).toBeLessThan(0.2);
+    expect(container.querySelector('text')?.textContent).toBe('Alpha');
+
+    fireEvent.mouseLeave(nodeA!);
+    expect(container.querySelector('text')).toBeNull();
+  });
+
+  it('does not start background panning from a node mousedown', () => {
+    const nodes: CanvasNode[] = [makeNode('a', { x: 100, y: 100 })];
+    const onBackgroundMouseDown = vi.fn();
+    const ref = createRef<CanvasHandle>();
+    const { container } = render(
+      <Canvas
+        ref={ref}
+        nodes={nodes}
+        edges={[]}
+        width={500}
+        height={500}
+        initialView={{ tx: 0, ty: 0, scale: 1 }}
+        selectedId={null}
+        matchedIds={new Set()}
+        neighborIds={new Set()}
+        onNodeClick={vi.fn()}
+        onNodeDoubleClick={vi.fn()}
+        onBackgroundMouseDown={onBackgroundMouseDown}
+        onWheel={vi.fn()}
+        onBackgroundClick={vi.fn()}
+        panning={false}
+        clusterOverlayOn={false}
+        highlightType={null}
+        highlightKinds={new Set()}
+      />,
+    );
+
+    const nodeA = container.querySelector('g[transform^="translate(100"]');
+    expect(nodeA).not.toBeNull();
+    fireEvent.mouseDown(nodeA!);
+
+    expect(onBackgroundMouseDown).not.toHaveBeenCalled();
   });
 });

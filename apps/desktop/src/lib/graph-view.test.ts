@@ -64,6 +64,13 @@ describe('deriveGraphView', () => {
     ]);
   });
 
+  it('supports Obsidian-style file search in the graph search box', () => {
+    const view = deriveGraphView(GRAPH, settings({ query: { search: 'file:"C"' } }));
+
+    expect(view.graph.nodes.map((n) => n.path)).toEqual(['People/C.md']);
+    expect(view.graph.edges).toEqual([]);
+  });
+
   it('filters by type and relation kind while preserving valid endpoints', () => {
     const view = deriveGraphView(
       GRAPH,

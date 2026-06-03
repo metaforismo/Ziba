@@ -6,6 +6,7 @@ import {
   useImperativeHandle,
   useMemo,
   useRef,
+  useState,
 } from 'react';
 import type { NotePath } from '@ziba/core';
 import {
@@ -133,10 +134,8 @@ const EDGE_STROKE_HIGHLIGHT = '#d53f5f';
 const LABEL_FILL = '#e6e6e8';
 const LABEL_STROKE = '#1d1d1f';
 const CANVAS_BG = '#1d1d1f';
-const CANVAS_BG_CENTER = '#242426';
 const CANVAS_DOT = 'rgba(255,255,255,0.10)';
 const CANVAS_GRID = 'rgba(255,255,255,0.07)';
-const CANVAS_HALO = 'rgba(255,255,255,0.025)';
 
 const FULL_OPACITY = 1;
 const DEFAULT_LINK_OPACITY = 0.24;
@@ -233,6 +232,13 @@ export const Canvas = memo(
       for (const n of nodes) m.set(n.id, n);
       return m;
     }, [nodes]);
+    const [hoveredId, setHoveredId] = useState<NotePath | null>(null);
+
+    useEffect(() => {
+      if (hoveredId !== null && !nodeById.has(hoveredId)) {
+        setHoveredId(null);
+      }
+    }, [hoveredId, nodeById]);
 
     // Degree threshold for showing labels. Recomputed on every render but
     // it's a single pass over `nodes` and the parent already memoised the
@@ -249,7 +255,17 @@ export const Canvas = memo(
     // is when label visibility actually matters.
 
     const isFiltered = matchedIds.size > 0;
-    const hasSelection = selectedId !== null;
+    const activeId = hoveredId ?? selectedId;
+    const hasInteraction = activeId !== null;
+    const activeNeighborIds = useMemo<ReadonlySet<NotePath>>(() => {
+      if (hoveredId === null) return neighborIds;
+      const set = new Set<NotePath>();
+      for (const edge of edges) {
+        if (edge.source === hoveredId) set.add(edge.target);
+        if (edge.target === hoveredId) set.add(edge.source);
+      }
+      return set;
+    }, [hoveredId, edges, neighborIds]);
     const dimOpacity = focusMode ? Math.max(0.08, DIM_OPACITY * 0.55) : DIM_OPACITY;
 
     // When a specific type is highlighted, hide every other type's hull
@@ -281,6 +297,18 @@ export const Canvas = memo(
       [onNodeDoubleClick],
     );
 
+    const handleNodeMouseDown = useCallback((e: React.MouseEvent<SVGGElement>) => {
+      e.stopPropagation();
+    }, []);
+
+    const handleNodeMouseEnter = useCallback((id: NotePath) => {
+      setHoveredId(id);
+    }, []);
+
+    const handleNodeMouseLeave = useCallback((id: NotePath) => {
+      setHoveredId((cur) => (cur === id ? null : cur));
+    }, []);
+
     return (
       <svg
         viewBox={`0 0 ${width} ${height}`}
@@ -293,11 +321,6 @@ export const Canvas = memo(
         onClick={onBackgroundClick}
       >
         <defs>
-          <radialGradient id="global-graph-surface" cx="50%" cy="42%" r="72%">
-            <stop offset="0%" stopColor={CANVAS_HALO} />
-            <stop offset="58%" stopColor={CANVAS_BG_CENTER} />
-            <stop offset="100%" stopColor={CANVAS_BG} />
-          </radialGradient>
           <pattern
             id="global-graph-grid"
             x="0"
@@ -327,12 +350,7 @@ export const Canvas = memo(
           </marker>
         </defs>
 
-        <rect
-          data-graph-surface="obsidian-dark"
-          width={width}
-          height={height}
-          fill="url(#global-graph-surface)"
-        />
+        <rect data-graph-surface="obsidian-dark" width={width} height={height} fill={CANVAS_BG} />
         {showGrid && (
           <rect
             data-graph-grid="true"
@@ -353,7 +371,7 @@ export const Canvas = memo(
                 const b = nodeById.get(e.target) ?? null;
                 if (a === null || b === null) return null;
                 const highlight =
-                  hasSelection && (e.source === selectedId || e.target === selectedId);
+                  activeId !== null && (e.source === activeId || e.target === activeId);
                 // Links stay neutral by default, like Obsidian. Relation-kind colour
                 // only appears when the user has explicitly filtered to kinds.
                 const stroke =
@@ -369,14 +387,14 @@ export const Canvas = memo(
                 const dim =
                   dimByKindFilter ||
                   dimByTypeFilter ||
-                  (hasSelection && !highlight) ||
+                  (hasInteraction && !highlight) ||
                   (isFiltered && !(matchedIds.has(e.source) && matchedIds.has(e.target)));
                 const opacity = dim
-                  ? Math.min(linkOpacity, dimOpacity)
+                  ? Math.min(linkOpacity * 0.55, dimOpacity)
                   : highlight
-                    ? Math.min(FULL_OPACITY, linkOpacity * 2.4)
+                    ? Math.min(FULL_OPACITY, linkOpacity * 3.3)
                     : linkOpacity;
-                const d = curvedEdgePath(a, b, i);
+                const d = edgePath(a, b);
                 return (
                   <path
                     key={`${e.source}->${e.target}-${i}`}
@@ -386,7 +404,7 @@ export const Canvas = memo(
                     stroke={stroke}
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    strokeWidth={highlight ? baseLinkWidth * 2.1 : baseLinkWidth}
+                    strokeWidth={highlight ? baseLinkWidth * 1.75 : baseLinkWidth}
                     opacity={opacity}
                     markerEnd={showArrows ? 'url(#global-graph-arrow)' : undefined}
                   />
@@ -400,7 +418,9 @@ export const Canvas = memo(
             <g>
               {nodes.map((n) => {
                 const isSelected = selectedId === n.id;
-                const isNeighbor = neighborIds.has(n.id);
+                const isHovered = hoveredId === n.id;
+                const isActive = activeId === n.id;
+                const isNeighbor = activeNeighborIds.has(n.id);
                 const matchesFilter = !isFiltered || matchedIds.has(n.id);
                 // When highlightType is null the filter is inactive — no node should be dimmed
                 // purely because of type. When non-null, only nodes of that type stay bright.
@@ -410,11 +430,13 @@ export const Canvas = memo(
                 // outside the active type scope. This keeps node dimming
                 // visually consistent with the hull visibility rule.
                 const dim =
-                  (hasSelection && !isSelected && !isNeighbor) ||
+                  (hasInteraction && !isActive && !isNeighbor && !isSelected) ||
                   (isFiltered && !matchesFilter) ||
                   !isHighlightedByType;
                 const opacity = dim ? dimOpacity : FULL_OPACITY;
                 const labelEligible = showText && showLabels && n.degree >= labelDegreeThreshold;
+                const showNodeLabel =
+                  showText && (labelEligible || isSelected || isActive || isNeighbor);
                 const radius = Math.max(2.4, n.r * radiusScale);
                 return (
                   <g
@@ -423,6 +445,9 @@ export const Canvas = memo(
                     className="cursor-pointer"
                     onClick={(e): void => handleNodeClick(e, n.id)}
                     onDoubleClick={(e): void => handleNodeDoubleClick(e, n.id)}
+                    onMouseDown={handleNodeMouseDown}
+                    onMouseEnter={(): void => handleNodeMouseEnter(n.id)}
+                    onMouseLeave={(): void => handleNodeMouseLeave(n.id)}
                     opacity={opacity}
                   >
                     {/*
@@ -439,6 +464,14 @@ export const Canvas = memo(
                         strokeWidth={1}
                       />
                     )}
+                    {isHovered && !isSelected && (
+                      <circle
+                        r={radius + 6.5}
+                        fill="rgba(240,240,242,0.10)"
+                        stroke="rgba(240,240,242,0.32)"
+                        strokeWidth={1}
+                      />
+                    )}
                     <circle
                       r={radius}
                       fill={
@@ -451,11 +484,17 @@ export const Canvas = memo(
                               : NODE_FILL
                       }
                       stroke={
-                        dim ? NODE_STROKE_DIM : isSelected ? NODE_SELECTED_STROKE : NODE_STROKE
+                        dim
+                          ? NODE_STROKE_DIM
+                          : isSelected
+                            ? NODE_SELECTED_STROKE
+                            : isHovered
+                              ? '#f0f0f2'
+                              : NODE_STROKE
                       }
-                      strokeWidth={isSelected ? 1.8 : 0.9}
+                      strokeWidth={isSelected || isHovered ? 1.8 : 0.9}
                     />
-                    {labelEligible && (
+                    {showNodeLabel && (
                       <text
                         x={radius + 3.8}
                         y={3}
@@ -485,19 +524,8 @@ function nodeMatchesType(n: CanvasNode, type: string): boolean {
   return n.type === type;
 }
 
-function curvedEdgePath(a: CanvasNode, b: CanvasNode, index: number): string {
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const distance = Math.hypot(dx, dy) || 1;
-  const midpointX = (a.x + b.x) / 2;
-  const midpointY = (a.y + b.y) / 2;
-  const normalX = -dy / distance;
-  const normalY = dx / distance;
-  const direction = index % 2 === 0 ? 1 : -1;
-  const curve = Math.min(42, Math.max(10, distance * 0.08)) * direction;
-  const controlX = midpointX + normalX * curve;
-  const controlY = midpointY + normalY * curve;
-  return `M ${a.x} ${a.y} Q ${controlX} ${controlY} ${b.x} ${b.y}`;
+function edgePath(a: CanvasNode, b: CanvasNode): string {
+  return `M ${a.x} ${a.y} L ${b.x} ${b.y}`;
 }
 
 function labelDegreeAtQuantile(nodes: CanvasNode[], q: number): number {
