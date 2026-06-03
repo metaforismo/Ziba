@@ -18,6 +18,8 @@ Il formato si basa su [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e
 - Blocco database inline per l'editor (`<div data-ziba-db="view-id"></div>`)
   con picker `/database`, creazione rapida di viste e celle frontmatter
   modificabili nella tabella.
+- Controlli UI condivisi per tab segmentati e icon button, applicati a
+  pannello laterale, DatabaseView e toolbar del grafo.
 - Controllo "Righe" nella DatabaseView, collegato a `DatabaseQuery.limit`.
 
 ## [1.0.1] - 2026-05-10

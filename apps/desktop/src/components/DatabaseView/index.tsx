@@ -17,6 +17,7 @@ import { useUiStore, type DatabaseViewMode } from '../../stores/ui';
 import { useVaultStore } from '../../stores/vault';
 import { useTagsStore } from '../../stores/tags';
 import { toast } from '../../stores/toast';
+import { SegmentedControl } from '../ui/SegmentedControl';
 import { TypeFilterDropdown } from './TypeFilterDropdown';
 import { BoardView } from './BoardView';
 import { CalendarView } from './CalendarView';
@@ -858,28 +859,12 @@ function ViewModeTabs({
     { id: 'gallery', label: 'Galleria' },
   ];
   return (
-    <div role="tablist" aria-label="Vista database" className="ml-auto flex items-center gap-0.5">
-      {TABS.map((t) => {
-        const active = t.id === current;
-        return (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            onClick={(): void => {
-              onChange(t.id);
-            }}
-            className={
-              active
-                ? 'rounded bg-bg-muted px-2 py-0.5 text-xs font-medium text-fg'
-                : 'rounded px-2 py-0.5 text-xs font-medium text-fg-subtle hover:bg-bg-muted hover:text-fg'
-            }
-          >
-            {t.label}
-          </button>
-        );
-      })}
-    </div>
+    <SegmentedControl
+      ariaLabel="Vista database"
+      value={current}
+      items={TABS}
+      onChange={onChange}
+      className="ml-auto"
+    />
   );
 }

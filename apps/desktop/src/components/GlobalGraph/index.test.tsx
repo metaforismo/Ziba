@@ -64,15 +64,15 @@ describe('<GlobalGraph>', () => {
       expect(screen.getByText(/4 nodi/)).toBeInTheDocument();
     });
 
-    expect(screen.getByRole('button', { name: 'Globale' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('tab', { name: 'Globale' })).toHaveAttribute('aria-pressed', 'true');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Locale' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Locale' }));
 
     await waitFor(() => {
       expect(screen.getByText('Grafo locale')).toBeInTheDocument();
       expect(screen.getByText(/Root: Beta/)).toBeInTheDocument();
       expect(screen.getByText(/3 nodi/)).toBeInTheDocument();
     });
-    expect(screen.getByRole('button', { name: 'Locale' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('tab', { name: 'Locale' })).toHaveAttribute('aria-pressed', 'true');
   });
 });

@@ -4,6 +4,7 @@ import { useEditorStore } from '../../stores/editor';
 import { useUiStore, type RightPaneTab } from '../../stores/ui';
 import { MiniGraph } from '../MiniGraph';
 import { ObjectPanel } from '../ObjectPanel';
+import { SegmentedControl } from '../ui/SegmentedControl';
 import { ReferencesPanel } from './ReferencesPanel';
 
 type TabSpec = {
@@ -58,31 +59,12 @@ export function BacklinksPanel(): JSX.Element {
   return (
     <aside className="flex h-full flex-col overflow-hidden bg-bg-subtle">
       <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2">
-        <div role="tablist" aria-label="Pannello laterale" className="flex items-center gap-2">
-          {tabs.map((tab) => {
-            const active = tab.id === activeTab;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                aria-controls={`right-pane-panel-${tab.id}`}
-                id={`right-pane-tab-${tab.id}`}
-                onClick={(): void => {
-                  setRightPaneTab(tab.id);
-                }}
-                className={
-                  active
-                    ? 'rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-fg'
-                    : 'rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-fg-muted hover:text-fg-subtle'
-                }
-              >
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
+        <SegmentedControl
+          ariaLabel="Pannello laterale"
+          value={activeTab}
+          items={tabs}
+          onChange={setRightPaneTab}
+        />
         {activeLoading && (
           <span className="text-[10px] uppercase tracking-wide text-fg-muted">…</span>
         )}
