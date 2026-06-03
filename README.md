@@ -17,6 +17,7 @@ fork, automate, and keep forever.
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 [Why Ziba](#why-ziba) |
+[The Name](docs/name.md) |
 [Features](#features) |
 [Quick Start](#quick-start) |
 [Vault Format](#vault-format) |
@@ -55,6 +56,9 @@ Ziba is an experiment in taking both ideas seriously:
 The long-term idea is simple: your knowledge base should be a folder of durable
 files, not a subscription hostage. The app can be beautiful, structured, and
 intelligent without taking ownership of your data.
+
+The name comes from Leopardi's *Zibaldone di pensieri*. Read the short note on
+[why Ziba is called Ziba](docs/name.md).
 
 ## What Ziba Feels Like
 
