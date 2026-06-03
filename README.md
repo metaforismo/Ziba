@@ -1,6 +1,6 @@
 <div align="center">
 
-# Ziba
+# [Ziba](docs/name.md)
 
 ### A local-first, open-source knowledge workspace for markdown notes, typed objects, databases, and graphs.
 
@@ -14,6 +14,7 @@ fork, automate, and keep forever.
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-v1.0_alpha-blue)](#project-status)
 [![Local-first](https://img.shields.io/badge/local--first-markdown%20%2B%20sqlite-2ea44f)](#why-ziba)
+[![Name](https://img.shields.io/badge/name-Zibaldone%20%2B%20Leopardi-8b5cf6)](docs/name.md)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 [Why Ziba](#why-ziba) |

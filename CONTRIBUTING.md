@@ -8,6 +8,8 @@ object model.
 This guide explains how to set up the project, how to keep changes reviewable,
 and what maintainers expect before merging.
 
+Curious about the name? Read [why Ziba is called Ziba](docs/name.md).
+
 ## Contents
 
 - [Community Standards](#community-standards)
