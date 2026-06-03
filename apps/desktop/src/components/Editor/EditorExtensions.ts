@@ -2,6 +2,7 @@ import type { Extensions } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import { Markdown } from 'tiptap-markdown';
 import { CalloutExtension } from './extensions/Callout';
+import { DatabaseBlockExtension } from './extensions/DatabaseBlock';
 import { EmbedExtension } from './extensions/Embed';
 import { MathBlockExtension } from './extensions/MathBlock';
 import { MathInlineExtension } from './extensions/MathInline';
@@ -33,6 +34,7 @@ export type BuildExtensionsOptions = {
   createSlashRenderer?: () => SlashCommandRenderer;
   /** Forwarded to `SlashCommandExtension.configure(...)`. */
   onSlashRelationRequested?: SlashCommandOptions['onRelationRequested'];
+  onSlashDatabaseRequested?: SlashCommandOptions['onDatabaseRequested'];
   slashLatestRect?: SlashCommandOptions['latestRect'];
 };
 
@@ -72,6 +74,7 @@ export function buildEditorExtensions(options: BuildExtensionsOptions): Extensio
     // is a `div[data-callout]` selector, which doesn't overlap with
     // blockquote's tag matcher.
     CalloutExtension,
+    DatabaseBlockExtension,
     // Block-level embed (transclusion) node. Order matters relative to
     // Markdown (must come before, like every other custom node) so
     // tiptap-markdown picks up its `addStorage().markdown` hooks. Order
@@ -101,6 +104,9 @@ export function buildEditorExtensions(options: BuildExtensionsOptions): Extensio
         })),
       ...(options.onSlashRelationRequested !== undefined && {
         onRelationRequested: options.onSlashRelationRequested,
+      }),
+      ...(options.onSlashDatabaseRequested !== undefined && {
+        onDatabaseRequested: options.onSlashDatabaseRequested,
       }),
       ...(options.slashLatestRect !== undefined && { latestRect: options.slashLatestRect }),
     }),

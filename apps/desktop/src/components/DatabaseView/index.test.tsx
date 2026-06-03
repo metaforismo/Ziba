@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   IpcChannels,
   type DatabaseResult,
@@ -68,6 +68,15 @@ beforeEach(() => {
   };
   mock.setHandler(IpcChannels.listDatabaseViews, async () => viewsFile);
   mock.setHandler(IpcChannels.runDatabaseQuery, async () => makeRows());
+  mock.setHandler(IpcChannels.loadNote, async ({ path }) => ({
+    path,
+    title: 'Ziba',
+    content: '# Ziba',
+    frontmatter: { status: 'active' },
+    wikilinks: [],
+    mtimeMs: 0,
+  }));
+  mock.setHandler(IpcChannels.saveNote, async () => ({ mtimeMs: 1 }));
   mock.setHandler(IpcChannels.upsertDatabaseView, async ({ view }) => view);
   useVaultStore.setState({
     current: { root: '/vault-a', name: 'vault-a', openedAt: 0 },
@@ -118,6 +127,49 @@ describe('<DatabaseView>', () => {
           layout: 'gallery',
           columns: ['status'],
         }),
+      });
+    });
+  });
+
+  it('uses the embedded initial view and reports view changes to the host node', async () => {
+    const onActiveViewChange = vi.fn();
+
+    render(
+      <DatabaseView embedded initialViewId="projects" onActiveViewChange={onActiveViewChange} />,
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Projects' })).toBeInTheDocument();
+    await waitFor(() => {
+      const calls = mock.getCallsFor(IpcChannels.runDatabaseQuery);
+      expect(calls.at(-1)?.[0]).toEqual({
+        query: expect.objectContaining({
+          filters: [
+            { kind: 'eq', key: 'type', value: 'project' },
+            { kind: 'eq', key: 'status', value: 'active' },
+          ],
+          groupBy: 'status',
+          limit: 25,
+        }),
+      });
+    });
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Tutte' }));
+
+    expect(onActiveViewChange).toHaveBeenCalledWith('default');
+  });
+
+  it('commits table cell edits back to note frontmatter', async () => {
+    render(<DatabaseView />);
+
+    const status = await screen.findByLabelText('status per Ziba');
+    fireEvent.change(status, { target: { value: 'done' } });
+    fireEvent.blur(status);
+
+    await waitFor(() => {
+      expect(mock.getSpy(IpcChannels.saveNote)).toHaveBeenCalledWith({
+        path: 'Projects/Ziba.md',
+        body: '# Ziba',
+        frontmatter: { status: 'done' },
       });
     });
   });

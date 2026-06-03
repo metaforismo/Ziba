@@ -52,6 +52,16 @@ export type SlashCommandOptions = {
     position: { top: number; left: number; bottom: number };
   }) => void;
   /**
+   * Callback invoked when the user picks `/database`. The React editor
+   * opens a saved-view picker and inserts `databaseBlock` after the user
+   * selects or creates a view.
+   */
+  onDatabaseRequested?: (args: {
+    editor: Editor;
+    range: Range;
+    position: { top: number; left: number; bottom: number };
+  }) => void;
+  /**
    * The latest trigger-anchor rect, mutated by the renderer on every
    * suggestion `onStart` / `onUpdate`. We use it inside `command` to
    * anchor the relation popover at the slash position. A ref-like
@@ -195,6 +205,13 @@ const SLASH_MENU_ITEMS: ReadonlyArray<SlashMenuItem> = [
     icon: '↗',
   },
   {
+    id: 'database',
+    title: 'Database',
+    description: 'Inserisci una vista database salvata',
+    keywords: ['database', 'db', 'vista', 'view', 'tabella', 'board'],
+    icon: 'DB',
+  },
+  {
     id: 'math-block',
     title: 'Formula matematica',
     description: 'Blocco LaTeX `$$..$$` con rendering KaTeX',
@@ -270,13 +287,14 @@ function filterItems(query: string): SlashMenuItem[] {
  * is closed-set, so an unknown id is a programming error rather than a
  * user-facing failure.
  */
-function runSlashCommand(
+export function runSlashCommand(
   editor: Editor,
   id: string,
   context: {
     range: Range;
     position: { top: number; left: number; bottom: number };
     onRelationRequested?: SlashCommandOptions['onRelationRequested'];
+    onDatabaseRequested?: SlashCommandOptions['onDatabaseRequested'];
   },
 ): void {
   switch (id) {
@@ -336,6 +354,13 @@ function runSlashCommand(
       // Renderer handles the popover; the suggestion plugin already
       // deleted the slash + query above us, so we just delegate.
       context.onRelationRequested?.({
+        editor,
+        range: context.range,
+        position: context.position,
+      });
+      return;
+    case 'database':
+      context.onDatabaseRequested?.({
         editor,
         range: context.range,
         position: context.position,
@@ -435,6 +460,7 @@ export const SlashCommandExtension = Extension.create<SlashCommandOptions>({
             range,
             position: options.latestRect?.current ?? { top: 0, left: 0, bottom: 0 },
             onRelationRequested: options.onRelationRequested,
+            onDatabaseRequested: options.onDatabaseRequested,
           });
         },
 
