@@ -123,6 +123,7 @@ function buildDefaultHandlers(): Required<MockHandlers> {
     [IpcChannels.showInFinder]: async () => undefined,
 
     [IpcChannels.getBacklinks]: async () => [],
+    [IpcChannels.getReferences]: async () => ({ backlinks: [], mentions: [] }),
     [IpcChannels.resolveTitle]: async () => null,
 
     [IpcChannels.searchFullText]: async () => [],

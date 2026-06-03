@@ -11,7 +11,7 @@ beforeEach(() => {
 });
 
 describe('graph settings defaults', () => {
-  it('matches the Obsidian-style graph defaults', async () => {
+  it('matches the SiYuan-like graph defaults', async () => {
     const { DEFAULT_GRAPH_SETTINGS } = await loadGraphSettings();
 
     expect(DEFAULT_GRAPH_SETTINGS.query).toMatchObject({
@@ -29,22 +29,22 @@ describe('graph settings defaults', () => {
       localDepth: 1,
     });
     expect(DEFAULT_GRAPH_SETTINGS.display).toMatchObject({
-      showArrows: false,
+      showArrows: true,
       showText: true,
       showNodes: true,
       showLinks: true,
-      labelFade: 0.48,
-      nodeScale: 1,
-      linkWidth: 0.7,
+      labelFade: 0.32,
+      nodeScale: 1.2,
+      linkWidth: 1.1,
       showGrid: false,
     });
     expect(DEFAULT_GRAPH_SETTINGS.forces).toMatchObject({
-      center: 0.08,
-      repel: 420,
-      link: 0.08,
-      linkDistance: 96,
-      nodeDistance: 32,
-      linkOpacity: 0.18,
+      center: 0.04,
+      repel: 620,
+      link: 0.12,
+      linkDistance: 132,
+      nodeDistance: 48,
+      linkOpacity: 0.34,
     });
     expect(DEFAULT_GRAPH_SETTINGS.groups).toEqual([]);
     expect(DEFAULT_GRAPH_SETTINGS.groupsSeeded).toBe(false);
@@ -146,7 +146,7 @@ describe('graph settings storage', () => {
       repel: 0,
       link: 0.4,
       linkDistance: 120,
-      nodeDistance: 32,
+      nodeDistance: 48,
       linkOpacity: 0.7,
     });
     expect(settings.groups).toEqual([
@@ -183,9 +183,9 @@ describe('graph settings storage', () => {
       showText: false,
       showNodes: true,
       showLinks: true,
-      labelFade: 0.48,
-      nodeScale: 1,
-      linkWidth: 0.7,
+      labelFade: 0.32,
+      nodeScale: 1.2,
+      linkWidth: 1.1,
       showGrid: false,
     });
     expect(settings.forces.linkOpacity).toBe(0.32);

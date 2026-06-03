@@ -23,7 +23,7 @@ describe('<GraphSettingsPanel>', () => {
     expect(screen.queryByRole('heading', { name: 'Controlli grafo' })).toBeNull();
   });
 
-  it('renders the Obsidian-like drawer sections without unsupported global controls', () => {
+  it('renders the SiYuan-like drawer sections with local graph controls', () => {
     render(<GraphSettingsPanel {...DEFAULT_PROPS} open />);
 
     expect(screen.getByRole('heading', { name: 'Controlli grafo' })).toBeInTheDocument();
@@ -34,7 +34,7 @@ describe('<GraphSettingsPanel>', () => {
     expect(screen.getByRole('button', { name: 'Forze' })).toBeInTheDocument();
     expect(screen.queryByLabelText('Nodi irrisolti')).toBeNull();
     expect(screen.queryByLabelText('Solo esistenti')).toBeNull();
-    expect(screen.queryByLabelText('Profondità locale')).toBeNull();
+    expect(screen.getByLabelText('Profondità locale')).toBeInTheDocument();
   });
 
   it('emits real setting updates from search, toggles, and sliders', () => {
@@ -60,6 +60,9 @@ describe('<GraphSettingsPanel>', () => {
 
     fireEvent.change(screen.getByLabelText('Connessioni minime'), { target: { value: '2' } });
     expect(onQueryChange).toHaveBeenCalledWith({ minDegree: 2 });
+
+    fireEvent.change(screen.getByLabelText('Profondità locale'), { target: { value: '3' } });
+    expect(onQueryChange).toHaveBeenCalledWith({ localDepth: 3 });
 
     fireEvent.click(screen.getByLabelText('Etichette'));
     expect(onDisplayChange).toHaveBeenCalledWith({ showText: false });

@@ -4,32 +4,28 @@ import { useEditorStore } from '../../stores/editor';
 import { useUiStore, type RightPaneTab } from '../../stores/ui';
 import { MiniGraph } from '../MiniGraph';
 import { ObjectPanel } from '../ObjectPanel';
-import { BacklinksList } from './BacklinksList';
+import { ReferencesPanel } from './ReferencesPanel';
 
 type TabSpec = {
   id: RightPaneTab;
   label: string;
 };
 
-// Italian copy: "Grafo" reads more naturally than "Graph" alongside
-// the existing "Backlinks" / "Oggetto" labels in the rest of the UI.
-// We use the same `RightPaneTab` id `'backlinks'` for both untyped
-// (BacklinksList) and typed (ObjectPanel) modes — the persistence
-// shouldn't churn just because the user opened a typed note.
 const TABS_UNTYPED: readonly TabSpec[] = [
-  { id: 'backlinks', label: 'Backlinks' },
+  { id: 'references', label: 'Riferimenti' },
   { id: 'graph', label: 'Grafo' },
 ] as const;
 
 const TABS_TYPED: readonly TabSpec[] = [
-  { id: 'backlinks', label: 'Oggetto' },
+  { id: 'object', label: 'Oggetto' },
+  { id: 'references', label: 'Riferimenti' },
   { id: 'graph', label: 'Grafo' },
 ] as const;
 
 /**
  * Tabbed shell for the right-side panel. Hosts:
- *  - `<BacklinksList />`: the inbound-link list (extracted from the
- *    original v0.1 panel body).
+ *  - `<ObjectPanel />`: typed-note properties and object relations.
+ *  - `<ReferencesPanel />`: inbound links plus plain-text mentions.
  *  - `<MiniGraph />`: the v0.2 Wave 3 local-neighborhood graph.
  *
  * The outer `<aside>` wrapper is intentionally preserved so `Layout.tsx`
@@ -43,7 +39,7 @@ const TABS_TYPED: readonly TabSpec[] = [
 export function BacklinksPanel(): JSX.Element {
   const currentPath = useEditorStore((s) => s.currentPath);
   const currentNote = useEditorStore((s) => s.currentNote);
-  const activeTab = useUiStore((s) => s.rightPaneTab);
+  const persistedTab = useUiStore((s) => s.rightPaneTab);
   const setRightPaneTab = useUiStore((s) => s.setRightPaneTab);
 
   const [activeLoading, setActiveLoading] = useState(false);
@@ -54,12 +50,10 @@ export function BacklinksPanel(): JSX.Element {
     setActiveLoading(loading);
   }, []);
 
-  // v1.0: when the active note has a `type:` we swap the legacy
-  // backlinks list for the object panel. Untyped notes keep the
-  // backlinks behaviour unchanged. Tab id `'backlinks'` is reused
-  // for both modes (label changes; persistence stays).
   const isTyped = currentNote !== null && extractType(currentNote.frontmatter) !== null;
   const tabs = isTyped ? TABS_TYPED : TABS_UNTYPED;
+  const activeTab: RightPaneTab =
+    persistedTab === 'object' && !isTyped ? 'references' : persistedTab;
 
   return (
     <aside className="flex h-full flex-col overflow-hidden bg-bg-subtle">
@@ -100,12 +94,10 @@ export function BacklinksPanel(): JSX.Element {
         id={`right-pane-panel-${activeTab}`}
         aria-labelledby={`right-pane-tab-${activeTab}`}
       >
-        {activeTab === 'backlinks' ? (
-          isTyped ? (
-            <ObjectPanel />
-          ) : (
-            <BacklinksList currentPath={currentPath} onLoadingChange={handleLoadingChange} />
-          )
+        {activeTab === 'object' ? (
+          <ObjectPanel />
+        ) : activeTab === 'references' ? (
+          <ReferencesPanel currentPath={currentPath} onLoadingChange={handleLoadingChange} />
         ) : (
           <MiniGraph currentPath={currentPath} onLoadingChange={handleLoadingChange} />
         )}

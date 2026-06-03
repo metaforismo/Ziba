@@ -31,7 +31,7 @@ import {
 } from './notes.js';
 import { listFolders, createFolder, renameFolder, deleteFolder } from './folder.js';
 import { duplicateNote, showInFinder } from './file-actions.js';
-import { getBacklinks, resolveTitle } from './links.js';
+import { getBacklinks, getReferences, resolveTitle } from './links.js';
 import { searchFullText } from './search.js';
 import { listTags, getNotesByTag } from './tags.js';
 import { runDatabaseQuery } from './database.js';
@@ -106,6 +106,7 @@ export function registerIpcHandlers(win: BrowserWindow): void {
 
   // Links
   handle(IpcChannels.getBacklinks, (args) => getBacklinks(args));
+  handle(IpcChannels.getReferences, (args) => getReferences(args));
   handle(IpcChannels.resolveTitle, (args) => resolveTitle(args));
 
   // Search / tags

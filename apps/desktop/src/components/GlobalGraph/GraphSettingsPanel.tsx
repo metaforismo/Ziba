@@ -130,7 +130,7 @@ export function GraphSettingsPanel({
   };
 
   return (
-    <aside className="absolute bottom-3 right-3 top-3 z-20 flex w-[22rem] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-lg border border-[#3a3a3f] bg-[#242426]/95 text-[12px] text-[#e4e4e7] shadow-2xl shadow-black/35 backdrop-blur-xl">
+    <aside className="absolute bottom-3 right-3 top-3 z-20 flex w-[20rem] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-lg border border-[#3a3a3f] bg-[#242426]/95 text-[12px] text-[#e4e4e7] shadow-2xl shadow-black/35 backdrop-blur-xl">
       <div className="flex items-center justify-between border-b border-[#36363a] px-3 py-2.5">
         <div className="min-w-0">
           <h2 className="truncate text-[14px] font-semibold text-[#f2f2f3]">Controlli grafo</h2>
@@ -216,6 +216,14 @@ export function GraphSettingsPanel({
             max={16}
             step={1}
             onChange={(minDegree): void => onQueryChange({ minDegree })}
+          />
+          <Slider
+            label="Profondità locale"
+            value={settings.query.localDepth}
+            min={0}
+            max={6}
+            step={1}
+            onChange={(localDepth): void => onQueryChange({ localDepth })}
           />
         </AccordionSection>
 

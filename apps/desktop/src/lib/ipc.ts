@@ -9,6 +9,7 @@ import type {
   DatabaseResult,
   FullGraph,
   IndexProgressPayload,
+  LinkReferencesResult,
   ObjectTypeRow,
   RelationRow,
   SearchHit,
@@ -101,6 +102,9 @@ export const ipc = {
   // Links
   getBacklinks(args: { path: NotePath }): Promise<Backlink[]> {
     return api().invoke(IpcChannels.getBacklinks, args);
+  },
+  getReferences(args: { path: NotePath }): Promise<LinkReferencesResult> {
+    return api().invoke(IpcChannels.getReferences, args);
   },
   resolveTitle(args: { title: string }): Promise<NotePath | null> {
     return api().invoke(IpcChannels.resolveTitle, args);

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ArrowCounterClockwise,
   ArrowLeft,
   ArrowRight,
   ArrowSquareOut,
@@ -17,7 +18,7 @@ import { ipcErrorMessage } from '../../lib/ipc-error';
 import { debounce } from '../../lib/debounce';
 import { GLOBAL_GRAPH_REFETCH_MS } from '../../lib/timings';
 import { navigateToNote } from '../../lib/navigate';
-import { deriveGraphView } from '../../lib/graph-view';
+import { deriveGraphView, deriveLocalGraphView } from '../../lib/graph-view';
 import {
   Canvas,
   type CanvasEdge,
@@ -32,6 +33,7 @@ import { Legend } from './Legend';
 import { useTagsStore } from '../../stores/tags';
 import { useVaultStore } from '../../stores/vault';
 import { useGraphSettingsStore } from '../../stores/graph';
+import { useEditorStore } from '../../stores/editor';
 import { GraphSettingsPanel, type GraphPreset } from './GraphSettingsPanel';
 import type { GraphGroupRule } from '../../lib/graph-settings';
 import { graphGroupQueryMatchesNode } from '../../lib/graph-groups';
@@ -57,6 +59,8 @@ const NODE_R_MAX = 18;
 
 const ZOOM_STEP = 1.25;
 
+type GraphScope = 'global' | 'local';
+
 type LoadState =
   | { kind: 'idle' }
   | { kind: 'loading' }
@@ -66,8 +70,12 @@ type LoadState =
 export function GlobalGraph(): JSX.Element {
   const [load, setLoad] = useState<LoadState>({ kind: 'idle' });
   const [selectedId, setSelectedId] = useState<NotePath | null>(null);
+  const [graphScope, setGraphScope] = useState<GraphScope>('global');
+  const [localRootId, setLocalRootId] = useState<NotePath | null>(null);
   const [clusterOverlayOn, setClusterOverlayOn] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [surfaceFullscreen, setSurfaceFullscreen] = useState(false);
   // We bump `viewVersion` whenever we want to force the canvas to apply
   // a fresh `initialView` (fit-to-screen, +/- zoom button). Pan/wheel
   // gestures bypass this and write directly into the canvas via its
@@ -77,7 +85,9 @@ export function GlobalGraph(): JSX.Element {
   const requestSeq = useRef(0);
   const canvasRef = useRef<CanvasHandle | null>(null);
   const graphFrameRef = useRef<HTMLDivElement | null>(null);
+  const mountedRef = useRef(true);
 
+  const currentPath = useEditorStore((s) => s.currentPath);
   const objectTypeSchemas = useTagsStore((s) => s.objectTypeSchemas);
   const currentVaultRoot = useVaultStore((s) => s.current?.root ?? null);
   const graphSettings = useGraphSettingsStore((s) => s.settings);
@@ -96,11 +106,52 @@ export function GlobalGraph(): JSX.Element {
     () => new Set(graphSettings.query.relationKinds),
     [graphSettings.query.relationKinds],
   );
-  const graphView = useMemo(
+  const filteredGraphView = useMemo(
     () => (load.kind === 'ready' ? deriveGraphView(load.graph, graphSettings) : null),
     [load, graphSettings],
   );
+  const graphView = useMemo(() => {
+    if (filteredGraphView === null) return null;
+    if (graphScope === 'global') return filteredGraphView;
+    if (localRootId === null) {
+      return {
+        ...filteredGraphView,
+        graph: EMPTY_GRAPH,
+        activeFilterCount: filteredGraphView.activeFilterCount + 1,
+        hiddenNodeCount: load.kind === 'ready' ? load.graph.nodes.length : 0,
+        hiddenEdgeCount: load.kind === 'ready' ? load.graph.edges.length : 0,
+      };
+    }
+
+    const localView = deriveLocalGraphView(
+      filteredGraphView.graph,
+      localRootId,
+      graphSettings.query.localDepth,
+    );
+    return {
+      graph: localView.graph,
+      activeFilterCount: filteredGraphView.activeFilterCount + 1,
+      hiddenNodeCount: filteredGraphView.hiddenNodeCount + localView.hiddenNodeCount,
+      hiddenEdgeCount: filteredGraphView.hiddenEdgeCount + localView.hiddenEdgeCount,
+    };
+  }, [filteredGraphView, graphScope, graphSettings.query.localDepth, load, localRootId]);
   const visibleGraph = graphView?.graph ?? EMPTY_GRAPH;
+
+  useEffect(() => {
+    if (search.trim() !== '') setSearchOpen(true);
+  }, [search]);
+
+  useEffect(() => {
+    if (graphScope !== 'local') return;
+    if (currentPath !== null) {
+      setLocalRootId(currentPath);
+    }
+  }, [currentPath, graphScope]);
+
+  useEffect(() => {
+    if (graphScope !== 'local' || load.kind !== 'ready') return;
+    setLocalRootId((current) => current ?? load.graph.nodes[0]?.path ?? null);
+  }, [graphScope, load]);
 
   useEffect(() => {
     setGraphSettingsVaultRoot(currentVaultRoot);
@@ -111,45 +162,40 @@ export function GlobalGraph(): JSX.Element {
     seedGraphGroups(load.graph.nodes.map((node) => node.path));
   }, [load, seedGraphGroups]);
 
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const fetchGraph = useCallback(async (quiet = false): Promise<void> => {
+    const seq = ++requestSeq.current;
+    if (!quiet) setLoad({ kind: 'loading' });
+
+    try {
+      const graph = await ipc.getFullGraph();
+      if (!mountedRef.current || seq !== requestSeq.current) return;
+      if (graph.nodes.length > LARGE_GRAPH_WARN_THRESHOLD) {
+        console.warn(
+          `[GlobalGraph] vault has ${graph.nodes.length} nodes; layout may be slow (v0.3 ships d3-force simulation).`,
+        );
+      }
+      setLoad({ kind: 'ready', graph });
+    } catch (err: unknown) {
+      if (!mountedRef.current || seq !== requestSeq.current) return;
+      if (quiet) return;
+      const message = ipcErrorMessage(err);
+      setLoad({ kind: 'error', message });
+    }
+  }, []);
+
   // Initial fetch + watcher-driven refetch.
   useEffect(() => {
-    let cancelled = false;
-    const seq = ++requestSeq.current;
-    setLoad({ kind: 'loading' });
-
-    const fetchGraph = async (): Promise<void> => {
-      try {
-        const graph = await ipc.getFullGraph();
-        if (cancelled || seq !== requestSeq.current) return;
-        if (graph.nodes.length > LARGE_GRAPH_WARN_THRESHOLD) {
-          console.warn(
-            `[GlobalGraph] vault has ${graph.nodes.length} nodes; layout may be slow (v0.3 ships hand-rolled O(n²) simulation).`,
-          );
-        }
-        setLoad({ kind: 'ready', graph });
-      } catch (err: unknown) {
-        if (cancelled || seq !== requestSeq.current) return;
-        const message = ipcErrorMessage(err);
-        setLoad({ kind: 'error', message });
-      }
-    };
-
     void fetchGraph();
 
     const debouncedRefetch = debounce(() => {
-      // Skip if a fresh request is already in flight from the user
-      // remounting the view; otherwise piggyback on the same seq.
-      void (async (): Promise<void> => {
-        const localSeq = ++requestSeq.current;
-        try {
-          const graph = await ipc.getFullGraph();
-          if (cancelled || localSeq !== requestSeq.current) return;
-          setLoad({ kind: 'ready', graph });
-        } catch {
-          // Quietly ignore refetch errors — the user already has a
-          // valid graph on screen, we don't want to wipe it.
-        }
-      })();
+      void fetchGraph(true);
     }, GLOBAL_GRAPH_REFETCH_MS);
 
     const offEvent = ipc.onVaultEvent(() => {
@@ -157,11 +203,10 @@ export function GlobalGraph(): JSX.Element {
     });
 
     return (): void => {
-      cancelled = true;
       offEvent();
       debouncedRefetch.cancel();
     };
-  }, []);
+  }, [fetchGraph]);
 
   // Build a quick lookup table: path → title. Used by Canvas-bound
   // nodes (we don't need to expose the full graph object to the canvas).
@@ -564,9 +609,31 @@ export function GlobalGraph(): JSX.Element {
     [view],
   );
 
-  const handleNodeClick = useCallback((id: NotePath): void => {
-    setSelectedId((cur) => (cur === id ? null : id));
-  }, []);
+  const handleScopeChange = useCallback(
+    (scope: GraphScope): void => {
+      setGraphScope(scope);
+      userInteractedRef.current = false;
+      if (scope === 'local') {
+        const nextRoot = selectedId ?? currentPath ?? visibleGraph.nodes[0]?.path ?? null;
+        setLocalRootId(nextRoot);
+        if (nextRoot !== null) setSelectedId(nextRoot);
+      }
+    },
+    [currentPath, selectedId, visibleGraph.nodes],
+  );
+
+  const handleNodeClick = useCallback(
+    (id: NotePath): void => {
+      if (graphScope === 'local') {
+        setLocalRootId(id);
+        setSelectedId(id);
+        userInteractedRef.current = false;
+        return;
+      }
+      setSelectedId((cur) => (cur === id ? null : id));
+    },
+    [graphScope],
+  );
 
   const handleNodeDoubleClick = useCallback((id: NotePath): void => {
     // Sync the live transform back into React state before opening
@@ -629,6 +696,11 @@ export function GlobalGraph(): JSX.Element {
     [selectedId, visibleGraph, titleMap],
   );
 
+  const localRootTitle = useMemo(() => {
+    if (localRootId === null || load.kind !== 'ready') return null;
+    return load.graph.nodes.find((node) => node.path === localRootId)?.title ?? localRootId;
+  }, [load, localRootId]);
+
   // ---- Render ------------------------------------------------------
   const isReady = load.kind === 'ready';
   const totalNodeCount = isReady ? load.graph.nodes.length : 0;
@@ -639,7 +711,12 @@ export function GlobalGraph(): JSX.Element {
   const hasActiveFilters = (graphView?.activeFilterCount ?? 0) > 0;
 
   return (
-    <div className="flex h-full w-full flex-col bg-[#1d1d1f] text-[#e6e6e8]">
+    <div
+      className={[
+        'flex h-full w-full flex-col bg-[#1d1d1f] text-[#e6e6e8]',
+        surfaceFullscreen ? 'fixed inset-0 z-50' : '',
+      ].join(' ')}
+    >
       <div
         ref={graphFrameRef}
         tabIndex={0}
@@ -650,7 +727,9 @@ export function GlobalGraph(): JSX.Element {
         <div className="pointer-events-none absolute left-4 right-4 top-3 z-10 flex items-start justify-between gap-3">
           <div className="min-w-0 rounded-lg border border-[#36363a]/90 bg-[#242426]/80 px-3 py-2 shadow-lg shadow-black/20 backdrop-blur">
             <div className="flex min-w-0 items-baseline gap-3">
-              <h1 className="truncate text-[14px] font-semibold text-[#f0f0f2]">Vista grafo</h1>
+              <h1 className="truncate text-[14px] font-semibold text-[#f0f0f2]">
+                Grafo {graphScope === 'local' ? 'locale' : 'globale'}
+              </h1>
               {isReady && (
                 <span className="truncate font-mono text-[11px] tabular-nums text-[#9d9da4]">
                   {nodeCount} {nodeCount === 1 ? 'nodo' : 'nodi'} · {edgeCount}{' '}
@@ -658,6 +737,11 @@ export function GlobalGraph(): JSX.Element {
                 </span>
               )}
             </div>
+            {graphScope === 'local' && localRootTitle !== null && (
+              <p className="mt-1 truncate text-[11px] text-[#9d9da4]">
+                Root: {localRootTitle} · profondità {graphSettings.query.localDepth}
+              </p>
+            )}
             {hasActiveFilters && (
               <p className="mt-1 truncate text-[11px] text-[#9d9da4]">
                 {hiddenNodeCount} nodi nascosti · {hiddenEdgeCount} collegamenti nascosti
@@ -666,25 +750,65 @@ export function GlobalGraph(): JSX.Element {
           </div>
 
           <div className="pointer-events-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
-            <label className="flex h-9 w-64 max-w-[38vw] items-center gap-2 rounded-lg border border-[#3a3a3f] bg-[#242426]/86 px-2.5 text-[#b7b7bd] shadow-lg shadow-black/20 backdrop-blur transition focus-within:border-[#5a5a62] focus-within:ring-2 focus-within:ring-white/10">
-              <MagnifyingGlass size={16} aria-hidden="true" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e): void => updateGraphQuery({ search: e.target.value })}
-                placeholder="Cerca nel grafo..."
-                className="min-w-0 flex-1 bg-transparent text-[13px] text-[#f0f0f2] outline-none placeholder:text-[#87878f]"
-                spellCheck={false}
-                autoComplete="off"
-                autoCorrect="off"
-                aria-label="Filtra nodi per titolo"
-              />
-            </label>
             <div className="flex h-9 items-center overflow-hidden rounded-lg border border-[#3a3a3f] bg-[#242426]/86 shadow-lg shadow-black/20 backdrop-blur">
               <button
                 type="button"
-                onClick={(): void => handleZoom(1 / ZOOM_STEP)}
+                onClick={(): void => handleScopeChange('global')}
+                className={graphScopeButtonClass(graphScope === 'global')}
+                aria-pressed={graphScope === 'global'}
+              >
+                Globale
+              </button>
+              <button
+                type="button"
+                onClick={(): void => handleScopeChange('local')}
+                className={graphScopeButtonClass(graphScope === 'local')}
+                aria-pressed={graphScope === 'local'}
+              >
+                Locale
+              </button>
+            </div>
+            {searchOpen && (
+              <label className="flex h-9 w-64 max-w-[38vw] items-center gap-2 rounded-lg border border-[#3a3a3f] bg-[#242426]/86 px-2.5 text-[#b7b7bd] shadow-lg shadow-black/20 backdrop-blur transition focus-within:border-[#5a5a62] focus-within:ring-2 focus-within:ring-white/10">
+                <MagnifyingGlass size={16} aria-hidden="true" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e): void => updateGraphQuery({ search: e.target.value })}
+                  placeholder="Cerca"
+                  className="min-w-0 flex-1 bg-transparent text-[13px] text-[#f0f0f2] outline-none placeholder:text-[#87878f]"
+                  spellCheck={false}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  aria-label="Filtra nodi per titolo"
+                />
+              </label>
+            )}
+            <div className="flex h-9 items-center overflow-hidden rounded-lg border border-[#3a3a3f] bg-[#242426]/86 shadow-lg shadow-black/20 backdrop-blur">
+              <button
+                type="button"
+                onClick={(): void => setSearchOpen((open) => !open)}
                 className={graphToolbarButtonClass}
+                title="Cerca"
+                aria-label={searchOpen ? 'Nascondi ricerca grafo' : 'Mostra ricerca grafo'}
+              >
+                <MagnifyingGlass size={15} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={(): void => {
+                  void fetchGraph();
+                }}
+                className={`${graphToolbarButtonClass} border-l border-[#3a3a3f]`}
+                title="Aggiorna grafo"
+                aria-label="Aggiorna grafo"
+              >
+                <ArrowCounterClockwise size={15} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={(): void => handleZoom(1 / ZOOM_STEP)}
+                className={`${graphToolbarButtonClass} border-l border-[#3a3a3f]`}
                 title="Zoom out"
                 aria-label="Diminuisci zoom"
               >
@@ -707,6 +831,15 @@ export function GlobalGraph(): JSX.Element {
                 aria-label="Adatta alla finestra"
               >
                 <CornersOut size={16} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={(): void => setSurfaceFullscreen((open) => !open)}
+                className={`${graphToolbarButtonClass} border-l border-[#3a3a3f]`}
+                title={surfaceFullscreen ? 'Riduci grafo' : 'Espandi grafo'}
+                aria-label={surfaceFullscreen ? 'Riduci grafo' : 'Espandi grafo'}
+              >
+                <ArrowSquareOut size={16} aria-hidden="true" />
               </button>
               <button
                 type="button"
@@ -872,6 +1005,15 @@ function groupColorForNode(
 
 const graphToolbarButtonClass =
   'grid h-full min-w-9 place-items-center px-2 text-[#b7b7bd] transition hover:bg-[#303034] hover:text-[#f4f4f5] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/25 active:bg-[#343438]';
+
+function graphScopeButtonClass(active: boolean): string {
+  return [
+    'h-full px-3 text-[12px] font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/25',
+    active
+      ? 'bg-[#d7d7da] text-[#1d1d1f]'
+      : 'text-[#b7b7bd] hover:bg-[#303034] hover:text-[#f4f4f5]',
+  ].join(' ');
+}
 
 function GraphStatus({
   title,
