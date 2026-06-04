@@ -1,26 +1,29 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { JSX } from 'react';
-import type { NotePath } from '@ziba/core';
+import type { Frontmatter, NotePath } from '@ziba/core';
 import type {
   DatabaseGroup,
   DatabaseQuery,
   DatabaseRow,
   DatabaseViewDefinition,
   DatabaseViewsFile,
+  PropertyType,
 } from '../../../shared/ipc';
 import { useDatabaseStore } from '../../stores/database';
 import { navigateToNote } from '../../lib/navigate';
 import { ipc } from '../../lib/ipc';
+import { ipcErrorMessage } from '../../lib/ipc-error';
 import { useUiStore, type DatabaseViewMode } from '../../stores/ui';
 import { useVaultStore } from '../../stores/vault';
 import { useTagsStore } from '../../stores/tags';
+import { toast } from '../../stores/toast';
 import { TypeFilterDropdown } from './TypeFilterDropdown';
 import { BoardView } from './BoardView';
 import { CalendarView } from './CalendarView';
 import { ColumnPicker } from './ColumnPicker';
 import { FilterBar } from './FilterBar';
 import { GalleryView } from './GalleryView';
-import { Table } from './Table';
+import { Table, type DatabaseCellCommit } from './Table';
 
 /**
  * Default count of property columns rendered when the user hasn't picked
@@ -43,8 +46,42 @@ const TIME_FORMATTER = new Intl.DateTimeFormat('it', {
   second: '2-digit',
 });
 
+export type DatabaseViewProps = {
+  /** Saved view to apply first, used by inline database blocks. */
+  initialViewId?: string;
+  /** Compact framed surface for rendering inside the editor body. */
+  embedded?: boolean;
+  /** Notifies the embedding node when the user switches to another saved view. */
+  onActiveViewChange?: (viewId: string) => void;
+};
+
 function createViewId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `view-${Date.now().toString(36)}`;
+}
+
+function coerceCellValue(type: PropertyType | null, value: string | boolean): unknown {
+  if (typeof value === 'boolean') return value;
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return undefined;
+
+  switch (type) {
+    case 'number': {
+      const parsed = Number(trimmed);
+      return Number.isFinite(parsed) ? parsed : undefined;
+    }
+    case 'boolean':
+      return trimmed.toLowerCase() === 'true' || trimmed === '1' || trimmed.toLowerCase() === 'si';
+    case 'string-array':
+      return trimmed
+        .split(',')
+        .map((part) => part.trim())
+        .filter((part) => part.length > 0);
+    case 'date':
+    case 'url':
+    case 'text':
+    default:
+      return trimmed;
+  }
 }
 
 /**
@@ -60,7 +97,8 @@ function createViewId(): string {
  *    `openNote` is async, but we switch the view synchronously so the
  *    editor pane is already mounted by the time the note resolves.
  */
-export function DatabaseView(): JSX.Element {
+export function DatabaseView(props: DatabaseViewProps = {}): JSX.Element {
+  const { initialViewId, embedded = false, onActiveViewChange } = props;
   const query = useDatabaseStore((s) => s.query);
   const result = useDatabaseStore((s) => s.result);
   const loading = useDatabaseStore((s) => s.loading);
@@ -102,6 +140,7 @@ export function DatabaseView(): JSX.Element {
   const applyDatabaseView = useCallback(
     (view: DatabaseViewDefinition): void => {
       setActiveViewId(view.id);
+      onActiveViewChange?.(view.id);
       setDatabaseViewMode(view.layout);
       if (view.columns.length > 0) {
         seededRef.current = true;
@@ -112,7 +151,7 @@ export function DatabaseView(): JSX.Element {
       }
       void applyViewState({ query: view.query, selectedType: view.selectedType });
     },
-    [applyViewState, setDatabaseViewMode],
+    [applyViewState, onActiveViewChange, setDatabaseViewMode],
   );
 
   useEffect(() => {
@@ -123,7 +162,7 @@ export function DatabaseView(): JSX.Element {
         const file = await ipc.listDatabaseViews();
         if (cancelled) return;
         setViewsFile(file);
-        const nextActiveId = file.activeViewId ?? file.views[0]?.id ?? null;
+        const nextActiveId = initialViewId ?? file.activeViewId ?? file.views[0]?.id ?? null;
         setActiveViewId(nextActiveId);
         const nextActive = file.views.find((view) => view.id === nextActiveId) ?? file.views[0];
         if (nextActive !== undefined) applyDatabaseView(nextActive);
@@ -135,15 +174,17 @@ export function DatabaseView(): JSX.Element {
     void loadViews();
     const off = ipc.onDatabaseViewsChanged((file) => {
       setViewsFile(file);
-      const nextActiveId = file.activeViewId ?? file.views[0]?.id ?? null;
+      const nextActiveId = initialViewId ?? file.activeViewId ?? file.views[0]?.id ?? null;
       setActiveViewId(nextActiveId);
+      const nextActive = file.views.find((view) => view.id === nextActiveId) ?? file.views[0];
+      if (nextActive !== undefined) applyDatabaseView(nextActive);
     });
 
     return () => {
       cancelled = true;
       off();
     };
-  }, [applyDatabaseView]);
+  }, [applyDatabaseView, initialViewId]);
 
   useEffect(() => {
     if (seededRef.current) return;
@@ -157,6 +198,7 @@ export function DatabaseView(): JSX.Element {
   // user would lose their curation on every save.
   useEffect(() => {
     if (!seededRef.current) return;
+    if (availableProperties.length === 0) return;
     const known = new Set(availableProperties);
     const filtered = visibleColumns.filter((k) => known.has(k));
     if (filtered.length !== visibleColumns.length) {
@@ -375,6 +417,32 @@ export function DatabaseView(): JSX.Element {
     void navigateToNote(path);
   };
 
+  const handleCellCommit = useCallback(
+    async ({ path, key, type, value }: DatabaseCellCommit): Promise<void> => {
+      try {
+        const note = await ipc.loadNote({ path: path as NotePath });
+        const nextFrontmatter: Frontmatter = { ...note.frontmatter };
+        const nextValue = coerceCellValue(type, value);
+        if (nextValue === undefined) delete nextFrontmatter[key];
+        else nextFrontmatter[key] = nextValue;
+
+        await ipc.saveNote({
+          path: path as NotePath,
+          body: note.content,
+          frontmatter: nextFrontmatter,
+        });
+        await runQuery();
+        await useVaultStore
+          .getState()
+          .refreshNotes()
+          .catch(() => undefined);
+      } catch (err: unknown) {
+        toast.error(ipcErrorMessage(err), 'Impossibile aggiornare la cella');
+      }
+    },
+    [runQuery],
+  );
+
   // The body switches between three states (in priority order):
   //   1. error banner — show even if `result` is non-null, so the user
   //      sees the latest error overlaying the last good table.
@@ -391,18 +459,42 @@ export function DatabaseView(): JSX.Element {
   // (App.tsx renders <EmptyState />), but we guard defensively.
   if (currentVault === null) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-bg p-8 text-fg-muted">
+      <div
+        className={
+          embedded
+            ? 'flex min-h-64 w-full items-center justify-center rounded-md border border-border bg-bg p-8 text-fg-muted'
+            : 'flex h-full w-full items-center justify-center bg-bg p-8 text-fg-muted'
+        }
+      >
         <span className="text-sm">Apri un vault per usare la vista database.</span>
       </div>
     );
   }
 
   return (
-    <section className="flex h-full w-full flex-col bg-bg">
-      <header className="shrink-0 border-b border-border bg-bg-subtle px-4 py-2">
+    <section
+      className={
+        embedded
+          ? 'flex h-[420px] w-full flex-col overflow-hidden rounded-md border border-border bg-bg text-sm'
+          : 'flex h-full w-full flex-col bg-bg'
+      }
+    >
+      <header
+        className={
+          embedded
+            ? 'shrink-0 border-b border-border bg-bg-subtle px-3 py-2'
+            : 'shrink-0 border-b border-border bg-bg-subtle px-4 py-2'
+        }
+      >
         <div className="flex items-baseline justify-between gap-2">
           <div className="flex items-baseline gap-3">
-            <h1 className="text-base font-semibold text-fg">Database</h1>
+            <h1
+              className={
+                embedded ? 'text-sm font-semibold text-fg' : 'text-base font-semibold text-fg'
+              }
+            >
+              {embedded && activeView !== null ? activeView.name : 'Database'}
+            </h1>
             <span className="text-xs text-fg-muted">{noteCountLabel}</span>
             {visibleWindowLabel !== null && (
               <span className="text-xs text-fg-muted">{visibleWindowLabel}</span>
@@ -581,6 +673,9 @@ export function DatabaseView(): JSX.Element {
             groupBy={query.groupBy}
             onSortChange={setSort}
             onRowClick={onRowClick}
+            onCellCommit={(args): void => {
+              void handleCellCommit(args);
+            }}
           />
         )}
 

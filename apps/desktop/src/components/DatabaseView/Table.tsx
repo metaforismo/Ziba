@@ -10,6 +10,13 @@ import type {
 
 type SortSpec = NonNullable<DatabaseQuery['sort']>;
 
+export type DatabaseCellCommit = {
+  path: string;
+  key: string;
+  type: PropertyType | null;
+  value: string | boolean;
+};
+
 type Props = {
   rows: readonly DatabaseRow[];
   groups: readonly DatabaseGroup[];
@@ -22,6 +29,7 @@ type Props = {
   groupBy: string | undefined;
   onSortChange(sort: SortSpec): void;
   onRowClick(path: string): void;
+  onCellCommit?(args: DatabaseCellCommit): void;
 };
 
 /**
@@ -165,6 +173,91 @@ function PropertyCell({ prop }: { prop: DetectedProperty | undefined }): JSX.Ele
   }
 }
 
+function editableValue(prop: DetectedProperty | undefined): string {
+  if (prop === undefined) return '';
+  if (prop.type === 'string-array') return prop.value.join(', ');
+  if (prop.type === 'boolean') return prop.value ? 'true' : 'false';
+  return String(prop.value);
+}
+
+function EditablePropertyCell({
+  row,
+  keyName,
+  type,
+  prop,
+  onCommit,
+}: {
+  row: DatabaseRow;
+  keyName: string;
+  type: PropertyType | null;
+  prop: DetectedProperty | undefined;
+  onCommit(args: DatabaseCellCommit): void;
+}): JSX.Element {
+  const label = `${keyName} per ${row.title}`;
+  const value = editableValue(prop);
+
+  if (type === 'boolean' || prop?.type === 'boolean') {
+    const checked = prop?.type === 'boolean' ? prop.value : false;
+    return (
+      <input
+        type="checkbox"
+        aria-label={label}
+        defaultChecked={checked}
+        onClick={(event): void => event.stopPropagation()}
+        onChange={(event): void => {
+          onCommit({
+            path: row.path,
+            key: keyName,
+            type: 'boolean',
+            value: event.currentTarget.checked,
+          });
+        }}
+        className="size-4 rounded border-border accent-accent"
+      />
+    );
+  }
+
+  const normalizedType = type ?? prop?.type ?? 'text';
+  const inputType =
+    normalizedType === 'number'
+      ? 'number'
+      : normalizedType === 'date'
+        ? 'date'
+        : normalizedType === 'url'
+          ? 'url'
+          : 'text';
+
+  return (
+    <input
+      type={inputType}
+      aria-label={label}
+      defaultValue={value}
+      onClick={(event): void => event.stopPropagation()}
+      onKeyDown={(event): void => {
+        event.stopPropagation();
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          event.currentTarget.blur();
+        } else if (event.key === 'Escape') {
+          event.preventDefault();
+          event.currentTarget.value = value;
+          event.currentTarget.blur();
+        }
+      }}
+      onBlur={(event): void => {
+        if (event.currentTarget.value === value) return;
+        onCommit({
+          path: row.path,
+          key: keyName,
+          type: normalizedType,
+          value: event.currentTarget.value,
+        });
+      }}
+      className="w-full min-w-24 rounded border border-transparent bg-transparent px-1 py-0.5 text-fg-subtle outline-none hover:border-border hover:bg-bg focus:border-accent focus:bg-bg focus:text-fg"
+    />
+  );
+}
+
 /**
  * Sortable column header. Clicking toggles asc/desc for that key; clicking
  * a different key resets to asc.
@@ -236,6 +329,7 @@ export function Table({
   groupBy,
   onSortChange,
   onRowClick,
+  onCellCommit,
 }: Props): JSX.Element {
   const activeSort = sort?.[0] ?? null;
   const activeKey = activeSort?.key ?? null;
@@ -342,6 +436,7 @@ export function Table({
                     columns={columns}
                     columnTypes={columnTypes}
                     onRowClick={onRowClick}
+                    {...(onCellCommit !== undefined && { onCellCommit })}
                   />
                 );
               })}
@@ -353,6 +448,7 @@ export function Table({
                   columns={columns}
                   columnTypes={columnTypes}
                   onRowClick={onRowClick}
+                  {...(onCellCommit !== undefined && { onCellCommit })}
                 />
               ))}
           </tbody>
@@ -387,6 +483,7 @@ function GroupSection({
   columns,
   columnTypes,
   onRowClick,
+  onCellCommit,
 }: {
   label: string;
   count: number;
@@ -395,6 +492,7 @@ function GroupSection({
   columns: string[];
   columnTypes: Map<string, PropertyType | null>;
   onRowClick(path: string): void;
+  onCellCommit?(args: DatabaseCellCommit): void;
 }): JSX.Element {
   return (
     <>
@@ -413,6 +511,7 @@ function GroupSection({
           columns={columns}
           columnTypes={columnTypes}
           onRowClick={onRowClick}
+          {...(onCellCommit !== undefined && { onCellCommit })}
         />
       ))}
     </>
@@ -424,11 +523,13 @@ function RowItem({
   columns,
   columnTypes,
   onRowClick,
+  onCellCommit,
 }: {
   row: DatabaseRow;
   columns: string[];
   columnTypes: Map<string, PropertyType | null>;
   onRowClick(path: string): void;
+  onCellCommit?(args: DatabaseCellCommit): void;
 }): JSX.Element {
   return (
     <tr
@@ -455,7 +556,17 @@ function RowItem({
               t === 'number' && 'text-right',
             )}
           >
-            <PropertyCell prop={row.properties[key]} />
+            {onCellCommit === undefined ? (
+              <PropertyCell prop={row.properties[key]} />
+            ) : (
+              <EditablePropertyCell
+                row={row}
+                keyName={key}
+                type={t}
+                prop={row.properties[key]}
+                onCommit={onCellCommit}
+              />
+            )}
           </td>
         );
       })}

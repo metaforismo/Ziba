@@ -4,6 +4,7 @@ import type { Editor as TiptapEditor } from '@tiptap/core';
 import type { SuggestionKeyDownProps, SuggestionProps } from '@tiptap/suggestion';
 import type { Frontmatter } from '@ziba/core';
 import { Check, CheckCircle, NotePencil } from '@phosphor-icons/react';
+import type { DatabaseViewDefinition } from '../../../shared/ipc';
 import { useEditorStore } from '../../stores/editor';
 import { useUiStore } from '../../stores/ui';
 import { useVaultStore } from '../../stores/vault';
@@ -23,6 +24,7 @@ import {
   type WikilinkSuggestionRenderer,
 } from './extensions/WikilinkSuggestion';
 import { RelationPickerPopup } from './RelationPickerPopup';
+import { DatabaseBlockPickerPopup } from './DatabaseBlockPickerPopup';
 import { SlashMenuPopup } from './SlashMenuPopup';
 import { useResolvedWikilinks } from './useResolvedWikilinks';
 import { useWikilinkTypes } from './useWikilinkTypes';
@@ -80,6 +82,22 @@ const INITIAL_RELATION_PICKER_STATE: RelationPickerState = {
   suggestedKinds: [],
 };
 
+type DatabasePickerState = {
+  open: boolean;
+  position: { top: number; left: number; bottom: number };
+  views: DatabaseViewDefinition[];
+  loading: boolean;
+  error: string | null;
+};
+
+const INITIAL_DATABASE_PICKER_STATE: DatabasePickerState = {
+  open: false,
+  position: { top: 0, left: 0, bottom: 0 },
+  views: [],
+  loading: false,
+  error: null,
+};
+
 function basenameTitle(path: string): string {
   const last = path.split('/').pop() ?? path;
   return last.replace(/\.md$/i, '');
@@ -98,6 +116,10 @@ function renamedPath(path: string, title: string): string {
   const parts = path.split('/');
   parts[parts.length - 1] = titleToFilename(title);
   return parts.join('/');
+}
+
+function createInlineDatabaseViewId(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `inline-db-${Date.now().toString(36)}`;
 }
 
 /**
@@ -165,6 +187,9 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
 
   const [relationPicker, setRelationPicker] = useState<RelationPickerState>(
     INITIAL_RELATION_PICKER_STATE,
+  );
+  const [databasePicker, setDatabasePicker] = useState<DatabasePickerState>(
+    INITIAL_DATABASE_PICKER_STATE,
   );
 
   // Mutable ref shared with the SlashCommand extension so the relation
@@ -353,9 +378,48 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
     [suggestedRelationKinds],
   );
 
+  const handleDatabaseRequested = useCallback<
+    NonNullable<BuildExtensionsOptions['onSlashDatabaseRequested']>
+  >(({ position }) => {
+    setDatabasePicker({
+      open: true,
+      position,
+      views: [],
+      loading: true,
+      error: null,
+    });
+    void ipc
+      .listDatabaseViews()
+      .then((file) => {
+        setDatabasePicker((prev) =>
+          prev.open
+            ? {
+                ...prev,
+                views: file.views,
+                loading: false,
+                error: null,
+              }
+            : prev,
+        );
+      })
+      .catch((err: unknown) => {
+        setDatabasePicker((prev) =>
+          prev.open
+            ? {
+                ...prev,
+                loading: false,
+                error: ipcErrorMessage(err),
+              }
+            : prev,
+        );
+      });
+  }, []);
+
   const handleRelationRequestedRef = useRef(handleRelationRequested);
+  const handleDatabaseRequestedRef = useRef(handleDatabaseRequested);
   useEffect(() => {
     handleRelationRequestedRef.current = handleRelationRequested;
+    handleDatabaseRequestedRef.current = handleDatabaseRequested;
   });
 
   // Build extensions once. The closure captures `createSuggestionRenderer`
@@ -367,6 +431,7 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
         createSuggestionRenderer,
         createSlashRenderer,
         onSlashRelationRequested: (args) => handleRelationRequestedRef.current(args),
+        onSlashDatabaseRequested: (args) => handleDatabaseRequestedRef.current(args),
         slashLatestRect,
       }),
     [createSuggestionRenderer, createSlashRenderer],
@@ -611,6 +676,42 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
     }
   };
 
+  const handleInsertDatabaseBlock = useCallback(
+    (viewId: string): void => {
+      if (editor === null) return;
+      editor.commands.insertDatabaseBlock({ viewId });
+      setDatabasePicker(INITIAL_DATABASE_PICKER_STATE);
+    },
+    [editor],
+  );
+
+  const handleCreateInlineDatabaseView = useCallback(async (): Promise<void> => {
+    setDatabasePicker((prev) => ({ ...prev, loading: true, error: null }));
+    const timestamp = Date.now();
+    const view: DatabaseViewDefinition = {
+      id: createInlineDatabaseViewId(),
+      name: `Vista inline ${Math.max(1, databasePicker.views.length + 1)}`,
+      layout: 'table',
+      query: { filters: [], limit: 1000 },
+      selectedType: null,
+      columns: [],
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+
+    try {
+      const saved = await ipc.upsertDatabaseView({ view });
+      if (editor !== null) editor.commands.insertDatabaseBlock({ viewId: saved.id });
+      setDatabasePicker(INITIAL_DATABASE_PICKER_STATE);
+    } catch (err: unknown) {
+      setDatabasePicker((prev) => ({
+        ...prev,
+        loading: false,
+        error: ipcErrorMessage(err),
+      }));
+    }
+  }, [databasePicker.views.length, editor]);
+
   if (currentNote === null) {
     const showStarterAction = notes.length === 0;
 
@@ -839,6 +940,20 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
           onHover={(idx): void => {
             setSlash((prev) => ({ ...prev, selectedIndex: idx }));
           }}
+        />
+      )}
+
+      {databasePicker.open && (
+        <DatabaseBlockPickerPopup
+          position={databasePicker.position}
+          views={databasePicker.views}
+          loading={databasePicker.loading}
+          error={databasePicker.error}
+          onSelect={handleInsertDatabaseBlock}
+          onCreateQuick={(): void => {
+            void handleCreateInlineDatabaseView();
+          }}
+          onCancel={(): void => setDatabasePicker(INITIAL_DATABASE_PICKER_STATE)}
         />
       )}
 
