@@ -71,6 +71,7 @@ export const IpcChannels = {
 
   // Wikilinks / backlinks
   getBacklinks: 'links:backlinks',
+  getReferences: 'links:references',
   resolveTitle: 'links:resolveTitle',
 
   // Search / tags
@@ -167,6 +168,7 @@ export type IpcRequests = {
   [IpcChannels.showInFinder]: { path: NotePath };
 
   [IpcChannels.getBacklinks]: { path: NotePath };
+  [IpcChannels.getReferences]: { path: NotePath };
   [IpcChannels.resolveTitle]: { title: string };
 
   [IpcChannels.searchFullText]: { query: string; limit?: number };
@@ -191,6 +193,20 @@ export type Backlink = {
   sourcePath: NotePath;
   sourceTitle: string;
   context?: string; // short snippet around the wikilink occurrence
+};
+
+export type LinkReferenceKind = 'backlink' | 'mention';
+
+export type LinkReference = {
+  kind: LinkReferenceKind;
+  sourcePath: NotePath;
+  sourceTitle: string;
+  context?: string;
+};
+
+export type LinkReferencesResult = {
+  backlinks: LinkReference[];
+  mentions: LinkReference[];
 };
 
 /** A single full-text-search hit returned to the renderer. */
@@ -238,6 +254,7 @@ export type IpcResponses = {
   [IpcChannels.showInFinder]: void;
 
   [IpcChannels.getBacklinks]: Backlink[];
+  [IpcChannels.getReferences]: LinkReferencesResult;
   [IpcChannels.resolveTitle]: NotePath | null;
 
   [IpcChannels.searchFullText]: SearchHit[];

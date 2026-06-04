@@ -166,7 +166,7 @@ describe('useUiStore — loadPersisted validator', () => {
     const { useUiStore } = await loadUiStore();
     const s = useUiStore.getState();
     expect(s.sidebarWidth).toBe(240);
-    expect(s.rightPaneTab).toBe('backlinks');
+    expect(s.rightPaneTab).toBe('references');
     expect(s.mainView).toBe('editor');
     expect(s.expandedFolders).toEqual([]);
     expect(s.themeId).toBe('ziba-light');
@@ -194,10 +194,23 @@ describe('useUiStore — loadPersisted validator', () => {
     expect(s.backlinksOpen).toBe(false); // default (since 'nope' is not boolean)
     expect(s.expandedFolders).toEqual([]); // mixed array rejected wholesale
     expect(s.tagsExpanded).toBe(true);
-    expect(s.rightPaneTab).toBe('backlinks'); // default
+    expect(s.rightPaneTab).toBe('references'); // default
     expect(s.mainView).toBe('editor');
     expect(s.themeId).toBe('ziba-light');
     expect(document.documentElement.dataset.theme).toBe('ziba-light');
+  });
+
+  it('migrates the legacy backlinks tab to References on load', async () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        rightPaneTab: 'backlinks',
+      }),
+    );
+
+    const { useUiStore } = await loadUiStore();
+
+    expect(useUiStore.getState().rightPaneTab).toBe('references');
   });
 
   it('loads and applies a valid persisted theme id', async () => {

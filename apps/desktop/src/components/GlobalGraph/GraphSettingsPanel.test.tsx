@@ -7,6 +7,7 @@ const DEFAULT_PROPS = {
   settings: DEFAULT_GRAPH_SETTINGS,
   onClose: vi.fn(),
   onReset: vi.fn(),
+  onApplyPreset: vi.fn(),
   onQueryChange: vi.fn(),
   onDisplayChange: vi.fn(),
   onForcesChange: vi.fn(),
@@ -22,17 +23,18 @@ describe('<GraphSettingsPanel>', () => {
     expect(screen.queryByRole('heading', { name: 'Controlli grafo' })).toBeNull();
   });
 
-  it('renders the Obsidian-like drawer sections without unsupported global controls', () => {
+  it('renders the SiYuan-like drawer sections with local graph controls', () => {
     render(<GraphSettingsPanel {...DEFAULT_PROPS} open />);
 
     expect(screen.getByRole('heading', { name: 'Controlli grafo' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Applica preset SiYuan' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Filtri' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Gruppi' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Aspetto' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Forze' })).toBeInTheDocument();
     expect(screen.queryByLabelText('Nodi irrisolti')).toBeNull();
     expect(screen.queryByLabelText('Solo esistenti')).toBeNull();
-    expect(screen.queryByLabelText('Profondità locale')).toBeNull();
+    expect(screen.getByLabelText('Profondità locale')).toBeInTheDocument();
   });
 
   it('emits real setting updates from search, toggles, and sliders', () => {
@@ -56,6 +58,12 @@ describe('<GraphSettingsPanel>', () => {
     fireEvent.click(screen.getByLabelText('Orfani'));
     expect(onQueryChange).toHaveBeenCalledWith({ includeOrphans: false });
 
+    fireEvent.change(screen.getByLabelText('Connessioni minime'), { target: { value: '2' } });
+    expect(onQueryChange).toHaveBeenCalledWith({ minDegree: 2 });
+
+    fireEvent.change(screen.getByLabelText('Profondità locale'), { target: { value: '3' } });
+    expect(onQueryChange).toHaveBeenCalledWith({ localDepth: 3 });
+
     fireEvent.click(screen.getByLabelText('Etichette'));
     expect(onDisplayChange).toHaveBeenCalledWith({ showText: false });
 
@@ -64,6 +72,21 @@ describe('<GraphSettingsPanel>', () => {
 
     fireEvent.change(screen.getByLabelText('Forza di repulsione'), { target: { value: '260' } });
     expect(onForcesChange).toHaveBeenCalledWith({ repel: 260 });
+  });
+
+  it('applies graph presets as a single user action', () => {
+    const onApplyPreset = vi.fn();
+    render(<GraphSettingsPanel {...DEFAULT_PROPS} open onApplyPreset={onApplyPreset} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Applica preset SiYuan' }));
+
+    expect(onApplyPreset).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'siyuan',
+        query: expect.objectContaining({ minDegree: 1, includeOrphans: false }),
+        display: expect.objectContaining({ showArrows: true }),
+      }),
+    );
   });
 
   it('adds and edits group rules', () => {

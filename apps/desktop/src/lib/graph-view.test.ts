@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { FullGraph } from '../../shared/ipc';
 import { DEFAULT_GRAPH_SETTINGS, type GraphSettings } from './graph-settings';
-import { deriveGraphView } from './graph-view';
+import { deriveGraphView, deriveLocalGraphView } from './graph-view';
 
 const GRAPH: FullGraph = {
   nodes: [
@@ -86,5 +86,49 @@ describe('deriveGraphView', () => {
     expect(view.graph.edges).toEqual([
       { source: 'Projects/B.md', target: 'People/C.md', targetTitle: 'Carla', kind: 'owns' },
     ]);
+  });
+
+  it('applies a SiYuan-style minimum connection threshold', () => {
+    const view = deriveGraphView(GRAPH, settings({ query: { minDegree: 2 } }));
+
+    expect(view.graph.nodes.map((n) => n.path)).toEqual(['Projects/B.md']);
+    expect(view.graph.edges).toEqual([]);
+    expect(view.activeFilterCount).toBe(1);
+    expect(view.hiddenNodeCount).toBe(3);
+  });
+});
+
+describe('deriveLocalGraphView', () => {
+  it('derives a one-hop neighborhood from the selected note', () => {
+    const view = deriveLocalGraphView(GRAPH, 'Projects/B.md', 1);
+
+    expect(view.graph.nodes.map((n) => n.path)).toEqual([
+      'Inbox/A.md',
+      'Projects/B.md',
+      'People/C.md',
+    ]);
+    expect(view.graph.edges).toEqual([
+      { source: 'Inbox/A.md', target: 'Projects/B.md', targetTitle: 'Beta', kind: '' },
+      { source: 'Projects/B.md', target: 'People/C.md', targetTitle: 'Carla', kind: 'owns' },
+    ]);
+    expect(view.hiddenNodeCount).toBe(1);
+    expect(view.hiddenEdgeCount).toBe(0);
+  });
+
+  it('supports depth zero so local mode can focus on only the current note', () => {
+    const view = deriveLocalGraphView(GRAPH, 'Projects/B.md', 0);
+
+    expect(view.graph.nodes.map((n) => n.path)).toEqual(['Projects/B.md']);
+    expect(view.graph.edges).toEqual([]);
+    expect(view.hiddenNodeCount).toBe(3);
+    expect(view.hiddenEdgeCount).toBe(2);
+  });
+
+  it('returns an empty graph when the local root is filtered out', () => {
+    const view = deriveLocalGraphView(GRAPH, 'Missing.md', 2);
+
+    expect(view.graph).toEqual({ nodes: [], edges: [] });
+    expect(view.hiddenNodeCount).toBe(4);
+    expect(view.hiddenEdgeCount).toBe(2);
   });
 });

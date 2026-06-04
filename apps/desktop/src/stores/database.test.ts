@@ -56,6 +56,7 @@ describe('useDatabaseStore — initial state', () => {
     expect(s.query.sort).toBeUndefined();
     expect(s.query.groupBy).toBeUndefined();
     expect(s.query.folder).toBeUndefined();
+    expect(s.query.limit).toBe(1000);
     expect(s.result).toBeNull();
     expect(s.loading).toBe(false);
     expect(s.error).toBeNull();
@@ -123,7 +124,7 @@ describe('useDatabaseStore — debounce + IPC', () => {
     expect(mock.getSpy(IpcChannels.runDatabaseQuery)).toHaveBeenCalledTimes(1);
   });
 
-  it('discrete actions (setSort, setGroupBy, setType) bypass the debounce', async () => {
+  it('discrete actions (setSort, setGroupBy, setType, setLimit) bypass the debounce', async () => {
     const { useDatabaseStore, useVaultStore } = await loadStores();
     useVaultStore.setState({ current: FAKE_VAULT });
     mock.setHandler(IpcChannels.runDatabaseQuery, async () => makeResult([]));
@@ -137,6 +138,10 @@ describe('useDatabaseStore — debounce + IPC', () => {
 
     await useDatabaseStore.getState().setType('book');
     expect(mock.getSpy(IpcChannels.runDatabaseQuery)).toHaveBeenCalledTimes(3);
+
+    await useDatabaseStore.getState().setLimit(250);
+    expect(mock.getSpy(IpcChannels.runDatabaseQuery)).toHaveBeenCalledTimes(4);
+    expect(useDatabaseStore.getState().query.limit).toBe(250);
   });
 
   it('runQuery populates result and derives availableProperties sorted', async () => {

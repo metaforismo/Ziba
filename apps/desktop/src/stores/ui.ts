@@ -4,10 +4,11 @@ import { applyTheme, DEFAULT_THEME_ID, isThemeId, type ThemeId } from '../lib/th
 const STORAGE_KEY = 'ziba.ui.v1';
 
 /**
- * Active tab in the right-side panel. The panel hosts both the
- * Backlinks list and the local-neighborhood mini-graph (v0.2 Wave 3).
+ * Active tab in the right-side panel. `references` is the shared
+ * Backlinks + Mentions surface, `object` is available for typed notes,
+ * and `graph` hosts the local-neighborhood mini-graph.
  */
-export type RightPaneTab = 'backlinks' | 'graph';
+export type RightPaneTab = 'object' | 'references' | 'graph';
 
 /**
  * Top-level view that occupies the editor + right-pane area. The sidebar
@@ -95,7 +96,7 @@ const DEFAULTS: Persisted = {
   expandedFolders: [],
   tagsExpanded: true,
   typesExpanded: true,
-  rightPaneTab: 'backlinks',
+  rightPaneTab: 'references',
   mainView: 'editor',
   databaseViewMode: 'table',
   themeId: DEFAULT_THEME_ID,
@@ -103,7 +104,14 @@ const DEFAULTS: Persisted = {
 };
 
 function isRightPaneTab(v: unknown): v is RightPaneTab {
-  return v === 'backlinks' || v === 'graph';
+  return v === 'object' || v === 'references' || v === 'graph';
+}
+
+function normalizeRightPaneTab(v: unknown): RightPaneTab {
+  // v0.x persisted the inbound-link panel as `backlinks`. Preserve that
+  // preference under the new SiYuan-like combined References surface.
+  if (v === 'backlinks') return 'references';
+  return isRightPaneTab(v) ? v : DEFAULTS.rightPaneTab;
 }
 
 function isMainView(v: unknown): v is MainView {
@@ -205,7 +213,7 @@ function loadPersisted(): Persisted {
       tagsExpanded: typeof p.tagsExpanded === 'boolean' ? p.tagsExpanded : DEFAULTS.tagsExpanded,
       typesExpanded:
         typeof p.typesExpanded === 'boolean' ? p.typesExpanded : DEFAULTS.typesExpanded,
-      rightPaneTab: isRightPaneTab(p.rightPaneTab) ? p.rightPaneTab : DEFAULTS.rightPaneTab,
+      rightPaneTab: normalizeRightPaneTab(p.rightPaneTab),
       mainView: isMainView(p.mainView) ? p.mainView : DEFAULTS.mainView,
       databaseViewMode: isDatabaseViewMode(p.databaseViewMode)
         ? p.databaseViewMode

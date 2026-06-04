@@ -6,6 +6,14 @@ Il formato si basa su [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e
 
 ## [Unreleased]
 
+### Added
+
+- Grafo ispirato a SiYuan con default piu' ariosi, frecce visibili, modalita'
+  globale/locale, refresh, ricerca compatta e fullscreen della surface.
+- Pannello `Riferimenti` con sezioni Backlinks/Mentions, filtro, sort,
+  conteggi e preview inline.
+- Controllo "Righe" nella DatabaseView, collegato a `DatabaseQuery.limit`.
+
 ## [1.0.1] - 2026-05-10
 
 ### Phase 2 followups

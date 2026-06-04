@@ -12,6 +12,7 @@ import { useVaultStore } from './vault';
  * "shown of total" hint and stays consistent if the server cap changes.
  */
 const DEFAULT_QUERY_LIMIT = 1000;
+const MAX_QUERY_LIMIT = 5000;
 
 type DatabaseState = {
   /** Current query — single source of truth for filters/sort/groupBy/folder. */
@@ -42,6 +43,7 @@ type DatabaseState = {
   setSort(sort: DatabaseQuery['sort']): void;
   setGroupBy(key: string | null): void;
   setFolder(folder: string | undefined): void;
+  setLimit(limit: number): void;
   /** v1.0 Phase 4: set or clear the page-level type filter. */
   setType(type: string | null): void;
 
@@ -163,6 +165,13 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => {
       }
       set({ query: next });
       scheduleRun();
+    },
+
+    setLimit(limit) {
+      const nextLimit = Math.max(1, Math.min(limit, MAX_QUERY_LIMIT));
+      set({ query: { ...get().query, limit: nextLimit } });
+      debouncedRun.cancel();
+      void get().runQuery();
     },
 
     setType(type) {

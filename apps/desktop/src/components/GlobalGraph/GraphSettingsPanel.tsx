@@ -13,6 +13,7 @@ type Props = {
   settings: GraphSettings;
   onClose(): void;
   onReset(): void;
+  onApplyPreset(preset: GraphPreset): void;
   onQueryChange(patch: Partial<GraphQueryFilters>): void;
   onDisplayChange(patch: Partial<GraphDisplaySettings>): void;
   onForcesChange(patch: Partial<GraphForceSettings>): void;
@@ -21,14 +22,90 @@ type Props = {
   onRemoveGroup(id: string): void;
 };
 
-const GROUP_COLORS = ['#64748b', '#6366f1', '#8b5cf6', '#d97706', '#dc2626', '#2563eb'];
+export type GraphPreset = {
+  id: 'overview' | 'siyuan' | 'focus';
+  label: string;
+  description: string;
+  query: Partial<GraphQueryFilters>;
+  display: Partial<GraphDisplaySettings>;
+  forces: Partial<GraphForceSettings>;
+};
+
+const GROUP_COLORS = ['#64748b', '#5a6c50', '#0f766e', '#b45309', '#be123c', '#475569'];
 const OPEN_SECTIONS = ['Filtri', 'Gruppi', 'Aspetto', 'Forze'] as const;
+
+const GRAPH_PRESETS: readonly GraphPreset[] = [
+  {
+    id: 'overview',
+    label: 'Panoramica',
+    description: 'Tutto il vault, linee leggere, nessuna soglia.',
+    query: { includeOrphans: true, focusMode: false, minDegree: 0 },
+    display: {
+      showArrows: false,
+      showGrid: false,
+      labelFade: 0.48,
+      nodeScale: 1,
+      linkWidth: 0.7,
+    },
+    forces: {
+      center: 0.08,
+      repel: 420,
+      link: 0.08,
+      linkDistance: 96,
+      nodeDistance: 32,
+      linkOpacity: 0.18,
+    },
+  },
+  {
+    id: 'siyuan',
+    label: 'SiYuan',
+    description: 'Mappa orientata ai blocchi collegati, con frecce e soglia.',
+    query: { includeOrphans: false, focusMode: false, minDegree: 1 },
+    display: {
+      showArrows: true,
+      showGrid: false,
+      labelFade: 0.32,
+      nodeScale: 1.2,
+      linkWidth: 1.1,
+    },
+    forces: {
+      center: 0.04,
+      repel: 620,
+      link: 0.12,
+      linkDistance: 132,
+      nodeDistance: 48,
+      linkOpacity: 0.34,
+    },
+  },
+  {
+    id: 'focus',
+    label: 'Focus',
+    description: 'Riduce il rumore e rende più leggibile il vicinato selezionato.',
+    query: { includeOrphans: false, focusMode: true, minDegree: 0 },
+    display: {
+      showArrows: true,
+      showGrid: true,
+      labelFade: 0.18,
+      nodeScale: 1.35,
+      linkWidth: 1.2,
+    },
+    forces: {
+      center: 0.12,
+      repel: 760,
+      link: 0.18,
+      linkDistance: 118,
+      nodeDistance: 64,
+      linkOpacity: 0.46,
+    },
+  },
+];
 
 export function GraphSettingsPanel({
   open,
   settings,
   onClose,
   onReset,
+  onApplyPreset,
   onQueryChange,
   onDisplayChange,
   onForcesChange,
@@ -53,7 +130,7 @@ export function GraphSettingsPanel({
   };
 
   return (
-    <aside className="absolute bottom-3 right-3 top-3 z-20 flex w-[22rem] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-lg border border-[#3a3a3f] bg-[#242426]/95 text-[12px] text-[#e4e4e7] shadow-2xl shadow-black/35 backdrop-blur-xl">
+    <aside className="absolute bottom-3 right-3 top-3 z-20 flex w-[20rem] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-lg border border-[#3a3a3f] bg-[#242426]/95 text-[12px] text-[#e4e4e7] shadow-2xl shadow-black/35 backdrop-blur-xl">
       <div className="flex items-center justify-between border-b border-[#36363a] px-3 py-2.5">
         <div className="min-w-0">
           <h2 className="truncate text-[14px] font-semibold text-[#f2f2f3]">Controlli grafo</h2>
@@ -78,6 +155,29 @@ export function GraphSettingsPanel({
           >
             <X size={15} aria-hidden="true" />
           </button>
+        </div>
+      </div>
+
+      <div className="border-b border-[#36363a] px-3 py-2.5">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <span className="text-[11px] font-semibold text-[#a7a7ad]">Preset</span>
+          <span className="font-mono text-[10px] tabular-nums text-[#77777f]">
+            grado &gt;= {settings.query.minDegree}
+          </span>
+        </div>
+        <div className="grid grid-cols-3 gap-1.5">
+          {GRAPH_PRESETS.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              onClick={(): void => onApplyPreset(preset)}
+              title={preset.description}
+              aria-label={`Applica preset ${preset.label}`}
+              className="min-w-0 rounded-md border border-[#38383d] bg-[#1f1f22] px-2 py-1.5 text-[11px] font-medium text-[#d7d7da] transition hover:border-[#52525a] hover:bg-[#2a2a2e] hover:text-[#f2f2f3] active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/25"
+            >
+              <span className="block truncate">{preset.label}</span>
+            </button>
+          ))}
         </div>
       </div>
 
@@ -108,6 +208,22 @@ export function GraphSettingsPanel({
             label="Focus"
             checked={settings.query.focusMode}
             onChange={(focusMode): void => onQueryChange({ focusMode })}
+          />
+          <Slider
+            label="Connessioni minime"
+            value={settings.query.minDegree}
+            min={0}
+            max={16}
+            step={1}
+            onChange={(minDegree): void => onQueryChange({ minDegree })}
+          />
+          <Slider
+            label="Profondità locale"
+            value={settings.query.localDepth}
+            min={0}
+            max={6}
+            step={1}
+            onChange={(localDepth): void => onQueryChange({ localDepth })}
           />
         </AccordionSection>
 

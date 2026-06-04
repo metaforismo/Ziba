@@ -11,7 +11,7 @@ beforeEach(() => {
 });
 
 describe('graph settings defaults', () => {
-  it('matches the Obsidian-style graph defaults', async () => {
+  it('matches the SiYuan-like graph defaults', async () => {
     const { DEFAULT_GRAPH_SETTINGS } = await loadGraphSettings();
 
     expect(DEFAULT_GRAPH_SETTINGS.query).toMatchObject({
@@ -21,6 +21,7 @@ describe('graph settings defaults', () => {
       paths: [],
       types: [],
       relationKinds: [],
+      minDegree: 0,
       includeUnresolved: true,
       includeOrphans: true,
       existingOnly: false,
@@ -28,22 +29,22 @@ describe('graph settings defaults', () => {
       localDepth: 1,
     });
     expect(DEFAULT_GRAPH_SETTINGS.display).toMatchObject({
-      showArrows: false,
+      showArrows: true,
       showText: true,
       showNodes: true,
       showLinks: true,
-      labelFade: 0.48,
-      nodeScale: 1,
-      linkWidth: 0.7,
+      labelFade: 0.32,
+      nodeScale: 1.2,
+      linkWidth: 1.1,
       showGrid: false,
     });
     expect(DEFAULT_GRAPH_SETTINGS.forces).toMatchObject({
-      center: 0.08,
-      repel: 420,
-      link: 0.08,
-      linkDistance: 96,
-      nodeDistance: 32,
-      linkOpacity: 0.18,
+      center: 0.04,
+      repel: 620,
+      link: 0.12,
+      linkDistance: 132,
+      nodeDistance: 48,
+      linkOpacity: 0.34,
     });
     expect(DEFAULT_GRAPH_SETTINGS.groups).toEqual([]);
     expect(DEFAULT_GRAPH_SETTINGS.groupsSeeded).toBe(false);
@@ -85,6 +86,7 @@ describe('graph settings storage', () => {
           query: {
             search: 42,
             tags: ['#ok', 12],
+            minDegree: 99,
             includeUnresolved: false,
             includeOrphans: 'yes',
             existingOnly: true,
@@ -123,6 +125,7 @@ describe('graph settings storage', () => {
 
     expect(settings.query.search).toBe('');
     expect(settings.query.tags).toEqual([]);
+    expect(settings.query.minDegree).toBe(32);
     expect(settings.query.includeUnresolved).toBe(false);
     expect(settings.query.includeOrphans).toBe(true);
     expect(settings.query.existingOnly).toBe(true);
@@ -143,7 +146,7 @@ describe('graph settings storage', () => {
       repel: 0,
       link: 0.4,
       linkDistance: 120,
-      nodeDistance: 32,
+      nodeDistance: 48,
       linkOpacity: 0.7,
     });
     expect(settings.groups).toEqual([
@@ -173,14 +176,16 @@ describe('graph settings storage', () => {
     const { loadGraphSettingsForVault } = await loadGraphSettings();
     const settings = loadGraphSettingsForVault('/vault-a');
 
+    expect(settings.query.minDegree).toBe(0);
+
     expect(settings.display).toMatchObject({
       showArrows: true,
       showText: false,
       showNodes: true,
       showLinks: true,
-      labelFade: 0.48,
-      nodeScale: 1,
-      linkWidth: 0.7,
+      labelFade: 0.32,
+      nodeScale: 1.2,
+      linkWidth: 1.1,
       showGrid: false,
     });
     expect(settings.forces.linkOpacity).toBe(0.32);

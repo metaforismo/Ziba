@@ -41,11 +41,11 @@ export type GlobalLayoutOptions = {
 };
 
 const GLOBAL_DEFAULTS = {
-  chargeStrength: -360,
-  linkStrength: 0.08,
-  linkDistance: 96,
-  collideRadius: 20,
-  centerStrength: 0.08,
+  chargeStrength: -620,
+  linkStrength: 0.12,
+  linkDistance: 132,
+  collideRadius: 25.28,
+  centerStrength: 0.04,
 } as const;
 
 export function resolveGlobalForces(forces: GraphForceSettings | undefined): {

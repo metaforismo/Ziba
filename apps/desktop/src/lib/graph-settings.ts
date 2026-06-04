@@ -5,6 +5,7 @@ export type GraphQueryFilters = {
   paths: string[];
   types: string[];
   relationKinds: string[];
+  minDegree: number;
   includeUnresolved: boolean;
   includeOrphans: boolean;
   existingOnly: boolean;
@@ -58,6 +59,7 @@ export const DEFAULT_GRAPH_SETTINGS: GraphSettings = {
     paths: [],
     types: [],
     relationKinds: [],
+    minDegree: 0,
     includeUnresolved: true,
     includeOrphans: true,
     existingOnly: false,
@@ -65,22 +67,22 @@ export const DEFAULT_GRAPH_SETTINGS: GraphSettings = {
     localDepth: 1,
   },
   display: {
-    showArrows: false,
+    showArrows: true,
     showText: true,
     showNodes: true,
     showLinks: true,
-    labelFade: 0.48,
-    nodeScale: 1,
-    linkWidth: 0.7,
+    labelFade: 0.32,
+    nodeScale: 1.2,
+    linkWidth: 1.1,
     showGrid: false,
   },
   forces: {
-    center: 0.08,
-    repel: 420,
-    link: 0.08,
-    linkDistance: 96,
-    nodeDistance: 32,
-    linkOpacity: 0.18,
+    center: 0.04,
+    repel: 620,
+    link: 0.12,
+    linkDistance: 132,
+    nodeDistance: 48,
+    linkOpacity: 0.34,
   },
   groups: [],
   groupsSeeded: false,
@@ -110,6 +112,7 @@ function cloneDefaults(): GraphSettings {
       paths: [],
       types: [],
       relationKinds: [],
+      minDegree: DEFAULT_GRAPH_SETTINGS.query.minDegree,
     },
     display: { ...DEFAULT_GRAPH_SETTINGS.display },
     forces: { ...DEFAULT_GRAPH_SETTINGS.forces },
@@ -184,6 +187,7 @@ export function validateGraphSettings(raw: unknown): GraphSettings {
       paths: stringArray(query.paths, defaults.query.paths),
       types: stringArray(query.types, defaults.query.types),
       relationKinds: stringArray(query.relationKinds, defaults.query.relationKinds),
+      minDegree: boundedNumber(query.minDegree, defaults.query.minDegree, 0, 32),
       includeUnresolved: bool(query.includeUnresolved, defaults.query.includeUnresolved),
       includeOrphans: bool(query.includeOrphans, defaults.query.includeOrphans),
       existingOnly: bool(query.existingOnly, defaults.query.existingOnly),
