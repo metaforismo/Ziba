@@ -207,7 +207,7 @@ describe('<Canvas> — dim precedence', () => {
       />,
     );
 
-    const surface = container.querySelector('[data-graph-surface="obsidian-dark"]');
+    const surface = container.querySelector('[data-graph-surface="ziba-dark"]');
     expect(surface?.getAttribute('fill')).toBe('#1d1d1f');
     expect(container.querySelector('radialGradient')).toBeNull();
     expect(container.querySelector('[data-graph-grid="true"]')).toBeNull();

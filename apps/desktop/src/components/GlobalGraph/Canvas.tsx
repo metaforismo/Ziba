@@ -350,7 +350,7 @@ export const Canvas = memo(
           </marker>
         </defs>
 
-        <rect data-graph-surface="obsidian-dark" width={width} height={height} fill={CANVAS_BG} />
+        <rect data-graph-surface="ziba-dark" width={width} height={height} fill={CANVAS_BG} />
         {showGrid && (
           <rect
             data-graph-grid="true"
@@ -372,7 +372,7 @@ export const Canvas = memo(
                 if (a === null || b === null) return null;
                 const highlight =
                   activeId !== null && (e.source === activeId || e.target === activeId);
-                // Links stay neutral by default, like Obsidian. Relation-kind colour
+                // Links stay neutral by default. Relation-kind colour
                 // only appears when the user has explicitly filtered to kinds.
                 const stroke =
                   highlightKinds.size > 0 && highlightKinds.has(e.kind)

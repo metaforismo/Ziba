@@ -70,7 +70,7 @@ export function TagsSection(): JSX.Element {
               <code className="font-mono">tags: []</code> nel frontmatter di una nota.
             </p>
           ) : (
-            <ul role="list" className="max-h-[200px] space-y-px overflow-y-auto">
+            <ul role="list" className="space-y-px">
               {tags.map((t) => {
                 const active = selectedTag === t.tag;
                 return (
@@ -119,7 +119,7 @@ export function TagsSection(): JSX.Element {
               {notesForSelectedTag.length === 0 ? (
                 <p className="px-2 py-1 text-xs text-fg-muted">Nessuna nota con questo tag.</p>
               ) : (
-                <ul role="list" className="max-h-[180px] space-y-px overflow-y-auto">
+                <ul role="list" className="space-y-px">
                   {notesForSelectedTag.map((n) => {
                     const active = currentPath === n.path;
                     return (

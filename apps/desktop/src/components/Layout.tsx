@@ -22,6 +22,7 @@ export function Layout(): JSX.Element {
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
       <TopBar
+        sidebarWidth={sidebarWidth}
         onChangeVault={(): void => {
           void pickAndOpenVault();
         }}

@@ -117,8 +117,10 @@ describe('Sidebar navigation', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Organizza' }));
     const tools = screen.getByText('Strumenti').closest('div')?.parentElement?.parentElement;
+    const organizerScroll = document.querySelector('[data-sidebar-organizer-scroll="true"]');
 
     expect(tools).toHaveClass('max-h-[48%]', 'overflow-hidden');
-    expect(screen.getByLabelText('Tipi').parentElement).toHaveClass('overflow-y-auto');
+    expect(organizerScroll).toHaveClass('overflow-y-auto');
+    expect(screen.getByLabelText('Tipi').parentElement).toBe(organizerScroll);
   });
 });

@@ -600,7 +600,10 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
           </div>
         </div>
         {organizeOpen && (
-          <div className="min-h-0 flex-1 overflow-y-auto border-t border-border bg-bg">
+          <div
+            className="min-h-0 flex-1 overflow-y-auto border-t border-border bg-bg"
+            data-sidebar-organizer-scroll="true"
+          >
             <TypesSection />
             <TagsSection />
           </div>

@@ -7,7 +7,12 @@ import { useVaultStore } from '../stores/vault';
 
 type TopBarProps = {
   onChangeVault: () => void;
+  sidebarWidth: number;
 };
+
+const TITLEBAR_CHROME_INSET = 86;
+const RIBBON_WIDTH = 48;
+const MIN_VAULT_CELL_WIDTH = 120;
 
 function activePaneAndTabs(
   panes: EditorPane[],
@@ -24,7 +29,7 @@ function activePaneAndTabs(
   };
 }
 
-export function TopBar({ onChangeVault }: TopBarProps): JSX.Element {
+export function TopBar({ onChangeVault, sidebarWidth }: TopBarProps): JSX.Element {
   const current = useVaultStore((s) => s.current);
   const indexProgress = useVaultStore((s) => s.indexProgress);
   const workspace = useEditorStore((s) => s.workspace);
@@ -34,11 +39,16 @@ export function TopBar({ onChangeVault }: TopBarProps): JSX.Element {
   const backlinksOpen = useUiStore((s) => s.backlinksOpen);
   const toggleBacklinks = useUiStore((s) => s.toggleBacklinks);
   const setMainView = useUiStore((s) => s.setMainView);
+  const mainView = useUiStore((s) => s.mainView);
   const vaultName = current === null ? 'ziba' : current.name;
   const { pane, tabs } = activePaneAndTabs(
     workspace.panes,
     workspace.activePaneId,
     workspace.tabsById,
+  );
+  const vaultCellWidth = Math.max(
+    MIN_VAULT_CELL_WIDTH,
+    sidebarWidth + RIBBON_WIDTH - TITLEBAR_CHROME_INSET,
   );
 
   const handleNewTab = async (): Promise<void> => {
@@ -52,7 +62,10 @@ export function TopBar({ onChangeVault }: TopBarProps): JSX.Element {
 
   return (
     <header className="app-drag flex h-11 shrink-0 items-stretch border-b border-border/80 bg-bg-subtle/95 pl-[86px] text-sm shadow-[0_1px_0_rgba(30,29,27,0.04)] backdrop-blur-xl">
-      <div className="flex w-[15rem] shrink-0 items-center border-r border-border/70 pr-2">
+      <div
+        style={{ width: `${vaultCellWidth}px` }}
+        className="flex min-w-0 shrink-0 items-center border-r border-border/70 pr-2"
+      >
         <button
           type="button"
           onClick={onChangeVault}
@@ -141,18 +154,20 @@ export function TopBar({ onChangeVault }: TopBarProps): JSX.Element {
       </div>
 
       <div className="app-no-drag flex w-14 shrink-0 items-center justify-end pr-2">
-        <button
-          type="button"
-          onClick={toggleBacklinks}
-          aria-label={backlinksOpen ? 'Nascondi pannello destro' : 'Mostra pannello destro'}
-          aria-pressed={backlinksOpen}
-          title={backlinksOpen ? 'Nascondi pannello destro' : 'Mostra pannello destro'}
-          className={`inline-flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-bg-muted/80 hover:text-fg active:translate-y-px ${
-            backlinksOpen ? 'bg-bg-muted text-fg' : 'text-fg-subtle'
-          }`}
-        >
-          <LinkSimple size={16} aria-hidden="true" />
-        </button>
+        {mainView === 'editor' && (
+          <button
+            type="button"
+            onClick={toggleBacklinks}
+            aria-label={backlinksOpen ? 'Nascondi pannello destro' : 'Mostra pannello destro'}
+            aria-pressed={backlinksOpen}
+            title={backlinksOpen ? 'Nascondi pannello destro' : 'Mostra pannello destro'}
+            className={`inline-flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-bg-muted/80 hover:text-fg active:translate-y-px ${
+              backlinksOpen ? 'bg-bg-muted text-fg' : 'text-fg-subtle'
+            }`}
+          >
+            <LinkSimple size={16} aria-hidden="true" />
+          </button>
+        )}
       </div>
     </header>
   );

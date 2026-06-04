@@ -6,7 +6,7 @@ describe('theme registry', () => {
     expect(DEFAULT_THEME_ID).toBe('ziba-light');
     expect(THEME_IDS).toEqual([
       'ziba-light',
-      'obsidian-dark',
+      'ziba-dark',
       'warm-paper',
       'graphite',
       'high-contrast',
@@ -14,7 +14,7 @@ describe('theme registry', () => {
   });
 
   it('strictly validates theme ids', () => {
-    expect(isThemeId('obsidian-dark')).toBe(true);
+    expect(isThemeId('ziba-dark')).toBe(true);
     expect(isThemeId('dark')).toBe(false);
     expect(isThemeId('')).toBe(false);
     expect(isThemeId(null)).toBe(false);
@@ -23,7 +23,7 @@ describe('theme registry', () => {
   it('classifies themes that need Tailwind dark variants', () => {
     expect(isDarkTheme('ziba-light')).toBe(false);
     expect(isDarkTheme('warm-paper')).toBe(false);
-    expect(isDarkTheme('obsidian-dark')).toBe(true);
+    expect(isDarkTheme('ziba-dark')).toBe(true);
     expect(isDarkTheme('graphite')).toBe(true);
     expect(isDarkTheme('high-contrast')).toBe(true);
   });

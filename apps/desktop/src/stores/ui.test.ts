@@ -35,15 +35,15 @@ describe('useUiStore — toggles & persistence', () => {
   it('sets the theme, applies it to documentElement, and persists it', async () => {
     const { useUiStore } = await loadUiStore();
 
-    useUiStore.getState().setThemeId('obsidian-dark');
+    useUiStore.getState().setThemeId('ziba-dark');
 
-    expect(useUiStore.getState().themeId).toBe('obsidian-dark');
-    expect(document.documentElement.dataset.theme).toBe('obsidian-dark');
+    expect(useUiStore.getState().themeId).toBe('ziba-dark');
+    expect(document.documentElement.dataset.theme).toBe('ziba-dark');
 
     const persistedRaw = window.localStorage.getItem(STORAGE_KEY);
     expect(persistedRaw).not.toBeNull();
     const persisted = JSON.parse(persistedRaw!);
-    expect(persisted.themeId).toBe('obsidian-dark');
+    expect(persisted.themeId).toBe('ziba-dark');
   });
 
   it('setThemeId same-value is a no-op (no localStorage write)', async () => {
@@ -238,6 +238,20 @@ describe('useUiStore — loadPersisted validator', () => {
 
     expect(useUiStore.getState().themeId).toBe('warm-paper');
     expect(document.documentElement.dataset.theme).toBe('warm-paper');
+  });
+
+  it('migrates the legacy dark theme id to the native dark theme', async () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        themeId: 'obsidian-dark',
+      }),
+    );
+
+    const { useUiStore } = await loadUiStore();
+
+    expect(useUiStore.getState().themeId).toBe('ziba-dark');
+    expect(document.documentElement.dataset.theme).toBe('ziba-dark');
   });
 
   it('clamps persisted widths into valid range on load', async () => {

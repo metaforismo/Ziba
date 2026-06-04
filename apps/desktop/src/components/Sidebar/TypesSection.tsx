@@ -77,7 +77,7 @@ export function TypesSection(): JSX.Element {
               <code className="font-mono">.ziba/schema/</code>.
             </p>
           ) : (
-            <ul role="list" className="max-h-[200px] space-y-px overflow-y-auto">
+            <ul role="list" className="space-y-px">
               {types.map((t) => (
                 <TypeRow
                   key={t.id}
@@ -112,7 +112,7 @@ export function TypesSection(): JSX.Element {
               {notesForSelectedType.length === 0 ? (
                 <p className="px-2 py-1 text-xs text-fg-muted">Nessuna nota di questo tipo.</p>
               ) : (
-                <ul role="list" className="max-h-[180px] space-y-px overflow-y-auto">
+                <ul role="list" className="space-y-px">
                   {notesForSelectedType.map((n) => {
                     const active = currentPath === n.path;
                     return (
