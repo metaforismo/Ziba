@@ -26,6 +26,9 @@ Il formato si basa su [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e
 
 ### Fixed
 
+- Topbar e sidebar restano allineate quando la sidebar viene ridimensionata;
+  il toggle del pannello destro appare solo nell'editor e la sezione
+  Organizza usa un solo scroll interno.
 - La sidebar non trascina piu' la finestra verso il basso: file tree,
   strumenti e sezioni Organizza scrollano in regioni interne.
 - I temi scuri applicano anche la classe Tailwind `.dark`, quindi le utility

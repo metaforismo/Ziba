@@ -124,6 +124,11 @@ function isDatabaseViewMode(v: unknown): v is DatabaseViewMode {
   return v === 'table' || v === 'board' || v === 'calendar' || v === 'gallery';
 }
 
+function normalizeThemeId(v: unknown): ThemeId {
+  if (v === 'obsidian-dark') return 'ziba-dark';
+  return isThemeId(v) ? v : DEFAULTS.themeId;
+}
+
 function isFolderIconId(v: unknown): v is FolderIconId {
   return typeof v === 'string' && (FOLDER_ICON_IDS as readonly string[]).includes(v);
 }
@@ -220,7 +225,7 @@ function loadPersisted(): Persisted {
       databaseViewMode: isDatabaseViewMode(p.databaseViewMode)
         ? p.databaseViewMode
         : DEFAULTS.databaseViewMode,
-      themeId: isThemeId(p.themeId) ? p.themeId : DEFAULTS.themeId,
+      themeId: normalizeThemeId(p.themeId),
       folderIconsByVault: loadFolderIconsByVault(p.folderIconsByVault),
     };
   } catch {

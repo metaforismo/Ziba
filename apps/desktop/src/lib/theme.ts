@@ -1,6 +1,6 @@
 export const THEME_IDS = [
   'ziba-light',
-  'obsidian-dark',
+  'ziba-dark',
   'warm-paper',
   'graphite',
   'high-contrast',
@@ -10,7 +10,7 @@ export type ThemeId = (typeof THEME_IDS)[number];
 
 export const DEFAULT_THEME_ID: ThemeId = 'ziba-light';
 
-export const DARK_THEME_IDS = ['obsidian-dark', 'graphite', 'high-contrast'] as const;
+export const DARK_THEME_IDS = ['ziba-dark', 'graphite', 'high-contrast'] as const;
 
 export type ThemeDefinition = {
   id: ThemeId;
@@ -19,7 +19,7 @@ export type ThemeDefinition = {
 
 export const THEMES: readonly ThemeDefinition[] = [
   { id: 'ziba-light', label: 'Ziba Light' },
-  { id: 'obsidian-dark', label: 'Obsidian Dark' },
+  { id: 'ziba-dark', label: 'Ziba Dark' },
   { id: 'warm-paper', label: 'Warm Paper' },
   { id: 'graphite', label: 'Graphite' },
   { id: 'high-contrast', label: 'High Contrast' },

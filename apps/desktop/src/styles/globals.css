@@ -35,17 +35,17 @@
   --accent-fg: 255 255 255;
 }
 
-:root[data-theme='obsidian-dark'],
+:root[data-theme='ziba-dark'],
 .dark {
-  --bg: 24 24 27;
-  --bg-subtle: 39 39 42;
-  --bg-muted: 52 52 56;
+  --bg: 21 21 24;
+  --bg-subtle: 33 34 37;
+  --bg-muted: 50 51 56;
 
   --fg: 244 244 245;
-  --fg-subtle: 212 212 216;
-  --fg-muted: 161 161 170;
+  --fg-subtle: 220 220 224;
+  --fg-muted: 166 168 176;
 
-  --border: 63 63 70;
+  --border: 75 76 84;
 
   --accent: 148 169 123;
   --accent-fg: 24 24 27;
