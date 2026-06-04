@@ -11,7 +11,7 @@
 // Pure function so it's trivially testable and can be invoked off the
 // main thread later if the graph grows.
 
-export type LayoutNodeKind = 'self' | 'inbound' | 'outbound' | 'broken';
+export type LayoutNodeKind = 'self' | 'inbound' | 'mention' | 'outbound' | 'broken';
 
 export type LayoutNode = {
   id: string;

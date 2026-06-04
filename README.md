@@ -171,7 +171,8 @@ editing your files however you want.
 
 ### Graph-first exploration
 
-- Local mini-graph around the current note.
+- Local mini-graph around the current note, including backlinks, outbound
+  wikilinks, and soft mention references.
 - Global graph with pan, zoom, search, and node selection.
 - Obsidian-style global and local graph modes with compact controls,
   search, refresh, fit, fullscreen, and focusable local neighborhoods.
@@ -325,7 +326,7 @@ Recently shipped:
 - Outline panel for current-note heading navigation.
 - Saved database table, board, calendar, and gallery views.
 - Inline database blocks inside notes.
-- Global/local graph modes and local mini-graph.
+- Global/local graph modes and local mini-graph with soft mention references.
 - Typed objects, schemas, relation table, object panel, and type sidebar.
 - Obsidian-style graph polish, graph settings, and compact panel controls.
 
