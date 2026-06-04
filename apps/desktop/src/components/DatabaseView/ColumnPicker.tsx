@@ -46,8 +46,18 @@ export function ColumnPicker({
         setOpen(false);
       }
     };
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setOpen(false);
+      }
+    };
     window.addEventListener('mousedown', onMouseDown);
-    return () => window.removeEventListener('mousedown', onMouseDown);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('keydown', onKeyDown);
+    };
   }, [open]);
 
   const visibleSet = new Set(visibleColumns);
@@ -82,13 +92,13 @@ export function ColumnPicker({
     return (
       <label
         key={key}
-        className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs text-fg-subtle hover:bg-bg-muted"
+        className="flex min-h-7 cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs text-fg-subtle hover:bg-bg-muted focus-within:bg-bg-muted focus-within:text-fg"
       >
         <input
           type="checkbox"
           checked={checked}
           onChange={(): void => toggle(key)}
-          className="h-3 w-3"
+          className="h-3 w-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         />
         <span className="truncate">{key}</span>
       </label>
@@ -102,7 +112,7 @@ export function ColumnPicker({
         onClick={(): void => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="menu"
-        className="rounded border border-border bg-bg-subtle px-2 py-1 text-xs text-fg-subtle hover:bg-bg-muted hover:text-fg"
+        className="min-h-7 rounded border border-border bg-bg-subtle px-2 py-1 text-xs text-fg-subtle hover:bg-bg-muted hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       >
         Colonne ({visibleColumns.length})
       </button>
@@ -114,7 +124,7 @@ export function ColumnPicker({
         >
           {suggested.length > 0 && (
             <>
-              <p className="px-2 pb-0.5 pt-1 text-[10px] font-semibold uppercase tracking-wide text-fg-muted">
+              <p className="px-2 pb-0.5 pt-1 text-[10px] font-semibold uppercase tracking-wide text-fg-subtle">
                 Suggerite
               </p>
               {suggested.map((k) => renderRow(k))}

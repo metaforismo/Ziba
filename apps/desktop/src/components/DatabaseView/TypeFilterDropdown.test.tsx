@@ -63,6 +63,14 @@ describe('<TypeFilterDropdown>', () => {
     expect(screen.queryByRole('menuitemradio', { name: /Tutti/i })).not.toBeInTheDocument();
   });
 
+  it('closes on Escape', () => {
+    render(<TypeFilterDropdown types={TYPES} selectedType={null} onChange={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /Tipo:/ }));
+    expect(screen.getByRole('menuitemradio', { name: /Tutti/i })).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('menuitemradio', { name: /Tutti/i })).not.toBeInTheDocument();
+  });
+
   it('shows the empty-state hint when no types are available', () => {
     render(<TypeFilterDropdown types={[]} selectedType={null} onChange={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: /Tipo:/ }));
