@@ -281,6 +281,12 @@ body {
   text-decoration: underline;
 }
 
+.ziba-heading-focus {
+  border-radius: 0.25rem;
+  outline: 2px solid rgb(var(--accent) / 0.45);
+  outline-offset: 0.25rem;
+}
+
 /*
  * ProseMirror selection styling. The default browser selection on top
  * of an atom node looks blocky; the `ProseMirror-selectednode` class

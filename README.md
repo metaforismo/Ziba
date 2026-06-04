@@ -93,6 +93,7 @@ Current state:
 - Saved database views in `.ziba/database-views.json`, including table, board,
   calendar, and gallery layouts.
 - Inline database blocks that render saved views inside notes.
+- Right-side document outline for quick heading navigation.
 - Extensive unit and component coverage across the core and desktop app.
 - MIT licensed and open to contributors.
 
@@ -178,6 +179,7 @@ editing your files however you want.
   and graph settings.
 - Right-side References panel with backlinks, plain-text mentions, counts,
   filters, sorting, and inline context previews.
+- Right-side Outline panel for jumping between headings in the current note.
 
 ### Desktop workflows
 
@@ -320,6 +322,7 @@ Recently shipped:
 
 - Local vault, markdown editor, wikilinks, backlinks, tags, full-text search.
 - References panel with backlinks, mentions, filters, sorting, and previews.
+- Outline panel for current-note heading navigation.
 - Saved database table, board, calendar, and gallery views.
 - Inline database blocks inside notes.
 - Global/local graph modes and local mini-graph.

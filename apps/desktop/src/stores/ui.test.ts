@@ -213,6 +213,19 @@ describe('useUiStore — loadPersisted validator', () => {
     expect(useUiStore.getState().rightPaneTab).toBe('references');
   });
 
+  it('loads the persisted Outline right-pane tab', async () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        rightPaneTab: 'outline',
+      }),
+    );
+
+    const { useUiStore } = await loadUiStore();
+
+    expect(useUiStore.getState().rightPaneTab).toBe('outline');
+  });
+
   it('loads and applies a valid persisted theme id', async () => {
     window.localStorage.setItem(
       STORAGE_KEY,

@@ -4,6 +4,7 @@ import { useEditorStore } from '../../stores/editor';
 import { useUiStore, type RightPaneTab } from '../../stores/ui';
 import { MiniGraph } from '../MiniGraph';
 import { ObjectPanel } from '../ObjectPanel';
+import { OutlinePanel } from '../OutlinePanel';
 import { SegmentedControl } from '../ui/SegmentedControl';
 import { ReferencesPanel } from './ReferencesPanel';
 
@@ -13,12 +14,14 @@ type TabSpec = {
 };
 
 const TABS_UNTYPED: readonly TabSpec[] = [
+  { id: 'outline', label: 'Indice' },
   { id: 'references', label: 'Riferimenti' },
   { id: 'graph', label: 'Grafo' },
 ] as const;
 
 const TABS_TYPED: readonly TabSpec[] = [
   { id: 'object', label: 'Oggetto' },
+  { id: 'outline', label: 'Indice' },
   { id: 'references', label: 'Riferimenti' },
   { id: 'graph', label: 'Grafo' },
 ] as const;
@@ -26,6 +29,7 @@ const TABS_TYPED: readonly TabSpec[] = [
 /**
  * Tabbed shell for the right-side panel. Hosts:
  *  - `<ObjectPanel />`: typed-note properties and object relations.
+ *  - `<OutlinePanel />`: current-note heading index.
  *  - `<ReferencesPanel />`: inbound links plus plain-text mentions.
  *  - `<MiniGraph />`: the v0.2 Wave 3 local-neighborhood graph.
  *
@@ -53,8 +57,7 @@ export function BacklinksPanel(): JSX.Element {
 
   const isTyped = currentNote !== null && extractType(currentNote.frontmatter) !== null;
   const tabs = isTyped ? TABS_TYPED : TABS_UNTYPED;
-  const activeTab: RightPaneTab =
-    persistedTab === 'object' && !isTyped ? 'references' : persistedTab;
+  const activeTab: RightPaneTab = persistedTab === 'object' && !isTyped ? 'outline' : persistedTab;
 
   return (
     <aside className="flex h-full flex-col overflow-hidden bg-bg-subtle">
@@ -78,6 +81,8 @@ export function BacklinksPanel(): JSX.Element {
       >
         {activeTab === 'object' ? (
           <ObjectPanel />
+        ) : activeTab === 'outline' ? (
+          <OutlinePanel currentPath={currentPath} markdown={currentNote?.content ?? ''} />
         ) : activeTab === 'references' ? (
           <ReferencesPanel currentPath={currentPath} onLoadingChange={handleLoadingChange} />
         ) : (
