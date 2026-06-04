@@ -10,6 +10,7 @@ import { useUiStore } from '../../stores/ui';
 import { useVaultStore } from '../../stores/vault';
 import { ipc } from '../../lib/ipc';
 import { ipcErrorMessage } from '../../lib/ipc-error';
+import { SCROLL_TO_HEADING_EVENT, type ScrollToHeadingDetail } from '../../lib/outline';
 import { createStarterVault } from '../../lib/starter-vault';
 import { debounce } from '../../lib/debounce';
 import { AUTOSAVE_DEBOUNCE_MS, PROPERTY_AUTOSAVE_DEBOUNCE_MS } from '../../lib/timings';
@@ -611,6 +612,30 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
       dom.removeEventListener('click', handler);
     };
   }, [editor, handleWikilinkClick]);
+
+  useEffect(() => {
+    if (editor === null) return;
+    const handler = (event: Event): void => {
+      const detail = (event as CustomEvent<ScrollToHeadingDetail>).detail;
+      if (detail.path !== currentNote?.path) return;
+      const headings = Array.from(
+        editor.view.dom.querySelectorAll('h1, h2, h3, h4, h5, h6'),
+      ).filter((node): node is HTMLElement => node instanceof HTMLElement);
+      const target = headings[detail.index];
+      if (target === undefined) return;
+
+      target.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      target.classList.add('ziba-heading-focus');
+      window.setTimeout(() => {
+        target.classList.remove('ziba-heading-focus');
+      }, 900);
+    };
+
+    window.addEventListener(SCROLL_TO_HEADING_EVENT, handler);
+    return (): void => {
+      window.removeEventListener(SCROLL_TO_HEADING_EVENT, handler);
+    };
+  }, [editor, currentNote?.path]);
 
   const isExternalConflict =
     lastSaveError !== null && lastSaveError.includes('modificato esternamente');

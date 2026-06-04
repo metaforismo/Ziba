@@ -55,6 +55,7 @@ describe('BacklinksPanel', () => {
 
     render(<BacklinksPanel />);
 
+    expect(screen.getByRole('tab', { name: 'Indice' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Riferimenti' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Grafo' })).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Oggetto' })).toBeNull();
@@ -83,7 +84,28 @@ describe('BacklinksPanel', () => {
     render(<BacklinksPanel />);
 
     expect(screen.getByRole('tab', { name: 'Oggetto' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Indice' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Riferimenti' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Grafo' })).toBeInTheDocument();
+  });
+
+  it('renders the Outline tab for the current note', () => {
+    useUiStore.setState({ rightPaneTab: 'outline' });
+    useEditorStore.setState({
+      currentNote: {
+        path: 'People/Ada.md',
+        title: 'Ada Lovelace',
+        frontmatter: {},
+        content: '# Ada\n## Notes',
+        wikilinks: [],
+        mtimeMs: 0,
+      },
+    });
+
+    render(<BacklinksPanel />);
+
+    expect(screen.getByRole('tab', { name: 'Indice' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('button', { name: 'Ada' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Notes' })).toBeInTheDocument();
   });
 });

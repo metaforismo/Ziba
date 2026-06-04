@@ -21,6 +21,8 @@ Il formato si basa su [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e
 - Controlli UI condivisi per tab segmentati e icon button, applicati a
   pannello laterale, DatabaseView e toolbar del grafo.
 - Controllo "Righe" nella DatabaseView, collegato a `DatabaseQuery.limit`.
+- Pannello `Indice` nel right pane, con filtro titoli e jump ai heading della
+  nota corrente.
 
 ### Fixed
 

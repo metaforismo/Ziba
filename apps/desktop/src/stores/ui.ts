@@ -5,10 +5,11 @@ const STORAGE_KEY = 'ziba.ui.v1';
 
 /**
  * Active tab in the right-side panel. `references` is the shared
- * Backlinks + Mentions surface, `object` is available for typed notes,
- * and `graph` hosts the local-neighborhood mini-graph.
+ * Backlinks + Mentions surface, `outline` is the current document index,
+ * `object` is available for typed notes, and `graph` hosts the
+ * local-neighborhood mini-graph.
  */
-export type RightPaneTab = 'object' | 'references' | 'graph';
+export type RightPaneTab = 'object' | 'outline' | 'references' | 'graph';
 
 /**
  * Top-level view that occupies the editor + right-pane area. The sidebar
@@ -105,7 +106,7 @@ const DEFAULTS: Persisted = {
 };
 
 function isRightPaneTab(v: unknown): v is RightPaneTab {
-  return v === 'object' || v === 'references' || v === 'graph';
+  return v === 'object' || v === 'outline' || v === 'references' || v === 'graph';
 }
 
 function normalizeRightPaneTab(v: unknown): RightPaneTab {
