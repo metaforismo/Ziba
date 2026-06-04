@@ -46,6 +46,20 @@ describe('<ColumnPicker>', () => {
     fireEvent.click(screen.getByRole('button', { name: /Colonne/ }));
     expect(screen.getByText('Nessuna proprietà rilevata.')).toBeInTheDocument();
   });
+
+  it('closes the menu on Escape', () => {
+    render(
+      <ColumnPicker
+        availableProperties={['title', 'year']}
+        visibleColumns={[]}
+        onChange={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Colonne/ }));
+    expect(screen.getByLabelText('title')).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByLabelText('title')).not.toBeInTheDocument();
+  });
 });
 
 describe('<ColumnPicker> — suggestedKeys', () => {

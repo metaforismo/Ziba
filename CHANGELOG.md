@@ -28,6 +28,13 @@ Il formato si basa su [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e
 
 ### Fixed
 
+- Il menu delle viste Database ora si chiude con click esterno/Escape, mostra
+  focus visibile, evita duplicati quando gli eventi arrivano prima della
+  risposta IPC e segnala gli errori di creazione/duplicazione/eliminazione con
+  toast non bloccanti.
+- I controlli nativi rispettano il `color-scheme` del tema e forzano
+  background/testo coerenti, riducendo i casi di dropdown bianco-su-bianco o
+  nero-su-nero in light/dark mode.
 - Topbar e sidebar restano allineate quando la sidebar viene ridimensionata;
   il toggle del pannello destro appare solo nell'editor e la sezione
   Organizza usa un solo scroll interno.

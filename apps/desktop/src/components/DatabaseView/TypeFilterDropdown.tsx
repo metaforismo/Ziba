@@ -40,8 +40,18 @@ export function TypeFilterDropdown({ types, selectedType, onChange }: Props): JS
         setOpen(false);
       }
     };
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setOpen(false);
+      }
+    };
     window.addEventListener('mousedown', onMouseDown);
-    return (): void => window.removeEventListener('mousedown', onMouseDown);
+    window.addEventListener('keydown', onKeyDown);
+    return (): void => {
+      window.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('keydown', onKeyDown);
+    };
   }, [open]);
 
   const activeOption =
@@ -66,7 +76,7 @@ export function TypeFilterDropdown({ types, selectedType, onChange }: Props): JS
         onClick={(): void => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="menu"
-        className="rounded border border-border bg-bg-subtle px-2 py-1 text-xs text-fg-subtle hover:bg-bg-muted hover:text-fg"
+        className="min-h-7 max-w-52 truncate rounded border border-border bg-bg-subtle px-2 py-1 text-xs text-fg-subtle hover:bg-bg-muted hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       >
         {buttonLabel}
       </button>
@@ -82,8 +92,10 @@ export function TypeFilterDropdown({ types, selectedType, onChange }: Props): JS
             aria-checked={selectedType === null}
             onClick={(): void => choose(null)}
             className={[
-              'flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs',
-              selectedType === null ? 'bg-accent/10 text-fg' : 'text-fg-subtle hover:bg-bg-muted',
+              'flex min-h-7 w-full items-center gap-2 rounded px-2 py-1 text-left text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent',
+              selectedType === null
+                ? 'bg-accent/10 text-fg'
+                : 'text-fg-subtle hover:bg-bg-muted focus-visible:bg-bg-muted focus-visible:text-fg',
             ].join(' ')}
           >
             <span className="flex-1 truncate">Tutti</span>
@@ -102,12 +114,14 @@ export function TypeFilterDropdown({ types, selectedType, onChange }: Props): JS
                 aria-checked={isActive}
                 onClick={(): void => choose(t.id)}
                 className={[
-                  'flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs',
-                  isActive ? 'bg-accent/10 text-fg' : 'text-fg-subtle hover:bg-bg-muted',
+                  'flex min-h-7 w-full items-center gap-2 rounded px-2 py-1 text-left text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent',
+                  isActive
+                    ? 'bg-accent/10 text-fg'
+                    : 'text-fg-subtle hover:bg-bg-muted focus-visible:bg-bg-muted focus-visible:text-fg',
                 ].join(' ')}
               >
                 <span className="flex-1 truncate">{`${iconPrefix}${t.label}`}</span>
-                <span className="tabular-nums text-fg-muted">{`(${t.count})`}</span>
+                <span className="tabular-nums text-fg-subtle">{`(${t.count})`}</span>
               </button>
             );
           })}

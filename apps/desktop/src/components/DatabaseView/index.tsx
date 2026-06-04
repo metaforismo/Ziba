@@ -33,6 +33,12 @@ import { Table, type DatabaseCellCommit } from './Table';
  */
 const DEFAULT_VISIBLE_COLUMN_COUNT = 5;
 const DEFAULT_QUERY_LIMIT = 1000;
+const MENU_TRIGGER_CLASS =
+  'min-h-7 rounded border border-border bg-bg-subtle px-2 py-1 text-xs text-fg-subtle hover:bg-bg-muted hover:text-fg disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
+const MENU_ITEM_CLASS =
+  'block min-h-7 w-full rounded px-2 py-1 text-left text-fg-subtle hover:bg-bg-muted hover:text-fg disabled:cursor-not-allowed disabled:opacity-60 focus-visible:bg-bg-muted focus-visible:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent';
+const DANGER_MENU_ITEM_CLASS =
+  'block min-h-7 w-full rounded px-2 py-1 text-left text-red-600 hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-60 dark:text-red-400 focus-visible:bg-red-500/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-500';
 
 // Frozen empty fallbacks — see BoardView/CalendarView for the same
 // reasoning (avoid per-render `[]` allocations driving downstream
@@ -58,6 +64,21 @@ export type DatabaseViewProps = {
 
 function createViewId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `view-${Date.now().toString(36)}`;
+}
+
+function upsertViewInFile(
+  current: DatabaseViewsFile | null,
+  view: DatabaseViewDefinition,
+): DatabaseViewsFile {
+  if (current === null) return { version: 1, activeViewId: view.id, views: [view] };
+  const exists = current.views.some((item) => item.id === view.id);
+  return {
+    ...current,
+    activeViewId: view.id,
+    views: exists
+      ? current.views.map((item) => (item.id === view.id ? view : item))
+      : [...current.views, view],
+  };
 }
 
 function coerceCellValue(type: PropertyType | null, value: string | boolean): unknown {
@@ -131,6 +152,10 @@ export function DatabaseView(props: DatabaseViewProps = {}): JSX.Element {
   const [viewsFile, setViewsFile] = useState<DatabaseViewsFile | null>(null);
   const [activeViewId, setActiveViewId] = useState<string | null>(null);
   const [viewMenuOpen, setViewMenuOpen] = useState(false);
+  const [viewActionPending, setViewActionPending] = useState<
+    'create' | 'duplicate' | 'delete' | null
+  >(null);
+  const viewMenuRef = useRef<HTMLDivElement | null>(null);
   const seededRef = useRef(false);
 
   const activeView = useMemo<DatabaseViewDefinition | null>(() => {
@@ -193,6 +218,29 @@ export function DatabaseView(props: DatabaseViewProps = {}): JSX.Element {
     seededRef.current = true;
     setVisibleColumns(availableProperties.slice(0, DEFAULT_VISIBLE_COLUMN_COUNT));
   }, [availableProperties]);
+
+  useEffect(() => {
+    if (!viewMenuOpen) return;
+    const onMouseDown = (e: MouseEvent): void => {
+      const node = viewMenuRef.current;
+      if (node === null) return;
+      if (e.target instanceof Node && !node.contains(e.target)) {
+        setViewMenuOpen(false);
+      }
+    };
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setViewMenuOpen(false);
+      }
+    };
+    window.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('keydown', onKeyDown);
+    return (): void => {
+      window.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [viewMenuOpen]);
 
   // Drop seeded columns that no longer exist (e.g. user removed the
   // frontmatter key from every note). We don't auto-add new keys — the
@@ -257,10 +305,12 @@ export function DatabaseView(props: DatabaseViewProps = {}): JSX.Element {
   );
 
   const handleSelectView = (view: DatabaseViewDefinition): void => {
+    setViewMenuOpen(false);
     applyDatabaseView(view);
   };
 
-  const handleCreateView = (): void => {
+  const handleCreateView = async (): Promise<void> => {
+    if (viewActionPending !== null) return;
     const timestamp = Date.now();
     const view: DatabaseViewDefinition = {
       id: createViewId(),
@@ -273,36 +323,58 @@ export function DatabaseView(props: DatabaseViewProps = {}): JSX.Element {
       updatedAt: timestamp,
     };
     setViewMenuOpen(false);
-    setViewsFile((current) =>
-      current === null
-        ? { version: 1, activeViewId: view.id, views: [view] }
-        : { ...current, activeViewId: view.id, views: [...current.views, view] },
-    );
+    setViewActionPending('create');
+    setViewsFile((current) => upsertViewInFile(current, view));
     applyDatabaseView(view);
-    void ipc.upsertDatabaseView({ view });
+    try {
+      const saved = await ipc.upsertDatabaseView({ view });
+      setViewsFile((current) => upsertViewInFile(current, saved));
+      applyDatabaseView(saved);
+    } catch (err: unknown) {
+      toast.error(ipcErrorMessage(err), 'Impossibile creare la vista');
+      try {
+        const file = await ipc.listDatabaseViews();
+        setViewsFile(file);
+        const next = file.views.find((item) => item.id === file.activeViewId) ?? file.views[0];
+        if (next !== undefined) applyDatabaseView(next);
+      } catch {
+        // Keep the optimistic view visible if recovery also fails.
+      }
+    } finally {
+      setViewActionPending(null);
+    }
   };
 
-  const handleDuplicateView = (): void => {
-    if (activeView === null) return;
+  const handleDuplicateView = async (): Promise<void> => {
+    if (activeView === null || viewActionPending !== null) return;
     setViewMenuOpen(false);
-    void ipc.duplicateDatabaseView({ id: activeView.id }).then((copy) => {
-      setViewsFile((current) =>
-        current === null
-          ? { version: 1, activeViewId: copy.id, views: [copy] }
-          : { ...current, activeViewId: copy.id, views: [...current.views, copy] },
-      );
+    setViewActionPending('duplicate');
+    try {
+      const copy = await ipc.duplicateDatabaseView({ id: activeView.id });
+      setViewsFile((current) => upsertViewInFile(current, copy));
       applyDatabaseView(copy);
-    });
+    } catch (err: unknown) {
+      toast.error(ipcErrorMessage(err), 'Impossibile duplicare la vista');
+    } finally {
+      setViewActionPending(null);
+    }
   };
 
-  const handleDeleteView = (): void => {
-    if (activeView === null) return;
+  const handleDeleteView = async (): Promise<void> => {
+    if (activeView === null || viewActionPending !== null) return;
+    if ((viewsFile?.views.length ?? 0) <= 1) return;
     setViewMenuOpen(false);
-    void ipc.deleteDatabaseView({ id: activeView.id }).then((file) => {
+    setViewActionPending('delete');
+    try {
+      const file = await ipc.deleteDatabaseView({ id: activeView.id });
       setViewsFile(file);
       const next = file.views.find((view) => view.id === file.activeViewId) ?? file.views[0];
       if (next !== undefined) applyDatabaseView(next);
-    });
+    } catch (err: unknown) {
+      toast.error(ipcErrorMessage(err), 'Impossibile eliminare la vista');
+    } finally {
+      setViewActionPending(null);
+    }
   };
 
   const handleVisibleColumnsChange = (columns: string[]): void => {
@@ -400,6 +472,10 @@ export function DatabaseView(props: DatabaseViewProps = {}): JSX.Element {
 
   const lastUpdatedLabel =
     lastUpdatedAt === null ? null : TIME_FORMATTER.format(new Date(lastUpdatedAt));
+  const viewActionBusy = viewActionPending !== null;
+  const canDuplicateView = activeView !== null && !viewActionBusy;
+  const canDeleteView =
+    activeView !== null && (viewsFile?.views.length ?? 0) > 1 && !viewActionBusy;
 
   // Clear-all-filters helper used by the empty state CTA.
   const clearAllFilters = (): void => {
@@ -543,8 +619,8 @@ export function DatabaseView(props: DatabaseViewProps = {}): JSX.Element {
                   onClick={(): void => handleSelectView(view)}
                   className={
                     active
-                      ? 'rounded bg-bg-muted px-2 py-1 text-xs font-medium text-fg'
-                      : 'rounded px-2 py-1 text-xs font-medium text-fg-subtle hover:bg-bg-muted hover:text-fg'
+                      ? 'min-h-7 max-w-40 truncate rounded bg-bg-muted px-2 py-1 text-xs font-medium text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent'
+                      : 'min-h-7 max-w-40 truncate rounded px-2 py-1 text-xs font-medium text-fg-subtle hover:bg-bg-muted hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent'
                   }
                 >
                   {view.name}
@@ -552,42 +628,53 @@ export function DatabaseView(props: DatabaseViewProps = {}): JSX.Element {
               );
             })}
           </div>
-          <div className="relative">
+          <div ref={viewMenuRef} className="relative">
             <button
               type="button"
               aria-haspopup="menu"
               aria-expanded={viewMenuOpen}
+              aria-busy={viewActionBusy}
+              disabled={viewActionBusy}
               onClick={(): void => setViewMenuOpen((open) => !open)}
-              className="rounded border border-border bg-bg-subtle px-2 py-1 text-xs text-fg-subtle hover:bg-bg-muted hover:text-fg"
+              className={MENU_TRIGGER_CLASS}
             >
               Vista
             </button>
             {viewMenuOpen && (
               <div
                 role="menu"
-                className="absolute right-0 z-20 mt-1 w-40 rounded border border-border bg-bg p-1 text-xs shadow-lg"
+                className="absolute right-0 z-20 mt-1 w-48 rounded border border-border bg-bg p-1 text-xs shadow-lg"
               >
                 <button
                   type="button"
                   role="menuitem"
-                  onClick={handleCreateView}
-                  className="block w-full rounded px-2 py-1 text-left text-fg-subtle hover:bg-bg-muted hover:text-fg"
+                  disabled={viewActionBusy}
+                  onClick={(): void => {
+                    void handleCreateView();
+                  }}
+                  className={MENU_ITEM_CLASS}
                 >
                   Nuova vista
                 </button>
                 <button
                   type="button"
                   role="menuitem"
-                  onClick={handleDuplicateView}
-                  className="block w-full rounded px-2 py-1 text-left text-fg-subtle hover:bg-bg-muted hover:text-fg"
+                  disabled={!canDuplicateView}
+                  onClick={(): void => {
+                    void handleDuplicateView();
+                  }}
+                  className={MENU_ITEM_CLASS}
                 >
                   Duplica
                 </button>
                 <button
                   type="button"
                   role="menuitem"
-                  onClick={handleDeleteView}
-                  className="block w-full rounded px-2 py-1 text-left text-red-600 hover:bg-red-500/10"
+                  disabled={!canDeleteView}
+                  onClick={(): void => {
+                    void handleDeleteView();
+                  }}
+                  className={DANGER_MENU_ITEM_CLASS}
                 >
                   Elimina
                 </button>

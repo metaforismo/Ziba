@@ -9,6 +9,7 @@ import {
 import { installMockIpc, type MockController } from '../../test/mock-ipc';
 import { useDatabaseStore } from '../../stores/database';
 import { useTagsStore } from '../../stores/tags';
+import { useToastStore } from '../../stores/toast';
 import { useUiStore } from '../../stores/ui';
 import { useVaultStore } from '../../stores/vault';
 import { DatabaseView } from './index';
@@ -44,6 +45,20 @@ function makeRows(): DatabaseResult {
     groups: [],
     totalCount: 1,
   };
+}
+
+function deferred<T>(): {
+  promise: Promise<T>;
+  resolve(value: T): void;
+  reject(reason?: unknown): void;
+} {
+  let resolve: (value: T) => void = () => undefined;
+  let reject: (reason?: unknown) => void = () => undefined;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
 }
 
 beforeEach(() => {
@@ -84,6 +99,7 @@ beforeEach(() => {
   });
   useTagsStore.setState({ types: [], objectTypeSchemas: [] });
   useUiStore.setState({ databaseViewMode: 'table' });
+  useToastStore.getState().clear();
   useDatabaseStore.setState({
     query: { filters: [], limit: 1000 },
     result: null,
@@ -172,5 +188,121 @@ describe('<DatabaseView>', () => {
         frontmatter: { status: 'done' },
       });
     });
+  });
+
+  it('opens and closes the saved-view menu with outside click and Escape', async () => {
+    render(<DatabaseView />);
+
+    const trigger = await screen.findByRole('button', { name: 'Vista' });
+
+    fireEvent.click(trigger);
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+
+    fireEvent.click(trigger);
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  it('disables saved-view actions while duplicate is pending and applies the returned copy', async () => {
+    const copy = makeView({ id: 'projects-copy', name: 'Projects copia' });
+    const pending = deferred<DatabaseViewDefinition>();
+    mock.setHandler(IpcChannels.duplicateDatabaseView, async () => pending.promise);
+
+    render(<DatabaseView />);
+
+    await screen.findByRole('tab', { name: 'Tutte' });
+    fireEvent.click(screen.getByRole('tab', { name: 'Projects' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Vista' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Duplica' }));
+
+    expect(mock.getSpy(IpcChannels.duplicateDatabaseView)).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: 'Vista' })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Vista' }));
+    expect(mock.getSpy(IpcChannels.duplicateDatabaseView)).toHaveBeenCalledTimes(1);
+
+    pending.resolve(copy);
+
+    expect(await screen.findByRole('tab', { name: 'Projects copia' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.getByRole('button', { name: 'Vista' })).not.toBeDisabled();
+  });
+
+  it('keeps one tab when a duplicate event arrives before the duplicate request resolves', async () => {
+    const copy = makeView({ id: 'projects-copy', name: 'Projects copia' });
+    const pending = deferred<DatabaseViewDefinition>();
+    mock.setHandler(IpcChannels.duplicateDatabaseView, async () => pending.promise);
+
+    render(<DatabaseView />);
+
+    await screen.findByRole('tab', { name: 'Tutte' });
+    fireEvent.click(screen.getByRole('tab', { name: 'Projects' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Vista' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Duplica' }));
+
+    mock.triggerDatabaseViewsChanged({
+      version: 1,
+      activeViewId: copy.id,
+      views: [
+        makeView({ id: 'default', name: 'Tutte' }),
+        makeView({ id: 'projects', name: 'Projects' }),
+        copy,
+      ],
+    });
+    pending.resolve(copy);
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('tab', { name: 'Projects copia' })).toHaveLength(1);
+    });
+  });
+
+  it('shows a toast and preserves the active view when duplicate fails', async () => {
+    mock.setHandler(IpcChannels.duplicateDatabaseView, async () => {
+      throw new Error('[INTERNAL] disco pieno');
+    });
+
+    render(<DatabaseView />);
+
+    await screen.findByRole('tab', { name: 'Tutte' });
+    fireEvent.click(screen.getByRole('tab', { name: 'Projects' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Vista' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Duplica' }));
+
+    await waitFor(() => {
+      expect(useToastStore.getState().toasts.at(-1)).toMatchObject({
+        kind: 'error',
+        title: 'Impossibile duplicare la vista',
+        message: 'disco pieno',
+      });
+    });
+    expect(screen.queryByRole('tab', { name: /copia/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Projects' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('does not delete the final saved view', async () => {
+    const singleViewFile: DatabaseViewsFile = {
+      version: 1,
+      activeViewId: 'default',
+      views: [makeView({ id: 'default', name: 'Tutte' })],
+    };
+    mock.setHandler(IpcChannels.listDatabaseViews, async () => singleViewFile);
+
+    render(<DatabaseView />);
+
+    await screen.findByRole('tab', { name: 'Tutte' });
+    fireEvent.click(screen.getByRole('button', { name: 'Vista' }));
+
+    const deleteButton = screen.getByRole('menuitem', { name: 'Elimina' });
+    expect(deleteButton).toBeDisabled();
+
+    fireEvent.click(deleteButton);
+    expect(mock.getSpy(IpcChannels.deleteDatabaseView)).not.toHaveBeenCalled();
   });
 });

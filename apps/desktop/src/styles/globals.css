@@ -21,6 +21,8 @@
  */
 :root,
 :root[data-theme='ziba-light'] {
+  color-scheme: light;
+
   --bg: 253 252 249;
   --bg-subtle: 248 247 244;
   --bg-muted: 239 238 233;
@@ -37,6 +39,8 @@
 
 :root[data-theme='ziba-dark'],
 .dark {
+  color-scheme: dark;
+
   --bg: 21 21 24;
   --bg-subtle: 33 34 37;
   --bg-muted: 50 51 56;
@@ -52,6 +56,8 @@
 }
 
 :root[data-theme='warm-paper'] {
+  color-scheme: light;
+
   --bg: 252 248 239;
   --bg-subtle: 246 239 226;
   --bg-muted: 232 221 203;
@@ -67,6 +73,8 @@
 }
 
 :root[data-theme='graphite'] {
+  color-scheme: dark;
+
   --bg: 31 32 32;
   --bg-subtle: 43 45 45;
   --bg-muted: 60 62 62;
@@ -82,6 +90,8 @@
 }
 
 :root[data-theme='high-contrast'] {
+  color-scheme: dark;
+
   --bg: 0 0 0;
   --bg-subtle: 16 16 16;
   --bg-muted: 38 38 38;
@@ -112,6 +122,12 @@ body {
   color: rgb(var(--fg));
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+select,
+option {
+  background-color: rgb(var(--bg));
+  color: rgb(var(--fg));
 }
 
 .app-drag {

@@ -122,7 +122,7 @@ Current state:
 - Frontmatter property editor.
 - Typed property indexing for fast queries.
 - Tags from both frontmatter and inline `#tag` syntax.
-- Saved database views with typed filters, sorting, grouping, limits, and column picking.
+- Saved database views with typed filters, sorting, grouping, limits, column picking, and a compact view menu.
 - Table, board, calendar, and gallery layouts for property-driven workflows.
 - Inline database blocks via `/database`, backed by saved views in the vault.
 
