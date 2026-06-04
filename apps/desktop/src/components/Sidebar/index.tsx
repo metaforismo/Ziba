@@ -484,7 +484,7 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
 
   return (
     <aside
-      className="flex h-full flex-col overflow-hidden border-r border-border bg-bg-subtle"
+      className="flex h-full min-h-0 flex-col overflow-hidden border-r border-border bg-bg-subtle"
       tabIndex={0}
       onKeyDown={handleKeyDown}
       aria-label="Esplora vault"
@@ -541,7 +541,7 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
         </div>
       )}
 
-      <div className="relative flex-1 overflow-y-auto border-t border-border/70 pt-2">
+      <div className="relative min-h-[7rem] flex-1 overflow-y-auto border-t border-border/70 pt-2">
         <FileTree
           rows={flatRows}
           currentPath={currentPath}
@@ -566,44 +566,46 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
         )}
       </div>
 
-      <div className="shrink-0 border-t border-border bg-bg-subtle">
-        <div className="px-3 pt-2 text-[11px] font-semibold uppercase tracking-wide text-fg-muted">
-          Strumenti
-        </div>
-        <div className="space-y-0.5 px-2 py-2">
-          <ToolButton
-            label="Grafo"
-            active={mainView === 'graph'}
-            icon={<Graph size={16} aria-hidden="true" />}
-            onClick={(): void => setMainView('graph')}
-          />
-          <ToolButton
-            label="Database"
-            active={mainView === 'database'}
-            icon={<Database size={16} aria-hidden="true" />}
-            onClick={(): void => setMainView('database')}
-          />
-          <ToolButton
-            label="Organizza"
-            active={organizeOpen}
-            icon={<SlidersHorizontal size={16} aria-hidden="true" />}
-            trailing={
-              organizeOpen ? (
-                <CaretDown size={13} aria-hidden="true" />
-              ) : (
-                <CaretRight size={13} aria-hidden="true" />
-              )
-            }
-            onClick={(): void => setOrganizeOpen((open) => !open)}
-          />
+      <div className="flex max-h-[48%] shrink-0 flex-col overflow-hidden border-t border-border bg-bg-subtle">
+        <div className="shrink-0">
+          <div className="px-3 pt-2 text-[11px] font-semibold uppercase tracking-wide text-fg-muted">
+            Strumenti
+          </div>
+          <div className="space-y-0.5 px-2 py-2">
+            <ToolButton
+              label="Grafo"
+              active={mainView === 'graph'}
+              icon={<Graph size={16} aria-hidden="true" />}
+              onClick={(): void => setMainView('graph')}
+            />
+            <ToolButton
+              label="Database"
+              active={mainView === 'database'}
+              icon={<Database size={16} aria-hidden="true" />}
+              onClick={(): void => setMainView('database')}
+            />
+            <ToolButton
+              label="Organizza"
+              active={organizeOpen}
+              icon={<SlidersHorizontal size={16} aria-hidden="true" />}
+              trailing={
+                organizeOpen ? (
+                  <CaretDown size={13} aria-hidden="true" />
+                ) : (
+                  <CaretRight size={13} aria-hidden="true" />
+                )
+              }
+              onClick={(): void => setOrganizeOpen((open) => !open)}
+            />
+          </div>
         </div>
         {organizeOpen && (
-          <div className="max-h-[38vh] overflow-y-auto border-t border-border bg-bg">
+          <div className="min-h-0 flex-1 overflow-y-auto border-t border-border bg-bg">
             <TypesSection />
             <TagsSection />
           </div>
         )}
-        <div className="border-t border-border px-2 py-2">
+        <div className="shrink-0 border-t border-border px-2 py-2">
           <ToolButton
             label="Impostazioni"
             active={false}

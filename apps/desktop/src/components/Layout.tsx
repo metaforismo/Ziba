@@ -20,16 +20,16 @@ export function Layout(): JSX.Element {
   const pickAndOpenVault = useVaultStore((s) => s.pickAndOpenVault);
 
   return (
-    <div className="flex h-full w-full flex-col">
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
       <TopBar
         onChangeVault={(): void => {
           void pickAndOpenVault();
         }}
       />
 
-      <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         <Ribbon />
-        <div style={{ width: `${sidebarWidth}px` }} className="shrink-0">
+        <div style={{ width: `${sidebarWidth}px` }} className="min-h-0 shrink-0 overflow-hidden">
           <Sidebar />
         </div>
         <Resizer
@@ -41,7 +41,7 @@ export function Layout(): JSX.Element {
 
         {mainView === 'editor' && (
           <>
-            <div className="flex min-w-0 flex-1">
+            <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
               <Editor />
             </div>
 
@@ -55,7 +55,7 @@ export function Layout(): JSX.Element {
                 />
                 <div
                   style={{ width: `${backlinksWidth}px` }}
-                  className="shrink-0 border-l border-border"
+                  className="min-h-0 shrink-0 overflow-hidden border-l border-border"
                 >
                   <BacklinksPanel />
                 </div>
@@ -65,13 +65,13 @@ export function Layout(): JSX.Element {
         )}
 
         {mainView === 'database' && (
-          <div className="flex min-w-0 flex-1">
+          <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
             <DatabaseView />
           </div>
         )}
 
         {mainView === 'graph' && (
-          <div className="flex min-w-0 flex-1">
+          <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
             <GlobalGraph />
           </div>
         )}
