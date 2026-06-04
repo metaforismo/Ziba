@@ -34,6 +34,8 @@ import { useTagsStore } from '../../stores/tags';
 import { useVaultStore } from '../../stores/vault';
 import { useGraphSettingsStore } from '../../stores/graph';
 import { useEditorStore } from '../../stores/editor';
+import { IconButton } from '../ui/IconButton';
+import { SegmentedControl } from '../ui/SegmentedControl';
 import { GraphSettingsPanel, type GraphPreset } from './GraphSettingsPanel';
 import type { GraphGroupRule } from '../../lib/graph-settings';
 import { graphGroupQueryMatchesNode } from '../../lib/graph-groups';
@@ -60,6 +62,11 @@ const NODE_R_MAX = 18;
 const ZOOM_STEP = 1.25;
 
 type GraphScope = 'global' | 'local';
+
+const GRAPH_SCOPE_ITEMS: ReadonlyArray<{ id: GraphScope; label: string }> = [
+  { id: 'global', label: 'Globale' },
+  { id: 'local', label: 'Locale' },
+];
 
 type LoadState =
   | { kind: 'idle' }
@@ -750,24 +757,13 @@ export function GlobalGraph(): JSX.Element {
           </div>
 
           <div className="pointer-events-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
-            <div className="flex h-9 items-center overflow-hidden rounded-lg border border-[#3a3a3f] bg-[#242426]/86 shadow-lg shadow-black/20 backdrop-blur">
-              <button
-                type="button"
-                onClick={(): void => handleScopeChange('global')}
-                className={graphScopeButtonClass(graphScope === 'global')}
-                aria-pressed={graphScope === 'global'}
-              >
-                Globale
-              </button>
-              <button
-                type="button"
-                onClick={(): void => handleScopeChange('local')}
-                className={graphScopeButtonClass(graphScope === 'local')}
-                aria-pressed={graphScope === 'local'}
-              >
-                Locale
-              </button>
-            </div>
+            <SegmentedControl
+              ariaLabel="Ambito grafo"
+              value={graphScope}
+              items={GRAPH_SCOPE_ITEMS}
+              onChange={handleScopeChange}
+              variant="graph"
+            />
             {searchOpen && (
               <label className="flex h-9 w-64 max-w-[38vw] items-center gap-2 rounded-lg border border-[#3a3a3f] bg-[#242426]/86 px-2.5 text-[#b7b7bd] shadow-lg shadow-black/20 backdrop-blur transition focus-within:border-[#5a5a62] focus-within:ring-2 focus-within:ring-white/10">
                 <MagnifyingGlass size={16} aria-hidden="true" />
@@ -784,72 +780,57 @@ export function GlobalGraph(): JSX.Element {
                 />
               </label>
             )}
-            <div className="flex h-9 items-center overflow-hidden rounded-lg border border-[#3a3a3f] bg-[#242426]/86 shadow-lg shadow-black/20 backdrop-blur">
-              <button
-                type="button"
+            <div className="flex h-9 items-center divide-x divide-[#3a3a3f] overflow-hidden rounded-lg border border-[#3a3a3f] bg-[#242426]/86 shadow-lg shadow-black/20 backdrop-blur">
+              <IconButton
                 onClick={(): void => setSearchOpen((open) => !open)}
-                className={graphToolbarButtonClass}
+                label={searchOpen ? 'Nascondi ricerca grafo' : 'Mostra ricerca grafo'}
                 title="Cerca"
-                aria-label={searchOpen ? 'Nascondi ricerca grafo' : 'Mostra ricerca grafo'}
-              >
-                <MagnifyingGlass size={15} aria-hidden="true" />
-              </button>
-              <button
-                type="button"
+                pressed={searchOpen}
+                variant="graph"
+                icon={<MagnifyingGlass size={15} aria-hidden="true" />}
+              />
+              <IconButton
                 onClick={(): void => {
                   void fetchGraph();
                 }}
-                className={`${graphToolbarButtonClass} border-l border-[#3a3a3f]`}
-                title="Aggiorna grafo"
-                aria-label="Aggiorna grafo"
-              >
-                <ArrowCounterClockwise size={15} aria-hidden="true" />
-              </button>
-              <button
-                type="button"
+                label="Aggiorna grafo"
+                variant="graph"
+                icon={<ArrowCounterClockwise size={15} aria-hidden="true" />}
+              />
+              <IconButton
                 onClick={(): void => handleZoom(1 / ZOOM_STEP)}
-                className={`${graphToolbarButtonClass} border-l border-[#3a3a3f]`}
+                label="Diminuisci zoom"
                 title="Zoom out"
-                aria-label="Diminuisci zoom"
-              >
-                <Minus size={15} aria-hidden="true" />
-              </button>
-              <button
-                type="button"
+                variant="graph"
+                icon={<Minus size={15} aria-hidden="true" />}
+              />
+              <IconButton
                 onClick={(): void => handleZoom(ZOOM_STEP)}
-                className={graphToolbarButtonClass}
+                label="Aumenta zoom"
                 title="Zoom in"
-                aria-label="Aumenta zoom"
-              >
-                <Plus size={15} aria-hidden="true" />
-              </button>
-              <button
-                type="button"
+                variant="graph"
+                icon={<Plus size={15} aria-hidden="true" />}
+              />
+              <IconButton
                 onClick={fitToScreen}
-                className={`${graphToolbarButtonClass} border-l border-[#3a3a3f]`}
-                title="Adatta alla finestra"
-                aria-label="Adatta alla finestra"
-              >
-                <CornersOut size={16} aria-hidden="true" />
-              </button>
-              <button
-                type="button"
+                label="Adatta alla finestra"
+                variant="graph"
+                icon={<CornersOut size={16} aria-hidden="true" />}
+              />
+              <IconButton
                 onClick={(): void => setSurfaceFullscreen((open) => !open)}
-                className={`${graphToolbarButtonClass} border-l border-[#3a3a3f]`}
-                title={surfaceFullscreen ? 'Riduci grafo' : 'Espandi grafo'}
-                aria-label={surfaceFullscreen ? 'Riduci grafo' : 'Espandi grafo'}
-              >
-                <ArrowSquareOut size={16} aria-hidden="true" />
-              </button>
-              <button
-                type="button"
+                label={surfaceFullscreen ? 'Riduci grafo' : 'Espandi grafo'}
+                pressed={surfaceFullscreen}
+                variant="graph"
+                icon={<ArrowSquareOut size={16} aria-hidden="true" />}
+              />
+              <IconButton
                 onClick={(): void => setSettingsOpen(true)}
-                className={`${graphToolbarButtonClass} border-l border-[#3a3a3f]`}
+                label="Apri controlli grafo"
                 title="Controlli grafo"
-                aria-label="Apri controlli grafo"
-              >
-                <Gear size={16} aria-hidden="true" />
-              </button>
+                variant="graph"
+                icon={<Gear size={16} aria-hidden="true" />}
+              />
             </div>
           </div>
         </div>
@@ -1001,18 +982,6 @@ function groupColorForNode(
     if (graphGroupQueryMatchesNode(node, group.query)) return group.color;
   }
   return null;
-}
-
-const graphToolbarButtonClass =
-  'grid h-full min-w-9 place-items-center px-2 text-[#b7b7bd] transition hover:bg-[#303034] hover:text-[#f4f4f5] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/25 active:bg-[#343438]';
-
-function graphScopeButtonClass(active: boolean): string {
-  return [
-    'h-full px-3 text-[12px] font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/25',
-    active
-      ? 'bg-[#d7d7da] text-[#1d1d1f]'
-      : 'text-[#b7b7bd] hover:bg-[#303034] hover:text-[#f4f4f5]',
-  ].join(' ');
 }
 
 function GraphStatus({

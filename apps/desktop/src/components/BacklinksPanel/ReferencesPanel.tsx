@@ -12,6 +12,7 @@ import { ipc } from '../../lib/ipc';
 import { navigateToNote } from '../../lib/navigate';
 import { BACKLINKS_REFETCH_MS } from '../../lib/timings';
 import { SnippetText } from '../SearchPalette/SnippetText';
+import { IconButton } from '../ui/IconButton';
 
 type Props = {
   currentPath: NotePath | null;
@@ -214,17 +215,13 @@ export function ReferencesPanel({ currentPath, onLoadingChange }: Props): JSX.El
             <option value="title-asc">{SORT_LABELS['title-asc']}</option>
             <option value="title-desc">{SORT_LABELS['title-desc']}</option>
           </select>
-          <button
-            type="button"
+          <IconButton
             onClick={(): void => {
               void fetchReferences();
             }}
-            className="flex h-7 w-7 items-center justify-center rounded border border-border text-fg-muted hover:bg-bg-muted hover:text-fg"
-            title="Aggiorna riferimenti"
-            aria-label="Aggiorna riferimenti"
-          >
-            <ArrowCounterClockwise aria-hidden className="h-3.5 w-3.5" />
-          </button>
+            label="Aggiorna riferimenti"
+            icon={<ArrowCounterClockwise aria-hidden className="h-3.5 w-3.5" />}
+          />
         </div>
         <div className="mt-1 flex items-center justify-between px-0.5 text-[10px] uppercase tracking-wide text-fg-muted">
           <span>Riferimenti</span>
