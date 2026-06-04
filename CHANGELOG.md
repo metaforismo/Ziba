@@ -12,6 +12,9 @@ Il formato si basa su [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e
   globale/locale, refresh, ricerca compatta e fullscreen della surface.
 - Pannello `Riferimenti` con sezioni Backlinks/Mentions, filtro, sort,
   conteggi e preview inline.
+- Attribute Views salvate in `<vault>/.ziba/database-views.json`, con tab
+  vista, layout `table | board | calendar | gallery`, colonne e query
+  persistite.
 - Controllo "Righe" nella DatabaseView, collegato a `DatabaseQuery.limit`.
 
 ## [1.0.1] - 2026-05-10

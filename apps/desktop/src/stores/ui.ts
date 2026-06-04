@@ -21,10 +21,11 @@ export type MainView = 'editor' | 'database' | 'graph';
 /**
  * Sub-mode within the Database view. The same query (filters / sort /
  * groupBy) can be visualized as a sortable table (v0.3), a kanban-style
- * board grouped by a single property (v0.4), or a monthly calendar
- * grouped by a date property (v0.4). One DatabaseQuery, multiple shapes.
+ * board grouped by a single property (v0.4), a monthly calendar grouped
+ * by a date property (v0.4), or a card gallery. One DatabaseQuery,
+ * multiple shapes.
  */
-export type DatabaseViewMode = 'table' | 'board' | 'calendar';
+export type DatabaseViewMode = 'table' | 'board' | 'calendar' | 'gallery';
 
 export const FOLDER_ICON_IDS = [
   'folder',
@@ -119,7 +120,7 @@ function isMainView(v: unknown): v is MainView {
 }
 
 function isDatabaseViewMode(v: unknown): v is DatabaseViewMode {
-  return v === 'table' || v === 'board' || v === 'calendar';
+  return v === 'table' || v === 'board' || v === 'calendar' || v === 'gallery';
 }
 
 function isFolderIconId(v: unknown): v is FolderIconId {

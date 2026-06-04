@@ -35,6 +35,12 @@ import { getBacklinks, getReferences, resolveTitle } from './links.js';
 import { searchFullText } from './search.js';
 import { listTags, getNotesByTag } from './tags.js';
 import { runDatabaseQuery } from './database.js';
+import {
+  deleteDatabaseView,
+  duplicateDatabaseView,
+  listDatabaseViews,
+  upsertDatabaseView,
+} from './database-views.js';
 import { getFullGraph } from './graph.js';
 import {
   listObjectTypes,
@@ -116,6 +122,10 @@ export function registerIpcHandlers(win: BrowserWindow): void {
 
   // Database queries / global graph (v0.3 Wave 1)
   handle(IpcChannels.runDatabaseQuery, (args) => runDatabaseQuery(args));
+  handle(IpcChannels.listDatabaseViews, () => listDatabaseViews());
+  handle(IpcChannels.upsertDatabaseView, (args) => upsertDatabaseView(win, args));
+  handle(IpcChannels.deleteDatabaseView, (args) => deleteDatabaseView(win, args));
+  handle(IpcChannels.duplicateDatabaseView, (args) => duplicateDatabaseView(win, args));
   handle(IpcChannels.getFullGraph, () => getFullGraph());
 
   // v1.0: typed object types + typed relations

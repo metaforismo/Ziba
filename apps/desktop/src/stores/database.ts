@@ -46,6 +46,8 @@ type DatabaseState = {
   setLimit(limit: number): void;
   /** v1.0 Phase 4: set or clear the page-level type filter. */
   setType(type: string | null): void;
+  /** Apply a saved database view without firing multiple intermediate queries. */
+  applyViewState(state: { query: DatabaseQuery; selectedType: string | null }): Promise<void>;
 
   // ---- Execution ---------------------------------------------------------
   /** Run the query immediately. Cancels any pending debounced run. */
@@ -180,6 +182,22 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => {
       // than waiting out the keystroke debounce window.
       debouncedRun.cancel();
       void get().runQuery();
+    },
+
+    async applyViewState(state) {
+      const nextQuery: DatabaseQuery = {
+        ...state.query,
+        ...(state.query.filters !== undefined ? { filters: [...state.query.filters] } : {}),
+        ...(state.query.sort !== undefined
+          ? { sort: state.query.sort.map((item) => ({ ...item })) }
+          : {}),
+      };
+      set({
+        query: nextQuery,
+        selectedType: state.selectedType,
+      });
+      debouncedRun.cancel();
+      await get().runQuery();
     },
 
     async runQuery() {

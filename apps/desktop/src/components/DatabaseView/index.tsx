@@ -1,9 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { JSX } from 'react';
 import type { NotePath } from '@ziba/core';
-import type { DatabaseGroup, DatabaseQuery, DatabaseRow } from '../../../shared/ipc';
+import type {
+  DatabaseGroup,
+  DatabaseQuery,
+  DatabaseRow,
+  DatabaseViewDefinition,
+  DatabaseViewsFile,
+} from '../../../shared/ipc';
 import { useDatabaseStore } from '../../stores/database';
 import { navigateToNote } from '../../lib/navigate';
+import { ipc } from '../../lib/ipc';
 import { useUiStore, type DatabaseViewMode } from '../../stores/ui';
 import { useVaultStore } from '../../stores/vault';
 import { useTagsStore } from '../../stores/tags';
@@ -12,6 +19,7 @@ import { BoardView } from './BoardView';
 import { CalendarView } from './CalendarView';
 import { ColumnPicker } from './ColumnPicker';
 import { FilterBar } from './FilterBar';
+import { GalleryView } from './GalleryView';
 import { Table } from './Table';
 
 /**
@@ -35,6 +43,10 @@ const TIME_FORMATTER = new Intl.DateTimeFormat('it', {
   second: '2-digit',
 });
 
+function createViewId(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `view-${Date.now().toString(36)}`;
+}
+
 /**
  * Top-level database view. Replaces the placeholder shipped in Wave 1.
  *
@@ -56,14 +68,12 @@ export function DatabaseView(): JSX.Element {
   const availableProperties = useDatabaseStore((s) => s.availableProperties);
   const lastUpdatedAt = useDatabaseStore((s) => s.lastUpdatedAt);
   const setFilters = useDatabaseStore((s) => s.setFilters);
-  const addFilter = useDatabaseStore((s) => s.addFilter);
-  const removeFilter = useDatabaseStore((s) => s.removeFilter);
-  const updateFilter = useDatabaseStore((s) => s.updateFilter);
   const setSort = useDatabaseStore((s) => s.setSort);
   const setGroupBy = useDatabaseStore((s) => s.setGroupBy);
   const setFolder = useDatabaseStore((s) => s.setFolder);
   const setLimit = useDatabaseStore((s) => s.setLimit);
   const runQuery = useDatabaseStore((s) => s.runQuery);
+  const applyViewState = useDatabaseStore((s) => s.applyViewState);
   const subscribeToVaultEvents = useDatabaseStore((s) => s.subscribeToVaultEvents);
 
   const selectedType = useDatabaseStore((s) => s.selectedType);
@@ -79,7 +89,61 @@ export function DatabaseView(): JSX.Element {
   // first non-empty available-properties list; subsequent vault events that
   // re-derive `availableProperties` don't reset the user's choice.
   const [visibleColumns, setVisibleColumns] = useState<string[]>([]);
+  const [viewsFile, setViewsFile] = useState<DatabaseViewsFile | null>(null);
+  const [activeViewId, setActiveViewId] = useState<string | null>(null);
+  const [viewMenuOpen, setViewMenuOpen] = useState(false);
   const seededRef = useRef(false);
+
+  const activeView = useMemo<DatabaseViewDefinition | null>(() => {
+    if (viewsFile === null || activeViewId === null) return null;
+    return viewsFile.views.find((view) => view.id === activeViewId) ?? null;
+  }, [activeViewId, viewsFile]);
+
+  const applyDatabaseView = useCallback(
+    (view: DatabaseViewDefinition): void => {
+      setActiveViewId(view.id);
+      setDatabaseViewMode(view.layout);
+      if (view.columns.length > 0) {
+        seededRef.current = true;
+        setVisibleColumns(view.columns);
+      } else {
+        seededRef.current = false;
+        setVisibleColumns([]);
+      }
+      void applyViewState({ query: view.query, selectedType: view.selectedType });
+    },
+    [applyViewState, setDatabaseViewMode],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadViews = async (): Promise<void> => {
+      try {
+        const file = await ipc.listDatabaseViews();
+        if (cancelled) return;
+        setViewsFile(file);
+        const nextActiveId = file.activeViewId ?? file.views[0]?.id ?? null;
+        setActiveViewId(nextActiveId);
+        const nextActive = file.views.find((view) => view.id === nextActiveId) ?? file.views[0];
+        if (nextActive !== undefined) applyDatabaseView(nextActive);
+      } catch {
+        if (!cancelled) setViewsFile(null);
+      }
+    };
+
+    void loadViews();
+    const off = ipc.onDatabaseViewsChanged((file) => {
+      setViewsFile(file);
+      const nextActiveId = file.activeViewId ?? file.views[0]?.id ?? null;
+      setActiveViewId(nextActiveId);
+    });
+
+    return () => {
+      cancelled = true;
+      off();
+    };
+  }, [applyDatabaseView]);
 
   useEffect(() => {
     if (seededRef.current) return;
@@ -123,6 +187,147 @@ export function DatabaseView(): JSX.Element {
 
   const filters = useMemo(() => query.filters ?? [], [query.filters]);
 
+  const persistActiveView = useCallback(
+    (patch: Partial<DatabaseViewDefinition>): void => {
+      if (activeView === null) return;
+      const nextView: DatabaseViewDefinition = {
+        ...activeView,
+        query,
+        selectedType,
+        layout: databaseViewMode,
+        columns: visibleColumns,
+        ...patch,
+        updatedAt: Date.now(),
+      };
+      setViewsFile((current) =>
+        current === null
+          ? current
+          : {
+              ...current,
+              activeViewId: nextView.id,
+              views: current.views.map((view) => (view.id === nextView.id ? nextView : view)),
+            },
+      );
+      void ipc.upsertDatabaseView({ view: nextView });
+    },
+    [activeView, databaseViewMode, query, selectedType, visibleColumns],
+  );
+
+  const handleSelectView = (view: DatabaseViewDefinition): void => {
+    applyDatabaseView(view);
+  };
+
+  const handleCreateView = (): void => {
+    const timestamp = Date.now();
+    const view: DatabaseViewDefinition = {
+      id: createViewId(),
+      name: `Vista ${(viewsFile?.views.length ?? 0) + 1}`,
+      layout: databaseViewMode,
+      query,
+      selectedType,
+      columns: visibleColumns,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    setViewMenuOpen(false);
+    setViewsFile((current) =>
+      current === null
+        ? { version: 1, activeViewId: view.id, views: [view] }
+        : { ...current, activeViewId: view.id, views: [...current.views, view] },
+    );
+    applyDatabaseView(view);
+    void ipc.upsertDatabaseView({ view });
+  };
+
+  const handleDuplicateView = (): void => {
+    if (activeView === null) return;
+    setViewMenuOpen(false);
+    void ipc.duplicateDatabaseView({ id: activeView.id }).then((copy) => {
+      setViewsFile((current) =>
+        current === null
+          ? { version: 1, activeViewId: copy.id, views: [copy] }
+          : { ...current, activeViewId: copy.id, views: [...current.views, copy] },
+      );
+      applyDatabaseView(copy);
+    });
+  };
+
+  const handleDeleteView = (): void => {
+    if (activeView === null) return;
+    setViewMenuOpen(false);
+    void ipc.deleteDatabaseView({ id: activeView.id }).then((file) => {
+      setViewsFile(file);
+      const next = file.views.find((view) => view.id === file.activeViewId) ?? file.views[0];
+      if (next !== undefined) applyDatabaseView(next);
+    });
+  };
+
+  const handleVisibleColumnsChange = (columns: string[]): void => {
+    setVisibleColumns(columns);
+    persistActiveView({ columns });
+  };
+
+  const handleFiltersChange = (nextFilters: DatabaseQuery['filters']): void => {
+    const nextQuery = { ...query, filters: nextFilters ?? [] };
+    setFilters(nextQuery.filters ?? []);
+    persistActiveView({ query: nextQuery });
+  };
+
+  const handleAddFilter = (filter: (typeof filters)[number]): void => {
+    handleFiltersChange([...filters, filter]);
+  };
+
+  const handleUpdateFilter = (index: number, filter: (typeof filters)[number]): void => {
+    const next = filters.slice();
+    next[index] = filter;
+    handleFiltersChange(next);
+  };
+
+  const handleRemoveFilter = (index: number): void => {
+    handleFiltersChange(filters.slice(0, index).concat(filters.slice(index + 1)));
+  };
+
+  const handleSortChange = (sortValue: DatabaseQuery['sort']): void => {
+    setSort(sortValue);
+    const nextQuery = { ...query };
+    if (sortValue === undefined || sortValue.length === 0) delete nextQuery.sort;
+    else nextQuery.sort = sortValue;
+    persistActiveView({ query: nextQuery });
+  };
+
+  const handleGroupByChange = (groupBy: string | null): void => {
+    setGroupBy(groupBy);
+    const nextQuery = { ...query };
+    if (groupBy === null) delete nextQuery.groupBy;
+    else nextQuery.groupBy = groupBy;
+    persistActiveView({ query: nextQuery });
+  };
+
+  const handleFolderCommit = (value: string): void => {
+    const trimmed = value.trim();
+    const folder = trimmed === '' ? undefined : trimmed;
+    setFolder(folder);
+    const nextQuery = { ...query };
+    if (folder === undefined) delete nextQuery.folder;
+    else nextQuery.folder = folder;
+    persistActiveView({ query: nextQuery });
+  };
+
+  const handleLimitChange = (limit: number): void => {
+    setLimit(limit);
+    persistActiveView({ query: { ...query, limit } });
+  };
+
+  const handleTypeChange = (type: string | null): void => {
+    setType(type);
+    persistActiveView({ selectedType: type });
+  };
+
+  const handleDatabaseViewModeChange = (mode: DatabaseViewMode): void => {
+    setDatabaseViewMode(mode);
+    persistActiveView({ layout: mode });
+  };
+
   const suggestedColumnKeys = useMemo<string[]>(() => {
     if (selectedType === null) return [];
     const schema = tagSchemas.find((s) => s.id === selectedType);
@@ -158,6 +363,9 @@ export function DatabaseView(): JSX.Element {
     setFilters([]);
     setFolder(undefined);
     setType(null);
+    const nextQuery = { ...query, filters: [] };
+    delete nextQuery.folder;
+    persistActiveView({ query: nextQuery, selectedType: null });
   };
 
   const onRowClick = (path: NotePath): void => {
@@ -211,13 +419,87 @@ export function DatabaseView(): JSX.Element {
             )}
           </div>
           <div className="flex items-center gap-2">
-            <TypeFilterDropdown types={tagTypes} selectedType={selectedType} onChange={setType} />
+            <TypeFilterDropdown
+              types={tagTypes}
+              selectedType={selectedType}
+              onChange={handleTypeChange}
+            />
             <ColumnPicker
               availableProperties={availableProperties}
               suggestedKeys={suggestedColumnKeys}
               visibleColumns={visibleColumns}
-              onChange={setVisibleColumns}
+              onChange={handleVisibleColumnsChange}
             />
+          </div>
+        </div>
+
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+          <div
+            role="tablist"
+            aria-label="Viste database salvate"
+            className="flex min-w-0 flex-wrap items-center gap-1"
+          >
+            {(viewsFile?.views ?? []).map((view) => {
+              const active = view.id === activeViewId;
+              return (
+                <button
+                  key={view.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={(): void => handleSelectView(view)}
+                  className={
+                    active
+                      ? 'rounded bg-bg-muted px-2 py-1 text-xs font-medium text-fg'
+                      : 'rounded px-2 py-1 text-xs font-medium text-fg-subtle hover:bg-bg-muted hover:text-fg'
+                  }
+                >
+                  {view.name}
+                </button>
+              );
+            })}
+          </div>
+          <div className="relative">
+            <button
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded={viewMenuOpen}
+              onClick={(): void => setViewMenuOpen((open) => !open)}
+              className="rounded border border-border bg-bg-subtle px-2 py-1 text-xs text-fg-subtle hover:bg-bg-muted hover:text-fg"
+            >
+              Vista
+            </button>
+            {viewMenuOpen && (
+              <div
+                role="menu"
+                className="absolute right-0 z-20 mt-1 w-40 rounded border border-border bg-bg p-1 text-xs shadow-lg"
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={handleCreateView}
+                  className="block w-full rounded px-2 py-1 text-left text-fg-subtle hover:bg-bg-muted hover:text-fg"
+                >
+                  Nuova vista
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={handleDuplicateView}
+                  className="block w-full rounded px-2 py-1 text-left text-fg-subtle hover:bg-bg-muted hover:text-fg"
+                >
+                  Duplica
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={handleDeleteView}
+                  className="block w-full rounded px-2 py-1 text-left text-red-600 hover:bg-red-500/10"
+                >
+                  Elimina
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -226,9 +508,9 @@ export function DatabaseView(): JSX.Element {
             filters={filters}
             availableProperties={availableProperties}
             rows={rows}
-            onAdd={addFilter}
-            onUpdate={updateFilter}
-            onRemove={removeFilter}
+            onAdd={handleAddFilter}
+            onUpdate={handleUpdateFilter}
+            onRemove={handleRemoveFilter}
           />
         </div>
 
@@ -237,27 +519,24 @@ export function DatabaseView(): JSX.Element {
             sortKey={sortKey}
             sortDirection={sortDirection}
             availableProperties={availableProperties}
-            onChange={setSort}
+            onChange={handleSortChange}
           />
 
           <GroupByControl
             groupBy={query.groupBy ?? null}
             availableProperties={availableProperties}
-            onChange={setGroupBy}
+            onChange={handleGroupByChange}
           />
 
           <FolderScopeInput
             value={folderDraft}
             onChange={setFolderDraft}
-            onCommit={(v): void => {
-              const trimmed = v.trim();
-              setFolder(trimmed === '' ? undefined : trimmed);
-            }}
+            onCommit={handleFolderCommit}
           />
 
-          <LimitControl value={queryLimit} onChange={setLimit} />
+          <LimitControl value={queryLimit} onChange={handleLimitChange} />
 
-          <ViewModeTabs current={databaseViewMode} onChange={setDatabaseViewMode} />
+          <ViewModeTabs current={databaseViewMode} onChange={handleDatabaseViewModeChange} />
         </div>
       </header>
 
@@ -308,6 +587,10 @@ export function DatabaseView(): JSX.Element {
         {!isEmpty && result !== null && databaseViewMode === 'board' && <BoardView />}
 
         {!isEmpty && result !== null && databaseViewMode === 'calendar' && <CalendarView />}
+
+        {!isEmpty && result !== null && databaseViewMode === 'gallery' && (
+          <GalleryView rows={rows} columns={visibleColumns} onRowClick={onRowClick} />
+        )}
 
         {result === null && error === null && (
           <div className="flex h-full items-center justify-center p-8 text-fg-muted">
@@ -477,6 +760,7 @@ function ViewModeTabs({
     { id: 'table', label: 'Tabella' },
     { id: 'board', label: 'Board' },
     { id: 'calendar', label: 'Calendario' },
+    { id: 'gallery', label: 'Galleria' },
   ];
   return (
     <div role="tablist" aria-label="Vista database" className="ml-auto flex items-center gap-0.5">

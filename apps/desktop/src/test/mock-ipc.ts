@@ -1,5 +1,6 @@
 import { vi, type Mock } from 'vitest';
 import type {
+  DatabaseViewsChangedPayload,
   IndexProgressPayload,
   IpcChannel,
   IpcRequests,
@@ -52,14 +53,20 @@ export interface MockController {
   onVaultEventSpy: Mock;
   /** Spy for `onIndexProgress` listener registrations. */
   onIndexProgressSpy: Mock;
+  /** Spy for `onDatabaseViewsChanged` listener registrations. */
+  onDatabaseViewsChangedSpy: Mock;
   /** Push a vault event to every subscribed listener. */
   triggerVaultEvent(payload: VaultEventPayload): void;
   /** Push an index-progress event to every subscribed listener. */
   triggerIndexProgress(payload: IndexProgressPayload): void;
+  /** Push a database-views change event to every subscribed listener. */
+  triggerDatabaseViewsChanged(payload: DatabaseViewsChangedPayload): void;
   /** Number of vault-event listeners currently registered. */
   vaultEventListenerCount(): number;
   /** Number of index-progress listeners currently registered. */
   indexProgressListenerCount(): number;
+  /** Number of database-views listeners currently registered. */
+  databaseViewsChangedListenerCount(): number;
 }
 
 /** Default handler returns for channels tests don't explicitly set up.
@@ -135,6 +142,53 @@ function buildDefaultHandlers(): Required<MockHandlers> {
       groups: [],
       totalCount: 0,
     }),
+    [IpcChannels.listDatabaseViews]: async () => ({
+      version: 1,
+      activeViewId: 'default',
+      views: [
+        {
+          id: 'default',
+          name: 'Tutte',
+          layout: 'table',
+          query: { filters: [], limit: 1000 },
+          selectedType: null,
+          columns: [],
+          createdAt: 0,
+          updatedAt: 0,
+        },
+      ],
+    }),
+    [IpcChannels.upsertDatabaseView]: async (
+      args: IpcRequests[typeof IpcChannels.upsertDatabaseView],
+    ) => args.view,
+    [IpcChannels.deleteDatabaseView]: async () => ({
+      version: 1,
+      activeViewId: 'default',
+      views: [
+        {
+          id: 'default',
+          name: 'Tutte',
+          layout: 'table',
+          query: { filters: [], limit: 1000 },
+          selectedType: null,
+          columns: [],
+          createdAt: 0,
+          updatedAt: 0,
+        },
+      ],
+    }),
+    [IpcChannels.duplicateDatabaseView]: async (
+      args: IpcRequests[typeof IpcChannels.duplicateDatabaseView],
+    ) => ({
+      id: `${args.id}-copy`,
+      name: 'Tutte copia',
+      layout: 'table',
+      query: { filters: [], limit: 1000 },
+      selectedType: null,
+      columns: [],
+      createdAt: 0,
+      updatedAt: 0,
+    }),
     [IpcChannels.getFullGraph]: async () => ({ nodes: [], edges: [] }),
 
     // v1.0 — taxonomy + relations
@@ -172,6 +226,7 @@ export function installMockIpc(overrides: MockHandlers = {}): MockController {
 
   const vaultEventListeners = new Set<(p: VaultEventPayload) => void>();
   const indexProgressListeners = new Set<(p: IndexProgressPayload) => void>();
+  const databaseViewsChangedListeners = new Set<(p: DatabaseViewsChangedPayload) => void>();
 
   const onVaultEventSpy = vi.fn((listener: (p: VaultEventPayload) => void) => {
     vaultEventListeners.add(listener);
@@ -185,6 +240,12 @@ export function installMockIpc(overrides: MockHandlers = {}): MockController {
       indexProgressListeners.delete(listener);
     };
   });
+  const onDatabaseViewsChangedSpy = vi.fn((listener: (p: DatabaseViewsChangedPayload) => void) => {
+    databaseViewsChangedListeners.add(listener);
+    return () => {
+      databaseViewsChangedListeners.delete(listener);
+    };
+  });
 
   const api: ZibaApi = {
     invoke: ((channel: IpcChannel, args?: unknown) => {
@@ -196,6 +257,8 @@ export function installMockIpc(overrides: MockHandlers = {}): MockController {
     }) as ZibaApi['invoke'],
     onVaultEvent: onVaultEventSpy as unknown as ZibaApi['onVaultEvent'],
     onIndexProgress: onIndexProgressSpy as unknown as ZibaApi['onIndexProgress'],
+    onDatabaseViewsChanged:
+      onDatabaseViewsChangedSpy as unknown as ZibaApi['onDatabaseViewsChanged'],
   };
 
   window.ziba = api;
@@ -217,17 +280,24 @@ export function installMockIpc(overrides: MockHandlers = {}): MockController {
     },
     onVaultEventSpy,
     onIndexProgressSpy,
+    onDatabaseViewsChangedSpy,
     triggerVaultEvent(payload) {
       for (const l of vaultEventListeners) l(payload);
     },
     triggerIndexProgress(payload) {
       for (const l of indexProgressListeners) l(payload);
     },
+    triggerDatabaseViewsChanged(payload) {
+      for (const l of databaseViewsChangedListeners) l(payload);
+    },
     vaultEventListenerCount() {
       return vaultEventListeners.size;
     },
     indexProgressListenerCount() {
       return indexProgressListeners.size;
+    },
+    databaseViewsChangedListenerCount() {
+      return databaseViewsChangedListeners.size;
     },
   };
 }
