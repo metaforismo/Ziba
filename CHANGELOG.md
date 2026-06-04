@@ -23,6 +23,8 @@ Il formato si basa su [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e
 - Controllo "Righe" nella DatabaseView, collegato a `DatabaseQuery.limit`.
 - Pannello `Indice` nel right pane, con filtro titoli e jump ai heading della
   nota corrente.
+- Mini-grafo locale con mentions come riferimenti morbidi: le citazioni testuali
+  appaiono come edge dashed senza duplicare i backlinks espliciti.
 
 ### Fixed
 
