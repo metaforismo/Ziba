@@ -111,7 +111,7 @@ function isRightPaneTab(v: unknown): v is RightPaneTab {
 
 function normalizeRightPaneTab(v: unknown): RightPaneTab {
   // v0.x persisted the inbound-link panel as `backlinks`. Preserve that
-  // preference under the new SiYuan-like combined References surface.
+  // preference under the combined References surface.
   if (v === 'backlinks') return 'references';
   return isRightPaneTab(v) ? v : DEFAULTS.rightPaneTab;
 }

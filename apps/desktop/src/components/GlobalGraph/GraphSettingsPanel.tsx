@@ -23,7 +23,7 @@ type Props = {
 };
 
 export type GraphPreset = {
-  id: 'overview' | 'siyuan' | 'focus';
+  id: 'overview' | 'connected' | 'focus';
   label: string;
   description: string;
   query: Partial<GraphQueryFilters>;
@@ -57,8 +57,8 @@ const GRAPH_PRESETS: readonly GraphPreset[] = [
     },
   },
   {
-    id: 'siyuan',
-    label: 'SiYuan',
+    id: 'connected',
+    label: 'Collegato',
     description: 'Mappa orientata ai blocchi collegati, con frecce e soglia.',
     query: { includeOrphans: false, focusMode: false, minDegree: 1 },
     display: {

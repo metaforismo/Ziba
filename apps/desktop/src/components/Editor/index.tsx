@@ -148,6 +148,7 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
   const openNote = useEditorStore((s) => s.openNote);
   const createUntitledNote = useEditorStore((s) => s.createUntitledNote);
   const setMainView = useUiStore((s) => s.setMainView);
+  const backlinksOpen = useUiStore((s) => s.backlinksOpen);
   const notes = useVaultStore((s) => s.notes);
   const [starterCreating, setStarterCreating] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
@@ -741,7 +742,7 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
     const showStarterAction = notes.length === 0;
 
     return (
-      <section className="flex h-full bg-bg">
+      <section className="flex h-full w-full min-w-0 bg-bg">
         <div className="mx-auto flex w-full max-w-[760px] flex-col px-8 py-10">
           <div className="mb-10 flex items-center justify-between gap-4 text-sm">
             <div className="truncate text-fg-muted">
@@ -838,9 +839,12 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
   const breadcrumb = pathParts.length > 0 ? pathParts.join(' / ') : 'Note';
   const saveStatus =
     lastSaveError !== null ? 'Errore salvataggio' : dirty ? 'Modifiche non salvate' : 'Salvato';
+  const editorContentClass =
+    'ziba-editor-content flex w-full flex-col py-10 ' +
+    (backlinksOpen ? 'mx-auto max-w-[760px] px-8' : 'max-w-none px-10 xl:px-14 2xl:px-16');
 
   return (
-    <section className="relative flex h-full flex-col bg-bg">
+    <section className="ziba-editor-root relative flex h-full w-full min-w-0 flex-1 flex-col bg-bg">
       {lastSaveError !== null && (
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border bg-bg-subtle px-4 py-2 text-xs text-fg-subtle">
           <span className="truncate">{lastSaveError}</span>
@@ -868,12 +872,12 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
       )}
 
       <div
-        className="ziba-editor-scroll flex-1 overflow-y-auto"
+        className="ziba-editor-scroll min-w-0 flex-1 overflow-y-auto"
         // The wikilink chip styles are inlined here (small surface area)
         // so we don't need a new CSS file. Tailwind utilities cover the
         // rest of the typography via `ziba-prose`.
       >
-        <div className="mx-auto flex w-full max-w-[760px] flex-col px-8 py-10">
+        <div className={editorContentClass}>
           <div className="mb-8 flex items-center justify-between gap-4 text-sm">
             <div className="min-w-0 truncate text-fg-muted">
               <span>{breadcrumb}</span>

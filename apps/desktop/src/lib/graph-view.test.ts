@@ -88,7 +88,7 @@ describe('deriveGraphView', () => {
     ]);
   });
 
-  it('applies a SiYuan-style minimum connection threshold', () => {
+  it('applies a minimum connection threshold', () => {
     const view = deriveGraphView(GRAPH, settings({ query: { minDegree: 2 } }));
 
     expect(view.graph.nodes.map((n) => n.path)).toEqual(['Projects/B.md']);

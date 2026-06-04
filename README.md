@@ -173,7 +173,7 @@ editing your files however you want.
 
 - Local mini-graph around the current note.
 - Global graph with pan, zoom, search, and node selection.
-- SiYuan/Obsidian-style global and local graph modes with compact controls,
+- Obsidian-style global and local graph modes with compact controls,
   search, refresh, fit, fullscreen, and focusable local neighborhoods.
 - Constellation mode with type clusters, color groups, relation-kind filters,
   and graph settings.
@@ -327,7 +327,7 @@ Recently shipped:
 - Inline database blocks inside notes.
 - Global/local graph modes and local mini-graph.
 - Typed objects, schemas, relation table, object panel, and type sidebar.
-- SiYuan/Obsidian-style graph polish, graph settings, and compact panel controls.
+- Obsidian-style graph polish, graph settings, and compact panel controls.
 
 Next directions:
 

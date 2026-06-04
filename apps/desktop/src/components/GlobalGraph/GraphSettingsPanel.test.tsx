@@ -23,11 +23,11 @@ describe('<GraphSettingsPanel>', () => {
     expect(screen.queryByRole('heading', { name: 'Controlli grafo' })).toBeNull();
   });
 
-  it('renders the SiYuan-like drawer sections with local graph controls', () => {
+  it('renders the compact drawer sections with local graph controls', () => {
     render(<GraphSettingsPanel {...DEFAULT_PROPS} open />);
 
     expect(screen.getByRole('heading', { name: 'Controlli grafo' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Applica preset SiYuan' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Applica preset Collegato' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Filtri' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Gruppi' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Aspetto' })).toBeInTheDocument();
@@ -78,11 +78,11 @@ describe('<GraphSettingsPanel>', () => {
     const onApplyPreset = vi.fn();
     render(<GraphSettingsPanel {...DEFAULT_PROPS} open onApplyPreset={onApplyPreset} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Applica preset SiYuan' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Applica preset Collegato' }));
 
     expect(onApplyPreset).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: 'siyuan',
+        id: 'connected',
         query: expect.objectContaining({ minDegree: 1, includeOrphans: false }),
         display: expect.objectContaining({ showArrows: true }),
       }),
