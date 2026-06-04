@@ -33,7 +33,7 @@ afterEach(() => {
 });
 
 describe('BacklinksPanel', () => {
-  it('renders a SiYuan-like References tab with Backlinks and Mentions sections', async () => {
+  it('renders a References tab with Backlinks and Mentions sections', async () => {
     mock.setHandler(IpcChannels.getReferences, async () => ({
       backlinks: [
         {

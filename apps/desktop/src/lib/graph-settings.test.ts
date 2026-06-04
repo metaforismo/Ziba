@@ -11,7 +11,7 @@ beforeEach(() => {
 });
 
 describe('graph settings defaults', () => {
-  it('matches the SiYuan-like graph defaults', async () => {
+  it('matches the connected graph defaults', async () => {
     const { DEFAULT_GRAPH_SETTINGS } = await loadGraphSettings();
 
     expect(DEFAULT_GRAPH_SETTINGS.query).toMatchObject({
