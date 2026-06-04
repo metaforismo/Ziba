@@ -26,7 +26,7 @@ export function Ribbon(): JSX.Element {
   return (
     <nav
       aria-label="Navigazione principale"
-      className="flex h-full w-12 shrink-0 flex-col items-center border-r border-border bg-bg-subtle/95 py-2"
+      className="flex h-full min-h-0 w-12 shrink-0 flex-col items-center overflow-hidden border-r border-border bg-bg-subtle/95 py-2"
     >
       <RibbonButton
         label="File"

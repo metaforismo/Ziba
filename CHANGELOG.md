@@ -22,6 +22,14 @@ Il formato si basa su [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e
   pannello laterale, DatabaseView e toolbar del grafo.
 - Controllo "Righe" nella DatabaseView, collegato a `DatabaseQuery.limit`.
 
+### Fixed
+
+- La sidebar non trascina piu' la finestra verso il basso: file tree,
+  strumenti e sezioni Organizza scrollano in regioni interne.
+- I temi scuri applicano anche la classe Tailwind `.dark`, quindi le utility
+  `dark:` tornano coerenti con i token `data-theme` ed evitano stati
+  bianco-su-bianco o nero-su-nero.
+
 ## [1.0.1] - 2026-05-10
 
 ### Phase 2 followups

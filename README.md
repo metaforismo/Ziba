@@ -88,8 +88,11 @@ Current state:
 
 - Local vaults backed by `.md` files and YAML frontmatter.
 - Electron desktop app with React, Tiptap, Tailwind, Zustand, and SQLite.
-- Full-text search, tags, backlinks, file tree, database views, and graph views.
+- Full-text search, tags, backlinks, mentions, file tree, database views, and graph views.
 - Typed objects and semantic relations via `.ziba/schema/*.yml`.
+- Saved database views in `.ziba/database-views.json`, including table, board,
+  calendar, and gallery layouts.
+- Inline database blocks that render saved views inside notes.
 - Extensive unit and component coverage across the core and desktop app.
 - MIT licensed and open to contributors.
 
@@ -118,8 +121,9 @@ Current state:
 - Frontmatter property editor.
 - Typed property indexing for fast queries.
 - Tags from both frontmatter and inline `#tag` syntax.
-- Database table view with typed filters, sorting, grouping, and column picking.
-- Board and calendar views for property-driven workflows.
+- Saved database views with typed filters, sorting, grouping, limits, and column picking.
+- Table, board, calendar, and gallery layouts for property-driven workflows.
+- Inline database blocks via `/database`, backed by saved views in the vault.
 
 ### Typed objects and semantic relations
 
@@ -168,9 +172,12 @@ editing your files however you want.
 
 - Local mini-graph around the current note.
 - Global graph with pan, zoom, search, and node selection.
-- Obsidian-style visual polish with dark canvas, subtle links, and hover focus.
+- SiYuan/Obsidian-style global and local graph modes with compact controls,
+  search, refresh, fit, fullscreen, and focusable local neighborhoods.
 - Constellation mode with type clusters, color groups, relation-kind filters,
   and graph settings.
+- Right-side References panel with backlinks, plain-text mentions, counts,
+  filters, sorting, and inline context previews.
 
 ### Desktop workflows
 
@@ -251,6 +258,7 @@ my-vault/
 |   `-- the-hobbit.md
 `-- .ziba/
     |-- index.db
+    |-- database-views.json
     `-- schema/
         |-- note.yml
         |-- person.yml
@@ -263,6 +271,7 @@ my-vault/
 
 - `.md` files are the durable user data.
 - `.ziba/index.db` is a rebuildable SQLite cache.
+- `.ziba/database-views.json` stores saved database view definitions.
 - `.ziba/schema/*.yml` describes optional object types and relation kinds.
 
 See [docs/vault-format.md](docs/vault-format.md) for the full vault format,
@@ -310,10 +319,12 @@ Read [docs/architecture.md](docs/architecture.md) for the deeper walkthrough.
 Recently shipped:
 
 - Local vault, markdown editor, wikilinks, backlinks, tags, full-text search.
-- Database table, board, and calendar views.
-- Global graph and local mini-graph.
+- References panel with backlinks, mentions, filters, sorting, and previews.
+- Saved database table, board, calendar, and gallery views.
+- Inline database blocks inside notes.
+- Global/local graph modes and local mini-graph.
 - Typed objects, schemas, relation table, object panel, and type sidebar.
-- Obsidian-style graph polish, graph settings, and improved file actions.
+- SiYuan/Obsidian-style graph polish, graph settings, and compact panel controls.
 
 Next directions:
 

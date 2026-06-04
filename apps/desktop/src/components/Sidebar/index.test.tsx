@@ -108,4 +108,17 @@ describe('Sidebar navigation', () => {
     expect(screen.getByRole('button', { name: 'Cerca note' })).toBeInTheDocument();
     expect(screen.queryByText('Cerca note...')).toBeNull();
   });
+
+  it('contains sidebar scrolling to internal regions', () => {
+    render(<Sidebar />);
+
+    const sidebar = screen.getByLabelText('Esplora vault');
+    expect(sidebar).toHaveClass('min-h-0', 'overflow-hidden');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Organizza' }));
+    const tools = screen.getByText('Strumenti').closest('div')?.parentElement?.parentElement;
+
+    expect(tools).toHaveClass('max-h-[48%]', 'overflow-hidden');
+    expect(screen.getByLabelText('Tipi').parentElement).toHaveClass('overflow-y-auto');
+  });
 });
