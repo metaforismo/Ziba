@@ -5,7 +5,9 @@ import {
   ArrowRight,
   ArrowSquareOut,
   CornersOut,
+  FunnelX,
   Gear,
+  Graph as GraphIcon,
   MagnifyingGlass,
   Minus,
   Plus,
@@ -36,6 +38,7 @@ import { useGraphSettingsStore } from '../../stores/graph';
 import { useEditorStore } from '../../stores/editor';
 import { IconButton } from '../ui/IconButton';
 import { SegmentedControl } from '../ui/SegmentedControl';
+import { EmptyView } from '../ui/EmptyView';
 import { GraphSettingsPanel, type GraphPreset } from './GraphSettingsPanel';
 import type { GraphGroupRule } from '../../lib/graph-settings';
 import { graphGroupQueryMatchesNode } from '../../lib/graph-groups';
@@ -877,14 +880,11 @@ export function GlobalGraph(): JSX.Element {
           <GraphStatus tone="danger" title="Impossibile caricare il grafo" detail={load.message} />
         )}
         {load.kind === 'ready' && nodeCount === 0 && (
-          <GraphStatus
-            tone="neutral"
-            title={totalNodeCount === 0 ? 'Nessun nodo nel grafo' : 'Nessun risultato nel grafo'}
-            detail={
-              totalNodeCount === 0
-                ? 'Il vault non contiene ancora note collegabili.'
-                : 'I filtri correnti nascondono tutti i nodi. Allarga la ricerca o disattiva un filtro.'
-            }
+          <GraphEmptyOverlay
+            totalNodeCount={totalNodeCount}
+            // The graph honours filters via the settings store; resetting
+            // the whole graph settings is the real "clear filters" action.
+            onResetFilters={resetGraphSettings}
           />
         )}
         {load.kind === 'ready' && nodeCount > 0 && (
@@ -1027,6 +1027,50 @@ function GraphStatus({
           {title}
         </h2>
         <p className="mt-1 text-xs leading-5 text-[#a7a7ad]">{detail}</p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Empty-state overlay for the graph surface. The graph canvas itself uses
+ * hardcoded dark colors (a deliberate, theme-independent visualization
+ * surface), but the empty overlay is a normal UI affordance, so it uses
+ * design tokens and reads correctly in every theme — per the UX brief.
+ *
+ * Distinguishes a truly empty vault (no linkable notes yet) from a
+ * filtered-to-nothing state, surfacing a real "Azzera filtri" action only
+ * in the latter case (wired to the graph settings store's reset).
+ */
+function GraphEmptyOverlay({
+  totalNodeCount,
+  onResetFilters,
+}: {
+  totalNodeCount: number;
+  onResetFilters: () => void;
+}): JSX.Element {
+  const isEmptyVault = totalNodeCount === 0;
+  return (
+    <div className="absolute inset-0 flex items-center justify-center p-6">
+      <div className="w-full max-w-sm rounded-xl border border-border bg-bg-subtle/95 p-6 shadow-xl backdrop-blur">
+        <EmptyView
+          icon={
+            isEmptyVault ? (
+              <GraphIcon size={28} weight="duotone" />
+            ) : (
+              <FunnelX size={28} weight="duotone" />
+            )
+          }
+          title={isEmptyVault ? 'Nessun nodo nel grafo' : 'Nessun risultato'}
+          description={
+            isEmptyVault
+              ? 'Il vault non contiene ancora note collegabili. Crea note e collegale con [[wikilink]] per popolare il grafo.'
+              : 'I filtri correnti nascondono tutti i nodi. Allarga la ricerca o azzera i filtri.'
+          }
+          // Only the filtered-to-nothing state gets a reset action; an
+          // empty vault has no filters to clear.
+          {...(isEmptyVault ? {} : { action: { label: 'Azzera filtri', onClick: onResetFilters } })}
+        />
       </div>
     </div>
   );

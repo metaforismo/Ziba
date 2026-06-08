@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowCounterClockwise,
+  ArrowsLeftRight,
   CaretDown,
   CaretRight,
+  LinkSimple,
   MagnifyingGlass,
 } from '@phosphor-icons/react';
 import type { NotePath } from '@ziba/core';
@@ -11,8 +13,11 @@ import { debounce } from '../../lib/debounce';
 import { ipc } from '../../lib/ipc';
 import { navigateToNote } from '../../lib/navigate';
 import { BACKLINKS_REFETCH_MS } from '../../lib/timings';
+import { useDelayedFlag } from '../../lib/useDelayedFlag';
 import { SnippetText } from '../SearchPalette/SnippetText';
+import { EmptyView } from '../ui/EmptyView';
 import { IconButton } from '../ui/IconButton';
+import { SkeletonRows } from '../ui/Skeleton';
 
 type Props = {
   currentPath: NotePath | null;
@@ -174,6 +179,10 @@ export function ReferencesPanel({ currentPath, onLoadingChange }: Props): JSX.El
 
   const totalCount = references.backlinks.length + references.mentions.length;
   const filteredCount = visibleReferences.backlinks.length + visibleReferences.mentions.length;
+  const hasFilter = filter.trim().length > 0;
+  // Only show the skeleton once loading outlasts the min-display delay, so
+  // fast IPC round-trips (warm cache) don't flash a placeholder.
+  const showSkeleton = useDelayedFlag(loading && totalCount === 0, 150);
 
   const toggleSection = (section: SectionKey): void => {
     setCollapsed((prev) => ({ ...prev, [section]: !prev[section] }));
@@ -181,7 +190,12 @@ export function ReferencesPanel({ currentPath, onLoadingChange }: Props): JSX.El
 
   if (currentPath === null) {
     return (
-      <p className="px-3 py-2 text-xs text-fg-muted">Apri una nota per vedere i riferimenti.</p>
+      <EmptyView
+        compact
+        icon={<LinkSimple size={20} weight="duotone" />}
+        title="Nessuna nota aperta"
+        description="Apri una nota per vedere backlink e menzioni."
+      />
     );
   }
 
@@ -231,8 +245,19 @@ export function ReferencesPanel({ currentPath, onLoadingChange }: Props): JSX.El
         </div>
       </div>
 
-      {totalCount === 0 && !loading ? (
-        <p className="px-3 py-2 text-xs text-fg-muted">Nessun riferimento trovato.</p>
+      {showSkeleton ? (
+        <SkeletonRows rows={5} label="Caricamento riferimenti…" className="px-3 py-3" />
+      ) : totalCount === 0 ? (
+        // No backlinks AND no mentions. We can't distinguish "no inbound
+        // links at all" from "only broken outbound links" — the references
+        // IPC reports inbound links only, with no broken-link channel — so
+        // the copy stays honest about what we actually know.
+        <EmptyView
+          compact
+          icon={<LinkSimple size={20} weight="duotone" />}
+          title="Nessun riferimento"
+          description="Nessun'altra nota collega o menziona questa nota."
+        />
       ) : (
         <div className="px-1 py-1">
           {(['backlinks', 'mentions'] as const).map((section) => (
@@ -248,7 +273,33 @@ export function ReferencesPanel({ currentPath, onLoadingChange }: Props): JSX.El
               {!collapsed[section] && (
                 <ul className="pb-1">
                   {visibleReferences[section].length === 0 ? (
-                    <li className="px-6 py-1 text-xs text-fg-muted">Nessun risultato.</li>
+                    <li>
+                      <EmptyView
+                        compact
+                        className="px-3 py-3"
+                        icon={
+                          section === 'backlinks' ? (
+                            <LinkSimple size={18} weight="duotone" />
+                          ) : (
+                            <ArrowsLeftRight size={18} weight="duotone" />
+                          )
+                        }
+                        title={
+                          hasFilter
+                            ? 'Nessun risultato'
+                            : section === 'backlinks'
+                              ? 'Nessun backlink'
+                              : 'Nessuna menzione'
+                        }
+                        description={
+                          hasFilter
+                            ? 'Nessun riferimento corrisponde al filtro.'
+                            : section === 'backlinks'
+                              ? 'Nessuna nota collega questa con [[wikilink]].'
+                              : 'Nessuna nota cita questo titolo come testo.'
+                        }
+                      />
+                    </li>
                   ) : (
                     visibleReferences[section].map((reference) => (
                       <ReferenceRow
