@@ -1,6 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import Database from 'better-sqlite3';
-import { EXPECTED_USER_VERSION, PRAGMAS, SCHEMA_SQL } from '@ziba/core';
+import {
+  EXPECTED_USER_VERSION,
+  MENTION_EDGE_KIND,
+  mergeMentionEdges,
+  PRAGMAS,
+  SCHEMA_SQL,
+  type GraphEdge,
+  type MentionEdge,
+} from '@ziba/core';
 
 // Integration tests for statements added to SqliteIndexStore that are not
 // covered by index-store-relations.test.ts. Uses an in-memory SQLite DB
@@ -22,6 +30,33 @@ function insertTypeProp(path: string, type: string): void {
     `INSERT INTO note_properties (source_path, prop_key, prop_type, text_value)
      VALUES (?, 'type', 'text', ?)`,
   ).run(path, type);
+}
+
+function insertFts(path: string, title: string, body: string): void {
+  db.prepare(`INSERT INTO notes_fts (path, title, body) VALUES (?, ?, ?)`).run(path, title, body);
+}
+
+// Mirrors the per-target FTS scan in `SqliteIndexStore.getMentionEdges`:
+// for each note title, find OTHER notes whose body matches the title,
+// emitting a (mentioning → mentioned) candidate. Kept inline so the test
+// exercises the same FTS query shape without booting the adapter class.
+function collectMentionCandidates(): MentionEdge[] {
+  const notes = db.prepare(`SELECT path, title FROM notes`).all() as Array<{
+    path: string;
+    title: string;
+  }>;
+  const out: MentionEdge[] = [];
+  for (const target of notes) {
+    if (target.title.trim().length < 2) continue;
+    const hits = db
+      .prepare(`SELECT path FROM notes_fts WHERE notes_fts MATCH ? ORDER BY rank`)
+      .all(`"${target.title.replace(/"/g, '""')}"`) as Array<{ path: string }>;
+    for (const hit of hits) {
+      if (hit.path === target.path) continue;
+      out.push({ source: hit.path, target: target.path, targetTitle: target.title });
+    }
+  }
+  return out;
 }
 
 beforeEach(() => {
@@ -202,5 +237,45 @@ describe('graph edges — kind passthrough', () => {
       )
       .all() as Array<{ source: string; target: string; target_title: string; kind: string }>;
     expect(rows.map((r) => r.kind)).toEqual(['', 'author']);
+  });
+});
+
+describe('soft references — FTS mention detection + dedupe', () => {
+  it('emits a mention edge for an unlinked title match, deduped against explicit links', () => {
+    setupNote('people/ada.md', 'Ada Lovelace');
+    setupNote('projects/engine.md', 'Analytical Engine');
+    setupNote('letters/note.md', 'A letter');
+
+    insertFts('people/ada.md', 'Ada Lovelace', 'About herself.');
+    // Engine links to Ada explicitly via a wikilink (also matches FTS).
+    insertFts('projects/engine.md', 'Analytical Engine', 'Built by [[Ada Lovelace]].');
+    // A plain prose mention with no wikilink → soft reference.
+    insertFts('letters/note.md', 'A letter', 'A plain-text Ada Lovelace mention.');
+
+    // Explicit edge: engine → ada.
+    const explicit: GraphEdge[] = [
+      {
+        source: 'projects/engine.md',
+        target: 'people/ada.md',
+        targetTitle: 'Ada Lovelace',
+        kind: '',
+      },
+    ];
+    const known = new Set(['people/ada.md', 'projects/engine.md', 'letters/note.md']);
+
+    const candidates = collectMentionCandidates();
+    const merged = mergeMentionEdges(explicit, candidates, known);
+    const mentionEdges = merged.filter((e) => e.kind === MENTION_EDGE_KIND);
+
+    // Only the letter → ada mention survives: engine→ada is an explicit
+    // link (deduped), and ada→herself is a self-mention (skipped).
+    expect(mentionEdges).toEqual([
+      {
+        source: 'letters/note.md',
+        target: 'people/ada.md',
+        targetTitle: 'Ada Lovelace',
+        kind: MENTION_EDGE_KIND,
+      },
+    ]);
   });
 });

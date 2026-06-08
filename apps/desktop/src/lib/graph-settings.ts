@@ -5,6 +5,12 @@ export type GraphQueryFilters = {
   paths: string[];
   types: string[];
   relationKinds: string[];
+  /**
+   * Soft references (unlinked mentions) toggle. When false, mention
+   * edges are removed before orphan/min-degree computation — so a node
+   * connected ONLY by mentions correctly becomes an orphan again.
+   */
+  showMentions: boolean;
   minDegree: number;
   includeUnresolved: boolean;
   includeOrphans: boolean;
@@ -59,6 +65,7 @@ export const DEFAULT_GRAPH_SETTINGS: GraphSettings = {
     paths: [],
     types: [],
     relationKinds: [],
+    showMentions: true,
     minDegree: 0,
     includeUnresolved: true,
     includeOrphans: true,
@@ -187,6 +194,7 @@ export function validateGraphSettings(raw: unknown): GraphSettings {
       paths: stringArray(query.paths, defaults.query.paths),
       types: stringArray(query.types, defaults.query.types),
       relationKinds: stringArray(query.relationKinds, defaults.query.relationKinds),
+      showMentions: bool(query.showMentions, defaults.query.showMentions),
       minDegree: boundedNumber(query.minDegree, defaults.query.minDegree, 0, 32),
       includeUnresolved: bool(query.includeUnresolved, defaults.query.includeUnresolved),
       includeOrphans: bool(query.includeOrphans, defaults.query.includeOrphans),

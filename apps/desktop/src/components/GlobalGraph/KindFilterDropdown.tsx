@@ -8,7 +8,15 @@ type Props = {
   /** Currently active kinds. Empty set = no filter (all shown). */
   selectedKinds: ReadonlySet<string>;
   onChange(next: ReadonlySet<string>): void;
+  /** True when the graph contains soft references — offers the toggle. */
+  hasMentions: boolean;
+  /** Whether soft references (unlinked mentions) are currently shown. */
+  showMentions: boolean;
+  onShowMentionsChange(next: boolean): void;
 };
+
+/** Edge color for soft references in the swatch — matches the Canvas. */
+const MENTION_SWATCH = 'rgb(var(--graph-edge-mention))';
 
 /**
  * Multi-select dropdown for relation kinds. Each option is rendered
@@ -16,7 +24,14 @@ type Props = {
  * the edge color they see in the graph. Empty selection means
  * "no filter" — all kinds render at full opacity.
  */
-export function KindFilterDropdown({ kinds, selectedKinds, onChange }: Props): JSX.Element {
+export function KindFilterDropdown({
+  kinds,
+  selectedKinds,
+  onChange,
+  hasMentions,
+  showMentions,
+  onShowMentionsChange,
+}: Props): JSX.Element {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -33,10 +48,9 @@ export function KindFilterDropdown({ kinds, selectedKinds, onChange }: Props): J
     return (): void => window.removeEventListener('mousedown', onMouseDown);
   }, [open]);
 
+  const activeFilterCount = selectedKinds.size + (hasMentions && !showMentions ? 1 : 0);
   const buttonLabel =
-    selectedKinds.size === 0
-      ? 'Filtra relazioni: Tutte'
-      : `Filtra relazioni (${selectedKinds.size})`;
+    activeFilterCount === 0 ? 'Filtra relazioni: Tutte' : `Filtra relazioni (${activeFilterCount})`;
 
   const toggle = (kind: string): void => {
     const next = new Set(selectedKinds);
@@ -52,7 +66,7 @@ export function KindFilterDropdown({ kinds, selectedKinds, onChange }: Props): J
         onClick={(): void => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="menu"
-        className="h-8 rounded-md border border-[#3a3a3f] bg-[#242426]/84 px-2 text-[12px] text-[#bfc0c6] shadow-lg shadow-black/10 backdrop-blur transition hover:border-[#4d4d54] hover:bg-[#303034] hover:text-[#f4f4f5]"
+        className="h-8 rounded-md border border-graph-edge bg-graph-surface/84 px-2 text-[12px] text-[#bfc0c6] shadow-lg shadow-black/10 backdrop-blur transition hover:border-[#4d4d54] hover:bg-[#303034] hover:text-[#f4f4f5]"
       >
         {buttonLabel}
       </button>
@@ -60,10 +74,29 @@ export function KindFilterDropdown({ kinds, selectedKinds, onChange }: Props): J
         <div
           role="menu"
           aria-label="Filtra per tipo di relazione"
-          className="absolute right-0 top-[calc(100%+6px)] z-20 max-h-72 w-56 overflow-auto rounded-md border border-[#3a3a3f] bg-[#242426] p-1 shadow-xl shadow-black/30"
+          className="absolute right-0 top-[calc(100%+6px)] z-20 max-h-72 w-56 overflow-auto rounded-md border border-graph-edge bg-graph-surface p-1 shadow-xl shadow-black/30"
         >
-          {kinds.length === 0 && (
-            <p className="px-2 py-1.5 text-xs italic text-[#9d9da4]">
+          {hasMentions && (
+            <>
+              <label className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs text-[#d2d2d7] hover:bg-[#303034]">
+                <input
+                  type="checkbox"
+                  checked={showMentions}
+                  onChange={(): void => onShowMentionsChange(!showMentions)}
+                  className="h-3 w-3 accent-[#d7d7da]"
+                />
+                <span
+                  aria-hidden="true"
+                  className="inline-block h-0 w-3 shrink-0 border-t border-dashed"
+                  style={{ borderColor: MENTION_SWATCH }}
+                />
+                <span className="truncate">Riferimenti deboli</span>
+              </label>
+              {kinds.length > 0 && <div className="my-1 h-px bg-graph-edge" />}
+            </>
+          )}
+          {kinds.length === 0 && !hasMentions && (
+            <p className="px-2 py-1.5 text-xs italic text-graph-text-muted">
               Nessuna relazione tipizzata nel grafo.
             </p>
           )}
@@ -93,7 +126,7 @@ export function KindFilterDropdown({ kinds, selectedKinds, onChange }: Props): J
             <button
               type="button"
               onClick={(): void => onChange(new Set())}
-              className="mt-1 w-full rounded px-2 py-1 text-left text-xs text-[#9d9da4] hover:bg-[#303034] hover:text-[#f4f4f5]"
+              className="mt-1 w-full rounded px-2 py-1 text-left text-xs text-graph-text-muted hover:bg-[#303034] hover:text-[#f4f4f5]"
             >
               Mostra tutte
             </button>

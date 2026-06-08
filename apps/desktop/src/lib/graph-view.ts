@@ -1,4 +1,4 @@
-import type { NotePath } from '@ziba/core';
+import { MENTION_EDGE_KIND, type NotePath } from '@ziba/core';
 import type { FullGraph, GraphEdge, GraphNode } from '../../shared/ipc';
 import type { GraphSettings } from './graph-settings';
 import { graphGroupQueryMatchesNode } from './graph-groups';
@@ -43,6 +43,14 @@ function nodeMatchesSettings(node: GraphNode, settings: GraphSettings): boolean 
 }
 
 function edgeMatchesSettings(edge: GraphEdge, settings: GraphSettings): boolean {
+  // Soft references are governed solely by the dedicated `showMentions`
+  // toggle, NOT by the relation-kind filter. This keeps mentions out of
+  // the "kinds" picker and ensures a mention-only node falls back to
+  // orphan when mentions are hidden (the filter runs before the orphan
+  // pass below).
+  if (edge.kind === MENTION_EDGE_KIND) {
+    return settings.query.showMentions;
+  }
   const kinds = settings.query.relationKinds;
   return kinds.length === 0 || kinds.includes(edge.kind);
 }
@@ -56,6 +64,7 @@ function activeFilterCount(settings: GraphSettings): number {
     query.paths.length > 0,
     query.types.length > 0,
     query.relationKinds.length > 0,
+    !query.showMentions,
     query.minDegree > 0,
     !query.includeOrphans,
   ].filter(Boolean).length;

@@ -2,6 +2,19 @@ import { describe, expect, it, vi } from 'vitest';
 import { createRef } from 'react';
 import { fireEvent, render } from '@testing-library/react';
 import { Canvas, type CanvasHandle, type CanvasNode, type CanvasEdge } from './Canvas';
+import type { GraphPalette } from '../../lib/graph-palette';
+
+// Deterministic palette for tests (jsdom has no computed CSS variables).
+const TEST_PALETTE: GraphPalette = {
+  bg: 'rgb(29, 29, 31)',
+  node: 'rgb(184, 186, 191)',
+  nodeMuted: 'rgb(81, 83, 89)',
+  edge: 'rgb(72, 74, 80)',
+  edgeMention: 'rgb(110, 112, 120)',
+  text: 'rgb(230, 230, 232)',
+  textMuted: 'rgb(157, 157, 164)',
+  selection: 'rgb(148, 169, 123)',
+};
 
 function makeNode(id: string, opts?: Partial<CanvasNode>): CanvasNode {
   return {
@@ -28,6 +41,7 @@ describe('<Canvas> — dim precedence', () => {
     const { container } = render(
       <Canvas
         ref={ref}
+        palette={TEST_PALETTE}
         nodes={nodes}
         edges={edges}
         width={500}
@@ -68,6 +82,7 @@ describe('<Canvas> — dim precedence', () => {
     const { container } = render(
       <Canvas
         ref={ref}
+        palette={TEST_PALETTE}
         nodes={nodes}
         edges={edges}
         width={500}
@@ -108,6 +123,7 @@ describe('<Canvas> — dim precedence', () => {
     const { container, rerender } = render(
       <Canvas
         ref={ref}
+        palette={TEST_PALETTE}
         nodes={nodes}
         edges={edges}
         width={500}
@@ -141,6 +157,7 @@ describe('<Canvas> — dim precedence', () => {
     rerender(
       <Canvas
         ref={ref}
+        palette={TEST_PALETTE}
         nodes={nodes}
         edges={edges}
         width={500}
@@ -187,6 +204,7 @@ describe('<Canvas> — dim precedence', () => {
     const { container } = render(
       <Canvas
         ref={ref}
+        palette={TEST_PALETTE}
         nodes={nodes}
         edges={edges}
         width={500}
@@ -207,12 +225,13 @@ describe('<Canvas> — dim precedence', () => {
       />,
     );
 
-    const surface = container.querySelector('[data-graph-surface="ziba-dark"]');
-    expect(surface?.getAttribute('fill')).toBe('#1d1d1f');
+    // Surface + edge colors now come from the (theme-derived) palette.
+    const surface = container.querySelector('[data-graph-surface="ziba-graph"]');
+    expect(surface?.getAttribute('fill')).toBe(TEST_PALETTE.bg);
     expect(container.querySelector('radialGradient')).toBeNull();
     expect(container.querySelector('[data-graph-grid="true"]')).toBeNull();
     const edge = container.querySelector('path[data-graph-edge="true"]');
-    expect(edge?.getAttribute('stroke')).toBe('#484a50');
+    expect(edge?.getAttribute('stroke')).toBe(TEST_PALETTE.edge);
     expect(edge?.getAttribute('stroke-width')).toBe('0.72');
     expect(edge?.getAttribute('marker-end')).toBeNull();
   });
@@ -227,6 +246,7 @@ describe('<Canvas> — dim precedence', () => {
     const { container } = render(
       <Canvas
         ref={ref}
+        palette={TEST_PALETTE}
         nodes={nodes}
         edges={edges}
         width={500}
@@ -255,7 +275,10 @@ describe('<Canvas> — dim precedence', () => {
     expect(
       container.querySelector('path[data-graph-edge="true"]')?.getAttribute('stroke-width'),
     ).toBe('1.25');
-    expect(container.querySelector('circle[stroke="#d7d8dc"]')?.getAttribute('r')).toBe('6');
+    // Default node stroke is now palette-derived (text @ 0.86 alpha).
+    expect(
+      container.querySelector('circle[stroke="rgba(230, 230, 232, 0.86)"]')?.getAttribute('r'),
+    ).toBe('6');
     const label = container.querySelector('text');
     expect(label).not.toBeNull();
     expect(label?.getAttribute('paint-order')).toBe('stroke');
@@ -275,6 +298,7 @@ describe('<Canvas> — dim precedence', () => {
     const { container } = render(
       <Canvas
         ref={ref}
+        palette={TEST_PALETTE}
         nodes={nodes}
         edges={edges}
         width={500}
@@ -323,6 +347,7 @@ describe('<Canvas> — dim precedence', () => {
     const { container } = render(
       <Canvas
         ref={ref}
+        palette={TEST_PALETTE}
         nodes={nodes}
         edges={[]}
         width={500}

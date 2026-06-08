@@ -35,6 +35,27 @@
 
   --accent: 90 108 80;
   --accent-fg: 255 255 255;
+
+  /*
+   * Graph-surface palette. Single source of truth for the knowledge
+   * graph's STRUCTURAL colors (background, default node, edges, text,
+   * selection). Per-type schema colors and group-rule colors still win
+   * over `--graph-node` at render time — only the base layer is themed.
+   * Read at runtime by `useGraphPalette()` because SVG fill/stroke need
+   * concrete color strings, not Tailwind classes.
+   * Light themes get a slightly recessed canvas + dark ink so contrast
+   * stays comfortable (the old hardcoded dark canvas was unreadable on
+   * light themes).
+   */
+  --graph-bg: 244 242 236;
+  --graph-surface: 253 252 249;
+  --graph-node: 120 124 116;
+  --graph-node-muted: 196 194 186;
+  --graph-edge: 188 186 178;
+  --graph-edge-mention: 158 156 148;
+  --graph-text: 30 29 27;
+  --graph-text-muted: 126 123 115;
+  --graph-selection: 90 108 80;
 }
 
 :root[data-theme='ziba-dark'],
@@ -53,6 +74,21 @@
 
   --accent: 148 169 123;
   --accent-fg: 24 24 27;
+
+  /* Dark graph palette — preserves the original Ziba-dark look
+     (canvas #1d1d1f, node #b8babf, edge #484a50, text #e6e6e8) so the
+     default theme renders identically to before. Selection moves from
+     the old hardcoded red `#d53f5f` to a token-based green accent that
+     reads on the dark canvas while staying consistent with `--accent`. */
+  --graph-bg: 29 29 31;
+  --graph-surface: 36 36 38;
+  --graph-node: 184 186 191;
+  --graph-node-muted: 81 83 89;
+  --graph-edge: 72 74 80;
+  --graph-edge-mention: 110 112 120;
+  --graph-text: 230 230 232;
+  --graph-text-muted: 157 157 164;
+  --graph-selection: 148 169 123;
 }
 
 :root[data-theme='warm-paper'] {
@@ -70,6 +106,17 @@
 
   --accent: 129 92 58;
   --accent-fg: 255 250 242;
+
+  /* Warm paper — light, warm-tinted graph canvas. */
+  --graph-bg: 244 236 222;
+  --graph-surface: 252 248 239;
+  --graph-node: 130 110 88;
+  --graph-node-muted: 205 193 173;
+  --graph-edge: 206 192 172;
+  --graph-edge-mention: 170 152 128;
+  --graph-text: 38 32 25;
+  --graph-text-muted: 137 119 96;
+  --graph-selection: 129 92 58;
 }
 
 :root[data-theme='graphite'] {
@@ -87,6 +134,17 @@
 
   --accent: 183 162 104;
   --accent-fg: 24 24 22;
+
+  /* Graphite — neutral dark canvas with warm gold selection. */
+  --graph-bg: 28 29 29;
+  --graph-surface: 43 45 45;
+  --graph-node: 188 188 182;
+  --graph-node-muted: 88 90 90;
+  --graph-edge: 76 78 78;
+  --graph-edge-mention: 116 118 118;
+  --graph-text: 232 231 226;
+  --graph-text-muted: 158 157 150;
+  --graph-selection: 183 162 104;
 }
 
 :root[data-theme='high-contrast'] {
@@ -104,6 +162,18 @@
 
   --accent: 255 214 0;
   --accent-fg: 0 0 0;
+
+  /* High contrast — pure black canvas, bright nodes/edges, yellow
+     selection. Maximises legibility per the a11y requirement. */
+  --graph-bg: 0 0 0;
+  --graph-surface: 16 16 16;
+  --graph-node: 255 255 255;
+  --graph-node-muted: 120 120 120;
+  --graph-edge: 170 170 170;
+  --graph-edge-mention: 200 200 200;
+  --graph-text: 255 255 255;
+  --graph-text-muted: 214 214 214;
+  --graph-selection: 255 214 0;
 }
 
 html,
@@ -112,6 +182,23 @@ body,
   height: 100%;
   width: 100%;
   overflow: hidden;
+}
+
+/*
+ * Smooth opacity transition for graph nodes/edges when filters or focus
+ * mode change which elements are dimmed. Applied via the `graph-fade`
+ * class on the SVG node/edge groups. We transition ONLY opacity (cheap,
+ * compositor-friendly) — never the per-frame pan/zoom transform, which
+ * is driven imperatively. Respects `prefers-reduced-motion`.
+ */
+.graph-fade {
+  transition: opacity 220ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .graph-fade {
+    transition: none;
+  }
 }
 
 body {

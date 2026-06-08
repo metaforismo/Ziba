@@ -8,12 +8,13 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { NotePath } from '@ziba/core';
+import { MENTION_EDGE_KIND, type NotePath } from '@ziba/core';
 import {
   GRAPH_DIM_OPACITY as DIM_OPACITY,
   GRAPH_LABEL_TOP_DEGREE_QUANTILE as LABEL_TOP_DEGREE_QUANTILE,
 } from '../../lib/graph-tuning';
 import { kindToHsl } from '../../lib/kind-color';
+import type { GraphPalette } from '../../lib/graph-palette';
 import { HullsLayer } from './HullsLayer';
 
 /**
@@ -114,26 +115,25 @@ type Props = {
   linkOpacity?: number;
   /** When true, dimmed graph elements recede harder so the focus pops. */
   focusMode?: boolean;
+  /**
+   * Theme-derived structural colors. Single source of truth lives in the
+   * `--graph-*` CSS variables; the parent resolves them via
+   * `useGraphPalette()` and passes them in so the SVG fill/stroke
+   * attributes follow the active theme.
+   */
+  palette: GraphPalette;
 };
 
 const DEFAULT_LABEL_FADE = 0.48;
 const DEFAULT_NODE_SCALE = 1;
 const DEFAULT_LINK_WIDTH = 0.72;
 
-// Visual constants. We keep these here (not as Tailwind classes) because
-// SVG elements need actual `fill`/`stroke` attributes — a class with a
-// background-color does nothing on a `<circle>`.
-const NODE_FILL = '#b8babf';
-const NODE_STROKE = '#d7d8dc';
-const NODE_FILL_DIM = '#515359';
-const NODE_STROKE_DIM = '#3f4147';
-const NODE_SELECTED = '#d53f5f';
-const NODE_SELECTED_STROKE = '#f0a2b1';
-const EDGE_STROKE = '#484a50';
-const EDGE_STROKE_HIGHLIGHT = '#d53f5f';
-const LABEL_FILL = '#e6e6e8';
-const LABEL_STROKE = '#1d1d1f';
-const CANVAS_BG = '#1d1d1f';
+// Structural overlay colors that are intentionally theme-independent.
+// The dot grid + grid lines are subtle white-on-canvas texture: they
+// read as "very faint light" on every supported canvas (all five graph
+// backgrounds are mid-to-dark or warm paper, where a low-alpha white
+// overlay still works). Keeping them as constants avoids a per-frame
+// palette read for a purely decorative layer.
 const CANVAS_DOT = 'rgba(255,255,255,0.10)';
 const CANVAS_GRID = 'rgba(255,255,255,0.07)';
 
@@ -144,6 +144,17 @@ const EMPTY_STRING_SET: ReadonlySet<string> = new Set();
 
 function transformString(view: CanvasView): string {
   return `translate(${view.tx} ${view.ty}) scale(${view.scale})`;
+}
+
+/**
+ * Turn an `rgb(r, g, b)` string into `rgba(r, g, b, a)`. Used for the
+ * selection/hover rings, which need a translucent version of the
+ * theme's selection/text color.
+ */
+function withAlpha(rgb: string, alpha: number): string {
+  const match = rgb.match(/rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/);
+  if (match === null) return rgb;
+  return `rgba(${match[1]}, ${match[2]}, ${match[3]}, ${alpha})`;
 }
 
 /**
@@ -187,7 +198,28 @@ export const Canvas = memo(
       showGrid = false,
       linkOpacity = DEFAULT_LINK_OPACITY,
       focusMode = false,
+      palette,
     } = props;
+
+    // Derived structural colors for this theme. `withAlpha` builds the
+    // translucent ring variants from the opaque selection/text tokens.
+    const NODE_FILL = palette.node;
+    const NODE_STROKE = withAlpha(palette.text, 0.86);
+    const NODE_FILL_DIM = palette.nodeMuted;
+    const NODE_STROKE_DIM = withAlpha(palette.nodeMuted, 0.85);
+    const NODE_SELECTED = palette.selection;
+    const NODE_SELECTED_STROKE = withAlpha(palette.selection, 0.85);
+    const EDGE_STROKE = palette.edge;
+    const EDGE_STROKE_HIGHLIGHT = palette.selection;
+    const EDGE_STROKE_MENTION = palette.edgeMention;
+    const LABEL_FILL = palette.text;
+    const LABEL_STROKE = palette.bg;
+    const CANVAS_BG = palette.bg;
+    const HOVER_RING_FILL = withAlpha(palette.text, 0.1);
+    const HOVER_RING_STROKE = withAlpha(palette.text, 0.32);
+    const HOVER_NODE_STROKE = withAlpha(palette.text, 0.95);
+    const SELECT_RING_FILL = withAlpha(palette.selection, 0.14);
+    const SELECT_RING_STROKE = withAlpha(palette.selection, 0.34);
 
     // The single source of truth for the live transform. We mirror it
     // into a state-less ref so wheel events can read+write it without
@@ -346,11 +378,11 @@ export const Canvas = memo(
             markerHeight="4"
             orient="auto-start-reverse"
           >
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="#9a9ca2" />
+            <path d="M 0 0 L 10 5 L 0 10 z" fill={palette.edge} />
           </marker>
         </defs>
 
-        <rect data-graph-surface="ziba-dark" width={width} height={height} fill={CANVAS_BG} />
+        <rect data-graph-surface="ziba-graph" width={width} height={height} fill={CANVAS_BG} />
         {showGrid && (
           <rect
             data-graph-grid="true"
@@ -370,16 +402,21 @@ export const Canvas = memo(
                 const a = nodeById.get(e.source) ?? null;
                 const b = nodeById.get(e.target) ?? null;
                 if (a === null || b === null) return null;
+                const isMention = e.kind === MENTION_EDGE_KIND;
                 const highlight =
                   activeId !== null && (e.source === activeId || e.target === activeId);
                 // Links stay neutral by default. Relation-kind colour
-                // only appears when the user has explicitly filtered to kinds.
+                // only appears when the user has explicitly filtered to
+                // kinds. Soft references render in the dedicated, dimmer
+                // mention color (Obsidian's unresolved/soft style).
                 const stroke =
                   highlightKinds.size > 0 && highlightKinds.has(e.kind)
                     ? kindToHsl(e.kind)
                     : highlight
                       ? EDGE_STROKE_HIGHLIGHT
-                      : EDGE_STROKE;
+                      : isMention
+                        ? EDGE_STROKE_MENTION
+                        : EDGE_STROKE;
                 const dimByKindFilter = highlightKinds.size > 0 && !highlightKinds.has(e.kind);
                 const dimByTypeFilter =
                   highlightType !== null &&
@@ -389,24 +426,34 @@ export const Canvas = memo(
                   dimByTypeFilter ||
                   (hasInteraction && !highlight) ||
                   (isFiltered && !(matchedIds.has(e.source) && matchedIds.has(e.target)));
+                // Mentions are softer than wikilinks even when "lit": they
+                // sit at ~65% of the base link opacity unless highlighted.
+                const baseOpacity = isMention ? linkOpacity * 0.65 : linkOpacity;
                 const opacity = dim
-                  ? Math.min(linkOpacity * 0.55, dimOpacity)
+                  ? Math.min(baseOpacity * 0.55, dimOpacity)
                   : highlight
                     ? Math.min(FULL_OPACITY, linkOpacity * 3.3)
-                    : linkOpacity;
+                    : baseOpacity;
                 const d = edgePath(a, b);
                 return (
                   <path
                     key={`${e.source}->${e.target}-${i}`}
                     data-graph-edge="true"
+                    data-graph-edge-kind={e.kind}
+                    className="graph-fade"
                     d={d}
                     fill="none"
                     stroke={stroke}
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth={highlight ? baseLinkWidth * 1.75 : baseLinkWidth}
+                    // Dashed = soft reference. Width-relative dash so it
+                    // scales sanely with the link-width setting.
+                    strokeDasharray={
+                      isMention ? `${baseLinkWidth * 3.2} ${baseLinkWidth * 2.6}` : undefined
+                    }
                     opacity={opacity}
-                    markerEnd={showArrows ? 'url(#global-graph-arrow)' : undefined}
+                    markerEnd={showArrows && !isMention ? 'url(#global-graph-arrow)' : undefined}
                   />
                 );
               })}
@@ -442,7 +489,7 @@ export const Canvas = memo(
                   <g
                     key={n.id}
                     transform={`translate(${n.x},${n.y})`}
-                    className="cursor-pointer"
+                    className="graph-fade cursor-pointer"
                     onClick={(e): void => handleNodeClick(e, n.id)}
                     onDoubleClick={(e): void => handleNodeDoubleClick(e, n.id)}
                     onMouseDown={handleNodeMouseDown}
@@ -459,16 +506,16 @@ export const Canvas = memo(
                     {isSelected && (
                       <circle
                         r={radius + 8}
-                        fill="rgba(213,63,95,0.14)"
-                        stroke="rgba(213,63,95,0.34)"
+                        fill={SELECT_RING_FILL}
+                        stroke={SELECT_RING_STROKE}
                         strokeWidth={1}
                       />
                     )}
                     {isHovered && !isSelected && (
                       <circle
                         r={radius + 6.5}
-                        fill="rgba(240,240,242,0.10)"
-                        stroke="rgba(240,240,242,0.32)"
+                        fill={HOVER_RING_FILL}
+                        stroke={HOVER_RING_STROKE}
                         strokeWidth={1}
                       />
                     )}
@@ -489,7 +536,7 @@ export const Canvas = memo(
                           : isSelected
                             ? NODE_SELECTED_STROKE
                             : isHovered
-                              ? '#f0f0f2'
+                              ? HOVER_NODE_STROKE
                               : NODE_STROKE
                       }
                       strokeWidth={isSelected || isHovered ? 1.8 : 0.9}

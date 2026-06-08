@@ -66,3 +66,20 @@ export const GRAPH_DIM_OPACITY = 0.18;
  * clustering without nodes piling on top of each other.
  */
 export const GRAPH_CLUSTER_STRENGTH = 0.3;
+
+/**
+ * Duration (ms) of the RAF-driven camera tween when re-centering /
+ * zooming-to-fit on a selection or focus. Long enough to read as a
+ * smooth glide, short enough not to feel sluggish. Skipped entirely
+ * under `prefers-reduced-motion` and above the large-graph threshold.
+ */
+export const GRAPH_CAMERA_TWEEN_MS = 380;
+
+/**
+ * Above this node count we skip the camera tween and snap instantly:
+ * tweening forces a `setAttribute('transform', ...)` per frame, and on
+ * very large SVGs the browser's re-rasterisation cost makes the glide
+ * janky — an instant jump is the lesser evil. Mirrors the spirit of the
+ * existing large-graph warning threshold.
+ */
+export const GRAPH_ANIMATION_NODE_CEILING = 1200;
