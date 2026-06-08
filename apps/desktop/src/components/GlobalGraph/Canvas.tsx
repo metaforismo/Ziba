@@ -34,8 +34,18 @@ export type CanvasNode = {
   degree: number;
   /** v1.0 Phase 5: type slug (null = untyped). */
   type: string | null;
-  /** v1.0 Phase 5: hex color from the type's schema; canvas tints the fill. */
+  /**
+   * Group color (monochrome redesign): hex from a matching user-defined
+   * group rule, or null. When null the node uses the structural node
+   * fill. Type-schema colors NO LONGER feed this — only group rules do.
+   */
   color: string | null;
+  /**
+   * Graph monochrome redesign: true for unresolved phantom nodes
+   * (wikilink targets with no backing file). Rendered gray + dimmer,
+   * smaller (radius set by the parent), and never group-colored.
+   */
+  unresolved?: boolean;
 };
 
 export type CanvasEdge = {
@@ -464,8 +474,9 @@ export const Canvas = memo(
           {showNodes && (
             <g>
               {nodes.map((n) => {
-                const isSelected = selectedId === n.id;
-                const isHovered = hoveredId === n.id;
+                const isUnresolved = n.unresolved === true;
+                const isSelected = !isUnresolved && selectedId === n.id;
+                const isHovered = !isUnresolved && hoveredId === n.id;
                 const isActive = activeId === n.id;
                 const isNeighbor = activeNeighborIds.has(n.id);
                 const matchesFilter = !isFiltered || matchedIds.has(n.id);
@@ -480,16 +491,44 @@ export const Canvas = memo(
                   (hasInteraction && !isActive && !isNeighbor && !isSelected) ||
                   (isFiltered && !matchesFilter) ||
                   !isHighlightedByType;
-                const opacity = dim ? dimOpacity : FULL_OPACITY;
+                // Unresolved nodes always render in the muted gray, and sit
+                // a touch dimmer than real notes even when "lit" so the
+                // hierarchy (real note > phantom) is unmistakable.
+                const opacity = dim
+                  ? dimOpacity
+                  : isUnresolved
+                    ? Math.max(dimOpacity, 0.7)
+                    : FULL_OPACITY;
                 const labelEligible = showText && showLabels && n.degree >= labelDegreeThreshold;
                 const showNodeLabel =
                   showText && (labelEligible || isSelected || isActive || isNeighbor);
                 const radius = Math.max(2.4, n.r * radiusScale);
+                // Phantom nodes are gray regardless of focus/group state.
+                const fill = isUnresolved
+                  ? NODE_FILL_DIM
+                  : dim
+                    ? NODE_FILL_DIM
+                    : isSelected
+                      ? NODE_SELECTED
+                      : n.color !== null
+                        ? n.color
+                        : NODE_FILL;
+                const stroke = isUnresolved
+                  ? NODE_STROKE_DIM
+                  : dim
+                    ? NODE_STROKE_DIM
+                    : isSelected
+                      ? NODE_SELECTED_STROKE
+                      : isHovered
+                        ? HOVER_NODE_STROKE
+                        : NODE_STROKE;
                 return (
                   <g
                     key={n.id}
+                    data-graph-node={n.id}
+                    data-graph-node-unresolved={isUnresolved ? 'true' : undefined}
                     transform={`translate(${n.x},${n.y})`}
-                    className="graph-fade cursor-pointer"
+                    className={`graph-fade ${isUnresolved ? 'cursor-default' : 'cursor-pointer'}`}
                     onClick={(e): void => handleNodeClick(e, n.id)}
                     onDoubleClick={(e): void => handleNodeDoubleClick(e, n.id)}
                     onMouseDown={handleNodeMouseDown}
@@ -521,24 +560,8 @@ export const Canvas = memo(
                     )}
                     <circle
                       r={radius}
-                      fill={
-                        dim
-                          ? NODE_FILL_DIM
-                          : isSelected
-                            ? NODE_SELECTED
-                            : n.color !== null
-                              ? n.color
-                              : NODE_FILL
-                      }
-                      stroke={
-                        dim
-                          ? NODE_STROKE_DIM
-                          : isSelected
-                            ? NODE_SELECTED_STROKE
-                            : isHovered
-                              ? HOVER_NODE_STROKE
-                              : NODE_STROKE
-                      }
+                      fill={fill}
+                      stroke={stroke}
                       strokeWidth={isSelected || isHovered ? 1.8 : 0.9}
                     />
                     {showNodeLabel && (

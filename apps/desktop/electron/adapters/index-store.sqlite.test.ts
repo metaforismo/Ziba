@@ -4,8 +4,10 @@ import {
   EXPECTED_USER_VERSION,
   MENTION_EDGE_KIND,
   mergeMentionEdges,
+  mergeUnresolvedNodes,
   PRAGMAS,
   SCHEMA_SQL,
+  unresolvedNodeId,
   type GraphEdge,
   type MentionEdge,
 } from '@ziba/core';
@@ -277,5 +279,60 @@ describe('soft references — FTS mention detection + dedupe', () => {
         kind: MENTION_EDGE_KIND,
       },
     ]);
+  });
+});
+
+describe('graph broken links — unresolved phantom derivation', () => {
+  // Mirrors SqliteIndexStore.graphBrokenLinks: relations with a null
+  // target_path are the broken wikilinks that become gray phantom nodes.
+  function selectBrokenLinks(): Array<{ source: string; targetTitle: string }> {
+    const rows = db
+      .prepare(
+        `SELECT DISTINCT r.source_path AS source, r.target_title AS target_title
+         FROM relations r
+         WHERE r.target_path IS NULL
+           AND r.target_title IS NOT NULL
+           AND TRIM(r.target_title) <> ''`,
+      )
+      .all() as Array<{ source: string; target_title: string }>;
+    return rows.map((r) => ({ source: r.source, targetTitle: r.target_title }));
+  }
+
+  it('surfaces a [[X]] with no backing file as a broken link; a resolved one is excluded', () => {
+    setupNote('a.md');
+    setupNote('b.md');
+    // Resolved wikilink (target_path set) → NOT a broken link.
+    db.prepare(
+      `INSERT INTO relations (source_path, kind, target_title, target_path)
+       VALUES (?, '', 'B', 'b.md')`,
+    ).run('a.md');
+    // Broken wikilink (target_path NULL) → IS a broken link.
+    db.prepare(
+      `INSERT INTO relations (source_path, kind, target_title, target_path)
+       VALUES (?, '', 'Concept', NULL)`,
+    ).run('a.md');
+
+    const broken = selectBrokenLinks();
+    expect(broken).toEqual([{ source: 'a.md', targetTitle: 'Concept' }]);
+
+    // End-to-end: folding through the pure core helper yields one phantom
+    // node + its incoming edge, and leaves the resolved target alone.
+    const graph = {
+      nodes: [
+        { path: 'a.md', title: 'A', type: null, color: null },
+        { path: 'b.md', title: 'B', type: null, color: null },
+      ],
+      edges: [{ source: 'a.md', target: 'b.md', targetTitle: 'B', kind: '' }],
+    };
+    const out = mergeUnresolvedNodes(graph, broken);
+    const phantom = out.nodes.find((n) => n.unresolved === true);
+    expect(phantom?.path).toBe(unresolvedNodeId('Concept'));
+    expect(phantom?.title).toBe('Concept');
+    expect(out.edges).toContainEqual({
+      source: 'a.md',
+      target: unresolvedNodeId('Concept'),
+      targetTitle: 'Concept',
+      kind: '',
+    });
   });
 });

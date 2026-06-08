@@ -1,5 +1,6 @@
 import type { Note, NotePath, NoteSummary } from '../types/note.js';
 import type {
+  BrokenLink,
   DatabaseQuery,
   DatabaseResult,
   DetectedProperty,
@@ -194,6 +195,17 @@ export interface IndexStoreAdapter {
    * `mergeMentionEdges`) so this method stays a thin query.
    */
   getMentionEdges(perTargetLimit: number, totalLimit: number): Promise<MentionEdge[]>;
+
+  /**
+   * Broken outgoing wikilinks for the GLOBAL graph: relation rows whose
+   * `target_path IS NULL` (the `[[targetTitle]]` resolves to no note).
+   * These power Obsidian-style gray "unresolved" phantom nodes. Reuses
+   * the same resolution state the backlinks/broken-link detection relies
+   * on (`relations.target_path`), so the global graph agrees with the
+   * per-note broken-link view. Dedupe + phantom-node synthesis is the
+   * CALLER's job (see `mergeUnresolvedNodes`).
+   */
+  getBrokenLinks(): Promise<BrokenLink[]>;
 
   /**
    * v1.0: replace all relations originating from `sourcePath`. The

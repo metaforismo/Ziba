@@ -45,6 +45,7 @@ function makeIndexStore(): IndexStoreAdapter & {
     runQuery: async () => ({ rows: [], groups: [], totalCount: 0 }),
     getFullGraph: async () => ({ nodes: [], edges: [] }),
     getMentionEdges: async () => [],
+    getBrokenLinks: async () => [],
     replaceRelations: async () => undefined,
     getRelations: async () => [],
     getReverseRelations: async () => [],

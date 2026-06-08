@@ -308,7 +308,10 @@ export function MiniGraph({ currentPath, onLoadingChange }: Props): JSX.Element 
                   y2={y2}
                   stroke={
                     isBroken
-                      ? 'rgb(239 68 68 / 0.5)'
+                      ? // Gray (not red): agrees with the global graph's
+                        // unresolved phantom nodes. Dashed keeps the
+                        // "missing target" affordance.
+                        'rgb(var(--graph-node-muted) / 0.7)'
                       : isInbound
                         ? 'rgb(var(--accent))'
                         : isMention
@@ -339,10 +342,12 @@ export function MiniGraph({ currentPath, onLoadingChange }: Props): JSX.Element 
               const isInbound = node.kind === 'inbound';
               const isMention = node.kind === 'mention';
               const r = isSelf ? SELF_R : NODE_R;
+              // Unresolved (broken) nodes are gray to match the global
+              // graph's phantom nodes — no longer red.
               const fill = isSelf
                 ? 'rgb(var(--accent))'
                 : isBroken
-                  ? 'rgb(239 68 68 / 0.12)'
+                  ? 'rgb(var(--graph-node-muted) / 0.18)'
                   : isInbound
                     ? 'rgb(var(--accent) / 0.15)'
                     : isMention
@@ -351,7 +356,7 @@ export function MiniGraph({ currentPath, onLoadingChange }: Props): JSX.Element 
               const stroke = isSelf
                 ? 'rgb(var(--accent))'
                 : isBroken
-                  ? 'rgb(239 68 68 / 0.6)'
+                  ? 'rgb(var(--graph-node-muted) / 0.75)'
                   : isInbound
                     ? 'rgb(var(--accent))'
                     : isMention

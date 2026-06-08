@@ -15,6 +15,7 @@ import {
   SCHEMA_SQL,
   EXPECTED_USER_VERSION,
   MIGRATION_DROP_SQL,
+  type BrokenLink,
   type DatabaseGroup,
   type DatabaseQuery,
   type DatabaseResult,
@@ -137,6 +138,7 @@ export class SqliteIndexStore implements IndexStoreAdapter {
     listObjectTypes: Database.Statement;
     getTypeCounts: Database.Statement;
     getTypedPaths: Database.Statement;
+    graphBrokenLinks: Database.Statement;
   } | null = null;
 
   async init(vaultRoot: string): Promise<void> {
@@ -333,6 +335,18 @@ export class SqliteIndexStore implements IndexStoreAdapter {
         FROM relations r
         JOIN notes n ON n.path = r.target_path
         WHERE r.target_path IS NOT NULL
+      `),
+      // Broken outgoing wikilinks: relations whose target_title resolves
+      // to no note (target_path IS NULL). Powers the global graph's gray
+      // "unresolved" phantom nodes. DISTINCT so a note linking the same
+      // missing target twice contributes a single row; the pure
+      // `mergeUnresolvedNodes` step dedupes phantom nodes across sources.
+      graphBrokenLinks: db.prepare(`
+        SELECT DISTINCT r.source_path AS source, r.target_title AS target_title
+        FROM relations r
+        WHERE r.target_path IS NULL
+          AND r.target_title IS NOT NULL
+          AND TRIM(r.target_title) <> ''
       `),
       upsertObjectType: db.prepare(`
         INSERT INTO object_types (id, label, icon, color, schema_json, mtime)
@@ -898,6 +912,13 @@ export class SqliteIndexStore implements IndexStoreAdapter {
       kind: r.kind,
     }));
     return Promise.resolve({ nodes, edges });
+  }
+
+  async getBrokenLinks(): Promise<BrokenLink[]> {
+    const s = this.require();
+    type R = { source: string; target_title: string };
+    const rows = s.graphBrokenLinks.all() as R[];
+    return Promise.resolve(rows.map((r) => ({ source: r.source, targetTitle: r.target_title })));
   }
 
   async getMentionEdges(perTargetLimit: number, totalLimit: number): Promise<MentionEdge[]> {
