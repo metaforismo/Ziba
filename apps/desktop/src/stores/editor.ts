@@ -2,6 +2,7 @@ import type { Frontmatter, Note, NotePath } from '@ziba/core';
 import { create } from 'zustand';
 import { ipc } from '../lib/ipc';
 import { ipcErrorMessage } from '../lib/ipc-error';
+import { toast } from './toast';
 import { useVaultStore } from './vault';
 
 export type OpenNoteMode = 'replace-active' | 'new-tab' | 'split-right' | 'split-down';
@@ -60,6 +61,13 @@ type EditorState = {
    */
   setFrontmatter(fm: Frontmatter): void;
   save(): Promise<void>;
+  /**
+   * Drop every open tab/pane and return to an empty workspace. Called when
+   * the vault changes so tabs pointing at the previous vault's notes don't
+   * survive the switch (they would otherwise render stale content and let
+   * the user "save" into a path that no longer belongs to the open vault).
+   */
+  resetWorkspace(): void;
   /**
    * Called by the vault store when a watcher event reports that the
    * currently-open note changed on disk and the change was NOT initiated
@@ -318,7 +326,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return;
     }
 
-    const note = await ipc.loadNote({ path });
+    let note: Note;
+    try {
+      note = await ipc.loadNote({ path });
+    } catch (err: unknown) {
+      // The target can be gone (a backlink/wikilink to a since-deleted or
+      // renamed note) or unreadable (locked file). Most callers fire this
+      // as `void openNote(...)`, so an unsurfaced rejection would silently
+      // do nothing. Surface a toast, then re-throw so callers that wrap
+      // openNote in their own try/catch still see the failure.
+      toast.error(ipcErrorMessage(err), 'Impossibile aprire la nota');
+      throw err;
+    }
     set(withLegacy(placeNote(get().workspace, note, mode)));
   },
 
@@ -458,6 +477,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
 
+  resetWorkspace() {
+    set(withLegacy(createEmptyWorkspace()));
+  },
+
   _internalApplyExternalChange(path, mtimeMs) {
     const { currentPath, currentNote } = get();
     if (currentPath === null || currentNote === null) return;
@@ -477,3 +500,21 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
 }));
+
+// Reset the editor workspace whenever the vault root changes. Without this,
+// switching from vault A to vault B leaves A's tabs open: they show stale
+// content and a save would write A's body back to a path that is no longer
+// part of the open vault. We seed `lastVaultRoot` from the current state so
+// the first subscription fire after hydration doesn't wipe a freshly-restored
+// workspace. Installed module-side (mirrors the tags store) so consumers
+// don't have to wire anything up.
+if (typeof window !== 'undefined') {
+  let lastVaultRoot: string | null = useVaultStore.getState().current?.root ?? null;
+
+  useVaultStore.subscribe((state) => {
+    const vaultRoot = state.current?.root ?? null;
+    if (vaultRoot === lastVaultRoot) return;
+    lastVaultRoot = vaultRoot;
+    useEditorStore.getState().resetWorkspace();
+  });
+}

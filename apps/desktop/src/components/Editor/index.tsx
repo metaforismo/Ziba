@@ -512,6 +512,14 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
         (ed.storage.markdown as { getMarkdown?: () => string } | undefined)?.getMarkdown?.() ?? '';
       debouncedAutosave(md);
     },
+    onBlur: (): void => {
+      // Flush any pending autosave when the editor loses focus. Without this,
+      // typing and then immediately closing the tab (clicking the tab's close
+      // button moves focus out of the editor) within the 500ms debounce window
+      // would discard the just-typed text: the tab still reads `dirty === false`
+      // because `setBody` hadn't run yet, so the close-confirm guard never trips.
+      debouncedAutosave.flush();
+    },
   });
 
   // Track whether the editor has been hydrated with the current note —
