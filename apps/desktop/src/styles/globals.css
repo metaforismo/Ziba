@@ -871,3 +871,24 @@ option {
     animation: ziba-tabpanel-fade 0.16s ease-out both;
   }
 }
+
+/*
+ * Popover / Menu entrance. A short, subtle fade + lift so anchored overlays
+ * (dropdowns, context menus) feel like they emerge from their trigger rather
+ * than snapping in. Disabled under prefers-reduced-motion.
+ */
+@keyframes ziba-popover-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ziba-popover-in {
+    animation: ziba-popover-in 0.08s ease-out both;
+  }
+}

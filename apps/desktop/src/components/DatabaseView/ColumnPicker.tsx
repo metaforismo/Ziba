@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import type { JSX } from 'react';
+import { Popover } from '../ui/Popover';
 
 type Props = {
   /** All distinct property keys discovered in the current result, sorted. */
@@ -24,6 +25,10 @@ type Props = {
  * Rationale for not using `<details>`/`<summary>`: those pop the dropdown
  * inline (pushing layout) and don't auto-close on outside-click, which is
  * the behaviour users expect from a multi-select.
+ *
+ * The anchored overlay (positioning, viewport flip, outside-click / Escape
+ * dismissal, focus return) is delegated to the shared {@link Popover}
+ * primitive; the checkbox rows stay bespoke as they aren't menu items.
  */
 export function ColumnPicker({
   availableProperties,
@@ -32,33 +37,7 @@ export function ColumnPicker({
   onChange,
 }: Props): JSX.Element {
   const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement | null>(null);
-
-  // Close on click-outside. Using mousedown rather than click so the
-  // dropdown closes before the would-be click target receives focus —
-  // same pattern as the search palette.
-  useEffect(() => {
-    if (!open) return;
-    const onMouseDown = (e: MouseEvent): void => {
-      const node = containerRef.current;
-      if (node === null) return;
-      if (e.target instanceof Node && !node.contains(e.target)) {
-        setOpen(false);
-      }
-    };
-    const onKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        setOpen(false);
-      }
-    };
-    window.addEventListener('mousedown', onMouseDown);
-    window.addEventListener('keydown', onKeyDown);
-    return () => {
-      window.removeEventListener('mousedown', onMouseDown);
-      window.removeEventListener('keydown', onKeyDown);
-    };
-  }, [open]);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
 
   const visibleSet = new Set(visibleColumns);
 
@@ -106,8 +85,9 @@ export function ColumnPicker({
   };
 
   return (
-    <div ref={containerRef} className="relative">
+    <div className="relative">
       <button
+        ref={triggerRef}
         type="button"
         onClick={(): void => setOpen((v) => !v)}
         aria-expanded={open}
@@ -116,29 +96,32 @@ export function ColumnPicker({
       >
         Colonne ({visibleColumns.length})
       </button>
-      {open && (
-        <div
-          role="menu"
-          aria-label="Colonne visibili"
-          className="absolute right-0 top-[calc(100%+4px)] z-20 max-h-72 w-56 overflow-auto rounded-md border border-border bg-bg-subtle p-1 shadow-lg"
-        >
-          {suggested.length > 0 && (
-            <>
-              <p className="px-2 pb-0.5 pt-1 text-[10px] font-semibold uppercase tracking-wide text-fg-subtle">
-                Suggerite
-              </p>
-              {suggested.map((k) => renderRow(k))}
-              {restProperties.length > 0 && (
-                <div role="separator" className="my-1 border-t border-border" />
-              )}
-            </>
-          )}
-          {restProperties.length === 0 && suggested.length === 0 && (
-            <p className="px-2 py-1.5 text-xs text-fg-muted">Nessuna proprietà rilevata.</p>
-          )}
-          {restProperties.map((k) => renderRow(k))}
-        </div>
-      )}
+      <Popover
+        open={open}
+        onClose={(): void => setOpen(false)}
+        anchor={{ kind: 'element', ref: triggerRef }}
+        placement="bottom-end"
+        role="menu"
+        ariaLabel="Colonne visibili"
+        autoFocus={false}
+        className="z-20 max-h-72 w-56 overflow-auto rounded-md border border-border bg-bg-subtle p-1 shadow-lg ziba-popover-in"
+      >
+        {suggested.length > 0 && (
+          <>
+            <p className="px-2 pb-0.5 pt-1 text-[10px] font-semibold uppercase tracking-wide text-fg-subtle">
+              Suggerite
+            </p>
+            {suggested.map((k) => renderRow(k))}
+            {restProperties.length > 0 && (
+              <div role="separator" className="my-1 border-t border-border" />
+            )}
+          </>
+        )}
+        {restProperties.length === 0 && suggested.length === 0 && (
+          <p className="px-2 py-1.5 text-xs text-fg-muted">Nessuna proprietà rilevata.</p>
+        )}
+        {restProperties.map((k) => renderRow(k))}
+      </Popover>
     </div>
   );
 }
