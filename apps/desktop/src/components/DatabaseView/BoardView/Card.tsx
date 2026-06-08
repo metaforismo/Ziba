@@ -1,6 +1,7 @@
 import clsx from 'clsx';
 import { useRef, type DragEvent, type JSX, type KeyboardEvent, type PointerEvent } from 'react';
 import type { DatabaseRow, DetectedProperty } from '../../../../shared/ipc';
+import { NUMBER_FORMATTER, formatDateValue, typeBadge } from '../propertyShared';
 
 type Props = {
   row: DatabaseRow;
@@ -24,10 +25,6 @@ type Props = {
   onDragStart(row: DatabaseRow, columnId: string): void;
   onDragEnd(): void;
 };
-
-/** Italian-locale formatters reused from the table view's vocabulary. */
-const DATE_FORMATTER = new Intl.DateTimeFormat('it', { dateStyle: 'medium' });
-const NUMBER_FORMATTER = new Intl.NumberFormat('it');
 
 /**
  * Card uses HTML5 drag-and-drop API directly (no `dnd-kit` / `react-dnd`)
@@ -65,11 +62,8 @@ function SecondaryValue({ prop }: { prop: DetectedProperty }): JSX.Element | nul
           {prop.value ? '✓' : '✗'}
         </span>
       );
-    case 'date': {
-      const d = new Date(`${prop.value}T00:00:00Z`);
-      const label = Number.isNaN(d.getTime()) ? prop.value : DATE_FORMATTER.format(d);
-      return <span className="text-xs text-fg-muted">{label}</span>;
-    }
+    case 'date':
+      return <span className="text-xs text-fg-muted">{formatDateValue(prop.value)}</span>;
     case 'string-array': {
       if (prop.value.length === 0) return null;
       return (
@@ -186,6 +180,11 @@ export function Card({
 
       {secondaryKey !== null && secondaryProp !== undefined && (
         <div className="flex items-baseline gap-1 text-[11px] text-fg-muted">
+          {/* Type glyph + key — same type-icon treatment as the table header
+              and gallery card so the property language is consistent. */}
+          <span aria-hidden="true" className="text-[10px]">
+            {typeBadge(secondaryProp.type)}
+          </span>
           <span className="shrink-0 uppercase tracking-wide">{secondaryKey}:</span>
           <SecondaryValue prop={secondaryProp} />
         </div>

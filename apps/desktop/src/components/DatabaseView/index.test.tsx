@@ -306,6 +306,31 @@ describe('<DatabaseView>', () => {
     expect(mock.getSpy(IpcChannels.deleteDatabaseView)).not.toHaveBeenCalled();
   });
 
+  it('renders the gallery layout as title cards that open the note on click', async () => {
+    const galleryFile: DatabaseViewsFile = {
+      version: 1,
+      activeViewId: 'gallery',
+      views: [
+        makeView({ id: 'gallery', name: 'Galleria', layout: 'gallery', columns: ['status'] }),
+      ],
+    };
+    mock.setHandler(IpcChannels.listDatabaseViews, async () => galleryFile);
+
+    render(<DatabaseView />);
+
+    // The card surfaces the row title and the visible property value.
+    const card = await screen.findByRole('button', { name: /Ziba/ });
+    expect(card).toBeInTheDocument();
+    expect(screen.getByText('active')).toBeInTheDocument();
+
+    fireEvent.click(card);
+    // navigateToNote flips the UI store to the editor view — assert the
+    // intent landed rather than the note body (which loads async).
+    await waitFor(() => {
+      expect(mock.getSpy(IpcChannels.loadNote)).toHaveBeenCalled();
+    });
+  });
+
   it('shows a filter-aware empty state and resets filters via the CTA', async () => {
     const emptyResult: DatabaseResult = { rows: [], groups: [], totalCount: 0 };
     mock.setHandler(IpcChannels.runDatabaseQuery, async () => emptyResult);
