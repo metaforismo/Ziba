@@ -759,9 +759,6 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
     );
   }
 
-  const pathParts = currentNote.path.split('/');
-  pathParts.pop();
-  const breadcrumb = pathParts.length > 0 ? pathParts.join(' / ') : 'Note';
   const saveStatus =
     lastSaveError !== null ? 'Errore salvataggio' : dirty ? 'Modifiche non salvate' : 'Salvato';
   const editorContentClass =
@@ -803,12 +800,14 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
         // rest of the typography via `ziba-prose`.
       >
         <div className={editorContentClass}>
-          <div className="mb-8 flex items-center justify-between gap-4 text-sm">
-            <div className="min-w-0 truncate text-fg-muted">
-              <span>{breadcrumb}</span>
-              <span className="mx-3 text-border">/</span>
-              <span>{basenameTitle(currentNote.path)}</span>
-            </div>
+          {/*
+           * The location breadcrumb (folder / note) now lives once in the
+           * app chrome (`<Breadcrumb>` in Layout.tsx), so this row only
+           * carries the save status + action. Removing the duplicate
+           * in-content path avoids two breadcrumbs disagreeing as the user
+           * scrolls.
+           */}
+          <div className="mb-8 flex items-center justify-end gap-4 text-sm">
             <div className="flex shrink-0 items-center gap-2">
               <span
                 className={

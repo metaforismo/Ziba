@@ -1,3 +1,4 @@
+import { FileText } from '@phosphor-icons/react';
 import { useCallback, useState } from 'react';
 import { extractType } from '@ziba/core';
 import { useEditorStore } from '../../stores/editor';
@@ -5,6 +6,7 @@ import { useUiStore, type RightPaneTab } from '../../stores/ui';
 import { MiniGraph } from '../MiniGraph';
 import { ObjectPanel } from '../ObjectPanel';
 import { OutlinePanel } from '../OutlinePanel';
+import { EmptyView } from '../ui/EmptyView';
 import { SegmentedControl } from '../ui/SegmentedControl';
 import { ReferencesPanel } from './ReferencesPanel';
 
@@ -55,8 +57,12 @@ export function BacklinksPanel(): JSX.Element {
     setActiveLoading(loading);
   }, []);
 
-  const isTyped = currentNote !== null && extractType(currentNote.frontmatter) !== null;
+  const hasNote = currentNote !== null;
+  const isTyped = hasNote && extractType(currentNote.frontmatter) !== null;
   const tabs = isTyped ? TABS_TYPED : TABS_UNTYPED;
+  // Guard against a persisted `object` tab when the current note isn't
+  // typed (or no note is open) — the Object tab isn't rendered in those
+  // states, so fall back to Outline.
   const activeTab: RightPaneTab = persistedTab === 'object' && !isTyped ? 'outline' : persistedTab;
 
   return (
@@ -69,7 +75,9 @@ export function BacklinksPanel(): JSX.Element {
           onChange={setRightPaneTab}
         />
         {activeLoading && (
-          <span className="text-[10px] uppercase tracking-wide text-fg-muted">…</span>
+          <span className="text-[10px] uppercase tracking-wide text-fg-muted" aria-hidden="true">
+            …
+          </span>
         )}
       </div>
 
@@ -79,14 +87,30 @@ export function BacklinksPanel(): JSX.Element {
         id={`right-pane-panel-${activeTab}`}
         aria-labelledby={`right-pane-tab-${activeTab}`}
       >
-        {activeTab === 'object' ? (
-          <ObjectPanel />
-        ) : activeTab === 'outline' ? (
-          <OutlinePanel currentPath={currentPath} markdown={currentNote?.content ?? ''} />
-        ) : activeTab === 'references' ? (
-          <ReferencesPanel currentPath={currentPath} onLoadingChange={handleLoadingChange} />
+        {!hasNote ? (
+          // Single, sensible empty state for the whole pane when no note
+          // is open — every tab would otherwise render its own near-empty
+          // body, which reads as broken. The tab bar stays usable.
+          <EmptyView
+            compact
+            icon={<FileText size={20} weight="duotone" />}
+            title="Nessuna nota aperta"
+            description="Apri una nota per vedere indice, riferimenti e grafo."
+          />
         ) : (
-          <MiniGraph currentPath={currentPath} onLoadingChange={handleLoadingChange} />
+          // Keyed wrapper so React remounts on tab switch and the subtle
+          // cross-fade replays (no-op under prefers-reduced-motion).
+          <div key={activeTab} className="ziba-tabpanel-fade min-h-full">
+            {activeTab === 'object' ? (
+              <ObjectPanel />
+            ) : activeTab === 'outline' ? (
+              <OutlinePanel currentPath={currentPath} markdown={currentNote.content} />
+            ) : activeTab === 'references' ? (
+              <ReferencesPanel currentPath={currentPath} onLoadingChange={handleLoadingChange} />
+            ) : (
+              <MiniGraph currentPath={currentPath} onLoadingChange={handleLoadingChange} />
+            )}
+          </div>
         )}
       </div>
     </aside>

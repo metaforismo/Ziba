@@ -99,6 +99,30 @@ describe('useUiStore — toggles & persistence', () => {
     setItemSpy.mockRestore();
   });
 
+  it('defaults propertiesCollapsed to true (metadata out of the way on first open)', async () => {
+    const { useUiStore } = await loadUiStore();
+    expect(useUiStore.getState().propertiesCollapsed).toBe(true);
+  });
+
+  it('togglePropertiesCollapsed flips the boolean and persists', async () => {
+    const { useUiStore } = await loadUiStore();
+    const before = useUiStore.getState().propertiesCollapsed;
+    useUiStore.getState().togglePropertiesCollapsed();
+    expect(useUiStore.getState().propertiesCollapsed).toBe(!before);
+
+    const persisted = JSON.parse(window.localStorage.getItem(STORAGE_KEY)!);
+    expect(persisted.propertiesCollapsed).toBe(!before);
+  });
+
+  it('setPropertiesCollapsed same-value is a no-op (no localStorage write)', async () => {
+    const { useUiStore } = await loadUiStore();
+    // Default is true; setting true again must not write.
+    const setItemSpy = vi.spyOn(window.localStorage, 'setItem');
+    useUiStore.getState().setPropertiesCollapsed(true);
+    expect(setItemSpy).not.toHaveBeenCalled();
+    setItemSpy.mockRestore();
+  });
+
   it('sets and resets per-vault custom folder icons', async () => {
     const { useUiStore } = await loadUiStore();
 
@@ -211,6 +235,18 @@ describe('useUiStore — loadPersisted validator', () => {
     const { useUiStore } = await loadUiStore();
 
     expect(useUiStore.getState().rightPaneTab).toBe('references');
+  });
+
+  it('loads the persisted propertiesCollapsed flag', async () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ propertiesCollapsed: false }));
+    const { useUiStore } = await loadUiStore();
+    expect(useUiStore.getState().propertiesCollapsed).toBe(false);
+  });
+
+  it('falls back propertiesCollapsed to its default when the persisted type is wrong', async () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ propertiesCollapsed: 'nope' }));
+    const { useUiStore } = await loadUiStore();
+    expect(useUiStore.getState().propertiesCollapsed).toBe(true);
   });
 
   it('loads the persisted Outline right-pane tab', async () => {

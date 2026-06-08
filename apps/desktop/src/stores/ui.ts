@@ -79,6 +79,13 @@ type Persisted = {
    * view across reloads.
    */
   rightPaneTab: RightPaneTab;
+  /**
+   * Whether the frontmatter PropertyEditor (above the Tiptap body) is
+   * collapsed. Persisted so the user's preference for a roomier editor
+   * (or a structured-fields-first layout) survives reloads. Defaults to
+   * collapsed so metadata stays out of the way on first open.
+   */
+  propertiesCollapsed: boolean;
   /** Top-level view (editor / database / graph). Persisted across reloads. */
   mainView: MainView;
   /**
@@ -99,6 +106,7 @@ const DEFAULTS: Persisted = {
   tagsExpanded: true,
   typesExpanded: true,
   rightPaneTab: 'references',
+  propertiesCollapsed: true,
   mainView: 'editor',
   databaseViewMode: 'table',
   themeId: DEFAULT_THEME_ID,
@@ -221,6 +229,10 @@ function loadPersisted(): Persisted {
       typesExpanded:
         typeof p.typesExpanded === 'boolean' ? p.typesExpanded : DEFAULTS.typesExpanded,
       rightPaneTab: normalizeRightPaneTab(p.rightPaneTab),
+      propertiesCollapsed:
+        typeof p.propertiesCollapsed === 'boolean'
+          ? p.propertiesCollapsed
+          : DEFAULTS.propertiesCollapsed,
       mainView: isMainView(p.mainView) ? p.mainView : DEFAULTS.mainView,
       databaseViewMode: isDatabaseViewMode(p.databaseViewMode)
         ? p.databaseViewMode
@@ -259,6 +271,8 @@ type UiState = Persisted & {
   toggleTags(): void;
   toggleTypes(): void;
   setRightPaneTab(tab: RightPaneTab): void;
+  setPropertiesCollapsed(collapsed: boolean): void;
+  togglePropertiesCollapsed(): void;
   setMainView(view: MainView): void;
   setDatabaseViewMode(mode: DatabaseViewMode): void;
   setThemeId(themeId: ThemeId): void;
@@ -283,6 +297,7 @@ export const useUiStore = create<UiState>((set, get) => {
       tagsExpanded,
       typesExpanded,
       rightPaneTab,
+      propertiesCollapsed,
       mainView,
       databaseViewMode,
       themeId,
@@ -296,6 +311,7 @@ export const useUiStore = create<UiState>((set, get) => {
       tagsExpanded,
       typesExpanded,
       rightPaneTab,
+      propertiesCollapsed,
       mainView,
       databaseViewMode,
       themeId,
@@ -346,6 +362,15 @@ export const useUiStore = create<UiState>((set, get) => {
     setRightPaneTab(tab) {
       if (get().rightPaneTab === tab) return;
       set({ rightPaneTab: tab });
+      persist();
+    },
+    setPropertiesCollapsed(collapsed) {
+      if (get().propertiesCollapsed === collapsed) return;
+      set({ propertiesCollapsed: collapsed });
+      persist();
+    },
+    togglePropertiesCollapsed() {
+      set({ propertiesCollapsed: !get().propertiesCollapsed });
       persist();
     },
     setMainView(view) {

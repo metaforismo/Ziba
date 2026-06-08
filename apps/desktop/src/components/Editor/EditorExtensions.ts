@@ -6,6 +6,7 @@ import { DatabaseBlockExtension } from './extensions/DatabaseBlock';
 import { EmbedExtension } from './extensions/Embed';
 import { MathBlockExtension } from './extensions/MathBlock';
 import { MathInlineExtension } from './extensions/MathInline';
+import { PlaceholderExtension } from './extensions/Placeholder';
 import {
   SlashCommandExtension,
   type SlashCommandRenderer,
@@ -88,6 +89,9 @@ export function buildEditorExtensions(options: BuildExtensionsOptions): Extensio
     // sees their inline rule registration.
     MathBlockExtension,
     MathInlineExtension,
+    // Empty-doc placeholder. Decoration-only (no markdown impact); shows
+    // "Scrivi, o premi / per i comandi" on a pristine blank note.
+    PlaceholderExtension,
     // Slash-command menu. Order doesn't matter relative to the other
     // extensions: the suggestion plugin manages its own decoration set
     // and never collides with the wikilink trigger (`/` vs `[[`).

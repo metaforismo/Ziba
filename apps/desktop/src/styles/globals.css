@@ -431,6 +431,21 @@ option {
 }
 
 /*
+ * Empty-doc placeholder (see `extensions/Placeholder.ts`). The decoration
+ * adds `.ziba-placeholder` + `data-placeholder` to the empty first
+ * paragraph; we paint the hint as a non-selectable `::before` so it never
+ * enters the selection or the serialized markdown. `height: 0` keeps the
+ * pseudo from displacing the caret line.
+ */
+.ziba-prose .ziba-placeholder::before {
+  content: attr(data-placeholder);
+  color: rgb(var(--fg-muted));
+  pointer-events: none;
+  height: 0;
+  float: left;
+}
+
+/*
  * ProseMirror selection styling. The default browser selection on top
  * of an atom node looks blocky; the `ProseMirror-selectednode` class
  * is added to our wikilink span when the user arrow-selects it.
@@ -832,5 +847,27 @@ option {
   }
   .ziba-empty-editor-stagger > *:nth-child(6) {
     animation-delay: 0.22s;
+  }
+}
+
+/*
+ * Right-pane tab switch: a subtle cross-fade so swapping Outline /
+ * References / Object / Graph feels continuous rather than a hard cut.
+ * Keyed on the active tab id so React remounts the wrapper and the
+ * animation replays each switch. Disabled under prefers-reduced-motion.
+ */
+@keyframes ziba-tabpanel-fade {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ziba-tabpanel-fade {
+    animation: ziba-tabpanel-fade 0.16s ease-out both;
   }
 }

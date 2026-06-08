@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { CaretDown, CaretRight } from '@phosphor-icons/react';
+import { useUiStore } from '../../stores/ui';
 import type { Frontmatter, PropertyType, SwitchableType } from './types';
 import { SWITCHABLE_TYPES, detectPropertyType } from './types';
 import { PropertyHeader } from './PropertyHeader';
@@ -114,9 +115,13 @@ export function PropertyEditor({
   const [newKeyDraft, setNewKeyDraft] = useState('');
   const [addError, setAddError] = useState<string | null>(null);
 
-  // Keep metadata out of the way on first open; users can expand it
-  // when they need structured fields.
-  const [collapsed, setCollapsed] = useState(true);
+  // Collapse state is persisted in the ui store so a user's preference
+  // for a roomier editor (or structured-fields-first) survives note
+  // switches and reloads. Defaults to collapsed to keep metadata out of
+  // the way on first open.
+  const collapsed = useUiStore((s) => s.propertiesCollapsed);
+  const setPropertiesCollapsed = useUiStore((s) => s.setPropertiesCollapsed);
+  const togglePropertiesCollapsed = useUiStore((s) => s.togglePropertiesCollapsed);
 
   const entries = useMemo(() => Object.entries(frontmatter), [frontmatter]);
 
@@ -199,7 +204,8 @@ export function PropertyEditor({
     setNewKeyDraft('');
     setAddError(null);
     setAdding(false);
-    setCollapsed(false);
+    // Adding a property only makes sense with the section open — reveal it.
+    setPropertiesCollapsed(false);
   };
 
   const cancelAdd = (): void => {
@@ -268,8 +274,10 @@ export function PropertyEditor({
         <div className="mx-auto max-w-[720px]">
           <button
             type="button"
-            onClick={(): void => setCollapsed((v) => !v)}
-            className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-fg-muted hover:text-fg"
+            onClick={togglePropertiesCollapsed}
+            aria-expanded={!collapsed}
+            aria-controls="ziba-property-editor-body"
+            className="mb-1 flex items-center gap-1.5 rounded text-[11px] font-semibold uppercase tracking-wide text-fg-muted transition-colors hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent/50"
           >
             <span className="inline-flex w-3 justify-center" aria-hidden="true">
               {collapsed ? <CaretRight size={12} /> : <CaretDown size={12} />}
@@ -278,7 +286,7 @@ export function PropertyEditor({
           </button>
 
           {!collapsed && (
-            <div className="flex flex-col gap-0.5">
+            <div id="ziba-property-editor-body" className="flex flex-col gap-0.5">
               {entries.map(([key, rawValue]) => {
                 const value = normalizeIncoming(rawValue);
                 const type = resolveType(key, value);
