@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useRef, useState, type JSX } from 'react';
+import { Button } from '../ui/Button';
+import { Dialog } from '../ui/Dialog';
+import { Input } from '../ui/Input';
 
 export type PromptDialogProps = {
   title: string;
@@ -23,8 +25,10 @@ export type PromptDialogProps = {
 
 /**
  * Reusable single-input modal. Used for "Nuova nota", "Nuova cartella" and
- * "Rinomina". Renders into a portal at document.body so it escapes any
- * sidebar overflow/transform contexts.
+ * "Rinomina". Owns only the input + validation logic; the modal shell
+ * (portal, backdrop, focus-trap, Escape/backdrop dismissal, focus-return)
+ * comes from `ui/Dialog`. Callers conditionally render it, so it is always
+ * `open` while mounted.
  */
 export function PromptDialog({
   title,
@@ -41,29 +45,15 @@ export function PromptDialog({
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    // Auto-focus and select-all so renames feel snappy: user types right
-    // over the existing name without needing an extra Cmd-A.
-    const input = inputRef.current;
-    if (input !== null) {
-      input.focus();
-      input.select();
-    }
+    // Select-all on open so renames feel snappy: the user types right over
+    // the existing name without an extra Cmd-A. Dialog focuses the input
+    // (via initialFocusRef); we only add the selection here. Order-independent
+    // because focusing an input preserves an existing selection.
+    const id = window.requestAnimationFrame(() => {
+      inputRef.current?.select();
+    });
+    return () => window.cancelAnimationFrame(id);
   }, []);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onCancel();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [onCancel]);
-
-  if (typeof document === 'undefined') return null;
 
   const validationError = validate?.(value) ?? null;
   const trimmed = value.trim();
@@ -74,58 +64,37 @@ export function PromptDialog({
     onSubmit(trimmed);
   };
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={(e): void => {
-        // Click on backdrop cancels; clicks inside the dialog stop here.
-        if (e.target === e.currentTarget) onCancel();
-      }}
-    >
-      <div
-        className="w-full max-w-sm rounded-lg border border-border bg-bg p-4 shadow-lg"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="prompt-dialog-title"
-      >
-        <h2 id="prompt-dialog-title" className="mb-2 text-sm font-semibold text-fg">
-          {title}
-        </h2>
-        {message !== undefined && <p className="mb-3 text-xs text-fg-muted">{message}</p>}
-        <input
-          ref={inputRef}
-          type="text"
-          value={value}
-          placeholder={placeholder}
-          onChange={(e): void => setValue(e.target.value)}
-          onKeyDown={(e): void => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              handleSubmit();
-            }
-          }}
-          className="w-full rounded border border-border bg-bg-subtle px-2 py-1.5 text-sm text-fg outline-none focus:border-accent"
-        />
-        {validationError !== null && <p className="mt-1 text-xs text-red-500">{validationError}</p>}
-        <div className="mt-4 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded px-3 py-1.5 text-sm text-fg-subtle hover:bg-bg-muted hover:text-fg"
-          >
+  return (
+    <Dialog
+      open
+      onClose={onCancel}
+      title={title}
+      initialFocusRef={inputRef}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onCancel}>
             {cancelLabel}
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={!canSubmit}
-            className="rounded bg-accent px-3 py-1.5 text-sm font-medium text-accent-fg hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-          >
+          </Button>
+          <Button variant="primary" onClick={handleSubmit} disabled={!canSubmit}>
             {okLabel}
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body,
+          </Button>
+        </>
+      }
+    >
+      {message !== undefined && <p className="mb-3 text-xs text-fg-muted">{message}</p>}
+      <Input
+        ref={inputRef}
+        value={value}
+        placeholder={placeholder}
+        onChange={(e): void => setValue(e.target.value)}
+        onKeyDown={(e): void => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            handleSubmit();
+          }
+        }}
+      />
+      {validationError !== null && <p className="mt-1 text-xs text-red-500">{validationError}</p>}
+    </Dialog>
   );
 }

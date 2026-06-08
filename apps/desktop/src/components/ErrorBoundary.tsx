@@ -1,4 +1,5 @@
 import React from 'react';
+import { Button } from './ui/Button';
 
 type Props = {
   children: React.ReactNode;
@@ -67,20 +68,14 @@ export class ErrorBoundary extends React.Component<Props, State> {
             )}
           </pre>
           <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={this.reload}
-              className="rounded bg-accent px-3 py-1.5 text-sm font-medium text-accent-fg hover:opacity-90"
-            >
+            <Button variant="primary" onClick={this.reload}>
               Ricarica la finestra
-            </button>
-            <button
-              type="button"
-              onClick={this.reset}
-              className="rounded border border-border bg-bg-subtle px-3 py-1.5 text-sm font-medium text-fg-subtle hover:bg-bg-muted hover:text-fg"
-            >
+            </Button>
+            {/* `text-fg-subtle` override preserves this button's original
+                muted label (the secondary variant defaults to `text-fg`). */}
+            <Button variant="secondary" onClick={this.reset} className="text-fg-subtle">
               Continua comunque
-            </button>
+            </Button>
           </div>
         </div>
       </div>
