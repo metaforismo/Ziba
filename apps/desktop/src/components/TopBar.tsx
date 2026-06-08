@@ -1,4 +1,6 @@
 import { CaretDown, FolderOpen, LinkSimple, Plus, X } from '@phosphor-icons/react';
+import { useMemo, useState } from 'react';
+import { ConfirmDialog } from './Sidebar/ConfirmDialog';
 import { ipcErrorMessage } from '../lib/ipc-error';
 import { useEditorStore, type EditorPane, type EditorTab } from '../stores/editor';
 import { toast } from '../stores/toast';
@@ -29,6 +31,31 @@ function activePaneAndTabs(
   };
 }
 
+/** Immediate parent folder of a note path (empty string when at the root). */
+function parentFolderOf(path: string): string {
+  const segments = path.split('/');
+  segments.pop();
+  return segments.pop() ?? '';
+}
+
+/**
+ * Disambiguate tabs that share a basename title by suffixing the parent
+ * folder, so two `Index` notes from different folders read as
+ * `Index — Projects` / `Index — Inbox`. Tabs with a unique title are
+ * returned unchanged. Returns a `tabId → display label` map.
+ */
+function disambiguateTitles(tabs: EditorTab[]): Map<string, string> {
+  const counts = new Map<string, number>();
+  for (const tab of tabs) counts.set(tab.title, (counts.get(tab.title) ?? 0) + 1);
+  const labels = new Map<string, string>();
+  for (const tab of tabs) {
+    const duplicated = (counts.get(tab.title) ?? 0) > 1;
+    const folder = duplicated ? parentFolderOf(tab.path) : '';
+    labels.set(tab.id, folder === '' ? tab.title : `${tab.title} — ${folder}`);
+  }
+  return labels;
+}
+
 export function TopBar({ onChangeVault, sidebarWidth }: TopBarProps): JSX.Element {
   const current = useVaultStore((s) => s.current);
   const indexProgress = useVaultStore((s) => s.indexProgress);
@@ -46,6 +73,14 @@ export function TopBar({ onChangeVault, sidebarWidth }: TopBarProps): JSX.Elemen
     workspace.activePaneId,
     workspace.tabsById,
   );
+  // Tab whose close was requested while it had unsaved changes — we hold
+  // it pending a confirmation rather than dropping the edits silently.
+  const [pendingCloseTabId, setPendingCloseTabId] = useState<string | null>(null);
+
+  const tabLabels = useMemo(() => disambiguateTitles(tabs), [tabs]);
+  const pendingCloseTab =
+    pendingCloseTabId === null ? null : (workspace.tabsById[pendingCloseTabId] ?? null);
+
   const vaultCellWidth = Math.max(
     MIN_VAULT_CELL_WIDTH,
     sidebarWidth + RIBBON_WIDTH - TITLEBAR_CHROME_INSET,
@@ -60,6 +95,17 @@ export function TopBar({ onChangeVault, sidebarWidth }: TopBarProps): JSX.Elemen
     }
   };
 
+  // Closing a clean tab is immediate; a dirty one routes through a confirm
+  // dialog so unsaved edits (autosave is debounced, so a tab can be dirty
+  // at close time) are never lost without acknowledgement.
+  const requestCloseTab = (tab: EditorTab): void => {
+    if (tab.dirty) {
+      setPendingCloseTabId(tab.id);
+      return;
+    }
+    closeTab(tab.id);
+  };
+
   return (
     <header className="app-drag flex h-11 shrink-0 items-stretch border-b border-border/80 bg-bg-subtle/95 pl-[86px] text-sm shadow-[0_1px_0_rgba(30,29,27,0.04)] backdrop-blur-xl">
       <div
@@ -71,7 +117,7 @@ export function TopBar({ onChangeVault, sidebarWidth }: TopBarProps): JSX.Elemen
           onClick={onChangeVault}
           aria-label={`Cambia vault: ${vaultName}`}
           title="Cambia vault"
-          className="app-no-drag inline-flex h-8 min-w-0 max-w-full items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-semibold text-fg transition hover:bg-bg-muted/80 active:translate-y-px"
+          className="app-no-drag inline-flex h-8 min-w-0 max-w-full items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-semibold text-fg transition hover:bg-bg-muted/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent active:translate-y-px"
         >
           <FolderOpen size={16} aria-hidden="true" className="shrink-0 text-fg-subtle" />
           <span className="truncate">{vaultName}</span>
@@ -85,7 +131,13 @@ export function TopBar({ onChangeVault, sidebarWidth }: TopBarProps): JSX.Elemen
         )}
       </div>
 
-      <div className="flex min-w-0 flex-1 items-end overflow-hidden">
+      {/* Tab strip. `overflow-x-auto` keeps many tabs scrollable instead of
+          squashing them below a usable width; each tab keeps a min width. */}
+      <div
+        role="tablist"
+        aria-label="Note aperte"
+        className="ziba-tabstrip flex min-w-0 flex-1 items-end gap-px overflow-x-auto overflow-y-hidden"
+      >
         {tabs.length === 0 ? (
           <div className="flex h-full items-center px-3 text-xs text-fg-muted">
             Nessuna nota aperta
@@ -93,50 +145,68 @@ export function TopBar({ onChangeVault, sidebarWidth }: TopBarProps): JSX.Elemen
         ) : (
           tabs.map((tab) => {
             const active = pane?.activeTabId === tab.id;
+            const label = tabLabels.get(tab.id) ?? tab.title;
             return (
-              <button
+              <div
                 key={tab.id}
-                type="button"
-                aria-label={tab.title}
+                role="tab"
+                aria-selected={active}
+                tabIndex={active ? 0 : -1}
+                aria-label={label}
                 onClick={(): void => {
                   selectTab(tab.id);
                   setMainView('editor');
                 }}
+                onKeyDown={(event): void => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    selectTab(tab.id);
+                    setMainView('editor');
+                  }
+                }}
                 title={tab.path}
                 className={
-                  'app-no-drag group relative flex h-10 max-w-[13rem] min-w-[8rem] items-center gap-2 rounded-t-lg border-x border-t px-3 text-left text-[13px] transition ' +
+                  'app-no-drag group relative flex h-10 max-w-[14rem] min-w-[8rem] cursor-pointer items-center gap-2 rounded-t-lg border-x border-t px-3 text-left text-[13px] outline-none transition focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent ' +
                   (active
                     ? 'z-10 border-border bg-bg text-fg shadow-[0_-1px_0_rgb(var(--bg))_inset]'
                     : 'border-transparent text-fg-muted hover:bg-bg-muted/70 hover:text-fg')
                 }
               >
-                <span className="min-w-0 flex-1 truncate">{tab.title}</span>
+                {/* Dirty indicator. The dot is replaced by the close button
+                    on hover/focus so both can share one slot without jitter. */}
                 {tab.dirty && (
                   <span
                     aria-label="Modifiche non salvate"
-                    className="size-1.5 shrink-0 rounded-full bg-accent"
+                    title="Modifiche non salvate"
+                    className="size-1.5 shrink-0 rounded-full bg-accent transition group-hover:opacity-0 group-focus-within:opacity-0"
                   />
                 )}
-                <span
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`Chiudi ${tab.title}`}
+                <span className="min-w-0 flex-1 truncate">{label}</span>
+                <button
+                  type="button"
+                  aria-label={`Chiudi ${label}`}
+                  title="Chiudi"
                   onClick={(event): void => {
                     event.stopPropagation();
-                    closeTab(tab.id);
+                    requestCloseTab(tab);
                   }}
                   onKeyDown={(event): void => {
+                    // Stop Enter/Space from also triggering the tab's own
+                    // select handler (the close is the intended action here).
                     if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
                       event.stopPropagation();
-                      closeTab(tab.id);
                     }
                   }}
-                  className="inline-flex size-5 shrink-0 items-center justify-center rounded text-fg-muted opacity-0 transition hover:bg-bg-muted hover:text-fg group-hover:opacity-100"
+                  className={
+                    'inline-flex size-5 shrink-0 items-center justify-center rounded text-fg-muted opacity-0 transition hover:bg-bg-muted hover:text-fg focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent group-hover:opacity-100 group-focus-within:opacity-100 ' +
+                    // A dirty tab overlays the close button on top of the dot
+                    // slot, so pull it left to reclaim that space.
+                    (tab.dirty ? '-ml-3.5' : '')
+                  }
                 >
                   <X size={12} aria-hidden="true" />
-                </span>
-              </button>
+                </button>
+              </div>
             );
           })
         )}
@@ -147,7 +217,7 @@ export function TopBar({ onChangeVault, sidebarWidth }: TopBarProps): JSX.Elemen
           onClick={(): void => {
             void handleNewTab();
           }}
-          className="app-no-drag mb-1 ml-1 inline-flex size-8 shrink-0 items-center justify-center rounded-md text-fg-muted hover:bg-bg-muted hover:text-fg"
+          className="app-no-drag mb-1 ml-1 inline-flex size-8 shrink-0 items-center justify-center rounded-md text-fg-muted transition hover:bg-bg-muted hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
         >
           <Plus size={16} aria-hidden="true" />
         </button>
@@ -161,7 +231,7 @@ export function TopBar({ onChangeVault, sidebarWidth }: TopBarProps): JSX.Elemen
             aria-label={backlinksOpen ? 'Nascondi pannello destro' : 'Mostra pannello destro'}
             aria-pressed={backlinksOpen}
             title={backlinksOpen ? 'Nascondi pannello destro' : 'Mostra pannello destro'}
-            className={`inline-flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-bg-muted/80 hover:text-fg active:translate-y-px ${
+            className={`inline-flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-bg-muted/80 hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent active:translate-y-px ${
               backlinksOpen ? 'bg-bg-muted text-fg' : 'text-fg-subtle'
             }`}
           >
@@ -169,6 +239,21 @@ export function TopBar({ onChangeVault, sidebarWidth }: TopBarProps): JSX.Elemen
           </button>
         )}
       </div>
+
+      {pendingCloseTab !== null && (
+        <ConfirmDialog
+          title="Chiudere senza salvare?"
+          message={`"${tabLabels.get(pendingCloseTab.id) ?? pendingCloseTab.title}" ha modifiche non salvate. Chiudendo la tab le perderai.`}
+          confirmLabel="Chiudi senza salvare"
+          cancelLabel="Annulla"
+          destructive
+          onConfirm={(): void => {
+            closeTab(pendingCloseTab.id);
+            setPendingCloseTabId(null);
+          }}
+          onCancel={(): void => setPendingCloseTabId(null)}
+        />
+      )}
     </header>
   );
 }

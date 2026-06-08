@@ -66,7 +66,7 @@ export function KindFilterDropdown({
         onClick={(): void => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="menu"
-        className="h-8 rounded-md border border-graph-edge bg-graph-surface/84 px-2 text-[12px] text-[#bfc0c6] shadow-lg shadow-black/10 backdrop-blur transition hover:border-[#4d4d54] hover:bg-[#303034] hover:text-[#f4f4f5]"
+        className="h-8 rounded-md border border-graph-edge bg-graph-surface/84 px-2 text-[12px] text-graph-text-muted shadow-lg shadow-black/10 backdrop-blur transition hover:border-graph-border-strong hover:bg-graph-hover hover:text-graph-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-graph-selection/40"
       >
         {buttonLabel}
       </button>
@@ -78,12 +78,12 @@ export function KindFilterDropdown({
         >
           {hasMentions && (
             <>
-              <label className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs text-[#d2d2d7] hover:bg-[#303034]">
+              <label className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs text-graph-text hover:bg-graph-hover">
                 <input
                   type="checkbox"
                   checked={showMentions}
                   onChange={(): void => onShowMentionsChange(!showMentions)}
-                  className="h-3 w-3 accent-[#d7d7da]"
+                  className="h-3 w-3 accent-graph-node"
                 />
                 <span
                   aria-hidden="true"
@@ -105,13 +105,13 @@ export function KindFilterDropdown({
             return (
               <label
                 key={k}
-                className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs text-[#d2d2d7] hover:bg-[#303034]"
+                className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs text-graph-text hover:bg-graph-hover"
               >
                 <input
                   type="checkbox"
                   checked={checked}
                   onChange={(): void => toggle(k)}
-                  className="h-3 w-3 accent-[#d7d7da]"
+                  className="h-3 w-3 accent-graph-node"
                 />
                 <span
                   aria-hidden="true"
@@ -126,7 +126,7 @@ export function KindFilterDropdown({
             <button
               type="button"
               onClick={(): void => onChange(new Set())}
-              className="mt-1 w-full rounded px-2 py-1 text-left text-xs text-graph-text-muted hover:bg-[#303034] hover:text-[#f4f4f5]"
+              className="mt-1 w-full rounded px-2 py-1 text-left text-xs text-graph-text-muted hover:bg-graph-hover hover:text-graph-text"
             >
               Mostra tutte
             </button>

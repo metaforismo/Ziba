@@ -56,6 +56,16 @@
   --graph-text: 30 29 27;
   --graph-text-muted: 126 123 115;
   --graph-selection: 90 108 80;
+  /*
+   * Secondary floating-chrome tokens (panels, nested cards, inputs and
+   * hover/focus states). Split out from the structural canvas tokens so
+   * the graph's overlay UI follows the theme too: `elevated` is a nested
+   * surface inside a panel, `hover` an interactive tint, `border-strong`
+   * an emphasised border for focus/hover affordances.
+   */
+  --graph-elevated: 239 238 233;
+  --graph-hover: 232 230 222;
+  --graph-border-strong: 168 166 158;
 }
 
 :root[data-theme='ziba-dark'],
@@ -89,6 +99,11 @@
   --graph-text: 230 230 232;
   --graph-text-muted: 157 157 164;
   --graph-selection: 148 169 123;
+  /* Secondary floating-chrome tokens — preserve the original Ziba-dark
+     panel look (#1f1f22 nested surface, #303034 hover, #5a5a62 border). */
+  --graph-elevated: 31 31 34;
+  --graph-hover: 48 48 52;
+  --graph-border-strong: 90 90 98;
 }
 
 :root[data-theme='warm-paper'] {
@@ -117,6 +132,10 @@
   --graph-text: 38 32 25;
   --graph-text-muted: 137 119 96;
   --graph-selection: 129 92 58;
+  /* Secondary floating-chrome tokens — warm paper variant. */
+  --graph-elevated: 232 221 203;
+  --graph-hover: 224 211 190;
+  --graph-border-strong: 184 166 142;
 }
 
 :root[data-theme='graphite'] {
@@ -145,6 +164,10 @@
   --graph-text: 232 231 226;
   --graph-text-muted: 158 157 150;
   --graph-selection: 183 162 104;
+  /* Secondary floating-chrome tokens — graphite variant. */
+  --graph-elevated: 38 40 40;
+  --graph-hover: 56 58 58;
+  --graph-border-strong: 100 102 102;
 }
 
 :root[data-theme='high-contrast'] {
@@ -174,6 +197,11 @@
   --graph-text: 255 255 255;
   --graph-text-muted: 214 214 214;
   --graph-selection: 255 214 0;
+  /* Secondary floating-chrome tokens — high-contrast: bright borders,
+     near-black elevated surfaces, clearly visible hover. */
+  --graph-elevated: 26 26 26;
+  --graph-hover: 48 48 48;
+  --graph-border-strong: 255 255 255;
 }
 
 html,
@@ -215,6 +243,18 @@ select,
 option {
   background-color: rgb(var(--bg));
   color: rgb(var(--fg));
+}
+
+/*
+ * TopBar tab strip. Horizontal scroll kicks in only when many tabs are
+ * open; we hide the scrollbar (the tab affordances are enough) so the
+ * chrome stays clean while still allowing wheel/trackpad scroll.
+ */
+.ziba-tabstrip {
+  scrollbar-width: none;
+}
+.ziba-tabstrip::-webkit-scrollbar {
+  display: none;
 }
 
 .app-drag {

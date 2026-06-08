@@ -44,7 +44,7 @@ describe('TopBar', () => {
     renderTopBar();
 
     expect(screen.getByText('secondbrain1')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Ziba' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Ziba' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Cerca' })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: /Editor/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: /Database/i })).not.toBeInTheDocument();
@@ -56,7 +56,7 @@ describe('TopBar', () => {
     useEditorStore.setState({ selectTab });
     renderTopBar();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Ziba' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Ziba' }));
 
     expect(selectTab).toHaveBeenCalledWith('tab-1');
   });
@@ -67,7 +67,64 @@ describe('TopBar', () => {
     expect(screen.getByRole('banner')).toHaveClass('app-drag');
     expect(screen.getByRole('banner')).toHaveClass('pl-[86px]');
     expect(screen.getByRole('button', { name: /Cambia vault/ })).toHaveClass('app-no-drag');
-    expect(screen.getByRole('button', { name: 'Ziba' })).toHaveClass('app-no-drag');
+    expect(screen.getByRole('tab', { name: 'Ziba' })).toHaveClass('app-no-drag');
+  });
+
+  it('closes a clean tab immediately', () => {
+    const closeTab = vi.fn();
+    useEditorStore.setState({ closeTab });
+    renderTopBar();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Chiudi Ziba' }));
+
+    expect(closeTab).toHaveBeenCalledWith('tab-1');
+  });
+
+  it('confirms before closing a tab with unsaved changes', () => {
+    const closeTab = vi.fn();
+    useEditorStore.setState({ closeTab });
+    useEditorStore.setState((state) => ({
+      workspace: {
+        ...state.workspace,
+        tabsById: {
+          'tab-1': { ...state.workspace.tabsById['tab-1']!, dirty: true },
+        },
+      },
+    }));
+    renderTopBar();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Chiudi Ziba' }));
+    // Dirty close is deferred to the confirm dialog, not fired immediately.
+    expect(closeTab).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Chiudi senza salvare' }));
+    expect(closeTab).toHaveBeenCalledWith('tab-1');
+  });
+
+  it('disambiguates duplicate tab titles by parent folder', () => {
+    useEditorStore.setState((state) => ({
+      workspace: {
+        panes: [{ id: 'pane-1', tabIds: ['tab-1', 'tab-2'], activeTabId: 'tab-1' }],
+        activePaneId: 'pane-1',
+        tabsById: {
+          'tab-1': {
+            ...state.workspace.tabsById['tab-1']!,
+            path: 'Projects/Index.md',
+            title: 'Index',
+          },
+          'tab-2': {
+            ...state.workspace.tabsById['tab-1']!,
+            id: 'tab-2',
+            path: 'Inbox/Index.md',
+            title: 'Index',
+          },
+        },
+      },
+    }));
+    renderTopBar();
+
+    expect(screen.getByRole('tab', { name: 'Index — Projects' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Index — Inbox' })).toBeInTheDocument();
   });
 
   it('aligns the vault cell divider with the sidebar divider below', () => {

@@ -83,6 +83,27 @@ function flatten(
 
 const INDENT_PX = 12;
 
+/**
+ * Subtle vertical guide lines for nested rows, one per ancestor level.
+ * Helps the eye track indentation in deep trees without adding layout
+ * width (absolutely positioned, decorative). Depth 0 renders nothing.
+ */
+function depthGuides(depth: number): JSX.Element | null {
+  if (depth <= 0) return null;
+  return (
+    <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0">
+      {Array.from({ length: depth }, (_, i) => (
+        <span
+          key={i}
+          className="absolute inset-y-0 w-px bg-border/60"
+          // Align each guide with the caret column of its ancestor level.
+          style={{ left: `${i * INDENT_PX + 11}px` }}
+        />
+      ))}
+    </span>
+  );
+}
+
 export function FileTree({
   rows,
   currentPath,
@@ -168,13 +189,14 @@ export function FileTree({
                 }}
                 style={{ paddingLeft: `${row.depth * INDENT_PX + 6}px` }}
                 className={
-                  'flex min-h-8 w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-sm ' +
+                  'relative flex min-h-8 w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent ' +
                   (isFocused
-                    ? 'bg-bg-muted text-fg'
-                    : 'text-fg-subtle hover:bg-bg-muted hover:text-fg')
+                    ? 'bg-bg-muted font-medium text-fg'
+                    : 'text-fg-subtle hover:bg-bg-muted/70 hover:text-fg')
                 }
                 title={row.path}
               >
+                {depthGuides(row.depth)}
                 <span
                   aria-hidden="true"
                   className="inline-flex w-3 shrink-0 justify-center text-fg-muted"
@@ -190,7 +212,7 @@ export function FileTree({
         const active = row.path === currentPath;
         const isFocused = focusedPath === row.path;
         return (
-          <li key={`file:${row.path}`} role="treeitem">
+          <li key={`file:${row.path}`} role="treeitem" aria-selected={active}>
             <button
               type="button"
               onClick={(): void => {
@@ -209,18 +231,26 @@ export function FileTree({
               }}
               style={{ paddingLeft: `${row.depth * INDENT_PX + 6}px` }}
               className={
-                'flex min-h-8 w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-sm ' +
+                // Active row gets an accent left-bar + tinted fill so the
+                // open note is unmistakable against the muted hover state;
+                // focused (keyboard) rows use the neutral muted fill.
+                'relative flex min-h-8 w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent ' +
                 (active
-                  ? 'bg-bg text-fg shadow-sm'
+                  ? 'bg-accent/12 font-medium text-fg before:absolute before:inset-y-1 before:left-0 before:w-0.5 before:rounded-full before:bg-accent before:content-[""]'
                   : isFocused
                     ? 'bg-bg-muted text-fg'
-                    : 'text-fg-subtle hover:bg-bg-muted hover:text-fg')
+                    : 'text-fg-subtle hover:bg-bg-muted/70 hover:text-fg')
               }
               title={row.path}
+              {...(active ? { 'aria-current': 'page' } : {})}
             >
+              {depthGuides(row.depth)}
               <span aria-hidden="true" className="inline-block w-3 shrink-0" />
-              <span aria-hidden="true" className="shrink-0 text-fg-muted">
-                <FileText size={15} />
+              <span
+                aria-hidden="true"
+                className={'shrink-0 ' + (active ? 'text-accent' : 'text-fg-muted')}
+              >
+                <FileText size={15} weight={active ? 'fill' : 'regular'} />
               </span>
               <span className="truncate">{row.title}</span>
             </button>

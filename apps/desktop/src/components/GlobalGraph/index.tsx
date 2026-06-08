@@ -811,7 +811,7 @@ export function GlobalGraph(): JSX.Element {
         onMouseDownCapture={handleGraphFrameMouseDownCapture}
       >
         <div className="pointer-events-none absolute left-4 right-4 top-3 z-10 flex items-start justify-between gap-3">
-          <div className="min-w-0 rounded-lg border border-[#36363a]/90 bg-graph-surface/80 px-3 py-2 shadow-lg shadow-black/20 backdrop-blur">
+          <div className="min-w-0 rounded-lg border border-graph-edge/90 bg-graph-surface/80 px-3 py-2 shadow-lg shadow-black/20 backdrop-blur">
             <div className="flex min-w-0 items-baseline gap-3">
               <h1 className="truncate text-[14px] font-semibold text-graph-text">
                 Grafo {graphScope === 'local' ? 'locale' : 'globale'}
@@ -844,14 +844,14 @@ export function GlobalGraph(): JSX.Element {
               variant="graph"
             />
             {searchOpen && (
-              <label className="flex h-9 w-64 max-w-[38vw] items-center gap-2 rounded-lg border border-graph-edge bg-graph-surface/86 px-2.5 text-[#b7b7bd] shadow-lg shadow-black/20 backdrop-blur transition focus-within:border-[#5a5a62] focus-within:ring-2 focus-within:ring-white/10">
+              <label className="flex h-9 w-64 max-w-[38vw] items-center gap-2 rounded-lg border border-graph-edge bg-graph-surface/86 px-2.5 text-graph-text-muted shadow-lg shadow-black/20 backdrop-blur transition focus-within:border-graph-border-strong focus-within:ring-2 focus-within:ring-graph-selection/25">
                 <MagnifyingGlass size={16} aria-hidden="true" />
                 <input
                   type="text"
                   value={search}
                   onChange={(e): void => updateGraphQuery({ search: e.target.value })}
                   placeholder="Cerca"
-                  className="min-w-0 flex-1 bg-transparent text-[13px] text-graph-text outline-none placeholder:text-[#87878f]"
+                  className="min-w-0 flex-1 bg-transparent text-[13px] text-graph-text outline-none placeholder:text-graph-text-muted"
                   spellCheck={false}
                   autoComplete="off"
                   autoCorrect="off"
@@ -924,12 +924,12 @@ export function GlobalGraph(): JSX.Element {
             showMentions={graphSettings.query.showMentions}
             onShowMentionsChange={handleShowMentionsChange}
           />
-          <label className="flex h-8 items-center gap-1.5 rounded-lg border border-graph-edge bg-graph-surface/84 px-2 text-[12px] text-[#c8c8ce] shadow-lg shadow-black/20 backdrop-blur transition hover:border-[#4f4f56] hover:text-graph-text">
+          <label className="flex h-8 items-center gap-1.5 rounded-lg border border-graph-edge bg-graph-surface/84 px-2 text-[12px] text-graph-text-muted shadow-lg shadow-black/20 backdrop-blur transition hover:border-graph-border-strong hover:text-graph-text">
             <input
               type="checkbox"
               checked={clusterOverlayOn}
               onChange={(e): void => setClusterOverlayOn(e.target.checked)}
-              className="size-3.5 accent-[#d7d7da]"
+              className="size-3.5 accent-graph-node"
             />
             Cluster
           </label>
@@ -1083,34 +1083,36 @@ function GraphStatus({
       <div
         className={[
           'w-full max-w-sm rounded-lg border bg-graph-surface/92 p-5 text-center shadow-xl shadow-black/25 backdrop-blur',
-          isDanger ? 'border-[#d53f5f]/55' : 'border-graph-edge',
+          isDanger ? 'border-red-500/55' : 'border-graph-edge',
         ].join(' ')}
       >
         <div
           aria-hidden="true"
           className={[
             'mx-auto mb-4 h-24 w-48 rounded-md border',
-            isDanger ? 'border-[#d53f5f]/30 bg-[#d53f5f]/10' : 'border-[#38383d] bg-[#1d1d1f]',
+            isDanger ? 'border-red-500/30 bg-red-500/10' : 'border-graph-edge bg-graph-bg',
           ].join(' ')}
         >
           <div className="flex h-full items-center justify-center gap-3">
-            <span className="h-2.5 w-2.5 rounded-full bg-[#b8babf]" />
-            <span className="h-px w-12 bg-[#484a50]" />
-            <span className="h-4 w-4 rounded-full border border-[#d53f5f]/55 bg-[#d53f5f]/30" />
-            <span className="h-px w-10 bg-[#484a50]" />
-            <span className="h-2 w-2 rounded-full bg-[#6f7178]" />
+            <span className="h-2.5 w-2.5 rounded-full bg-graph-node" />
+            <span className="h-px w-12 bg-graph-edge" />
+            {/* Mirrors the canvas selection accent so the placeholder reads
+                as "this is the graph" in every theme. */}
+            <span className="h-4 w-4 rounded-full border border-graph-selection/55 bg-graph-selection/30" />
+            <span className="h-px w-10 bg-graph-edge" />
+            <span className="h-2 w-2 rounded-full bg-graph-node-muted" />
           </div>
         </div>
         <h2
           className={
             isDanger
-              ? 'text-sm font-semibold text-[#f0a2b1]'
+              ? 'text-sm font-semibold text-red-500 dark:text-red-400'
               : 'text-sm font-semibold text-graph-text'
           }
         >
           {title}
         </h2>
-        <p className="mt-1 text-xs leading-5 text-[#a7a7ad]">{detail}</p>
+        <p className="mt-1 text-xs leading-5 text-graph-text-muted">{detail}</p>
       </div>
     </div>
   );
@@ -1177,7 +1179,7 @@ function NodeDetailPanel({
   const hiddenConnectionCount = Math.max(0, connections.length - visibleConnections.length);
 
   return (
-    <aside className="absolute bottom-3 right-3 z-10 w-80 max-w-[calc(100%-1.5rem)] rounded-lg border border-graph-edge bg-graph-surface/92 p-3 text-xs text-[#e6e6e8] shadow-xl shadow-black/25 backdrop-blur">
+    <aside className="absolute bottom-3 right-3 z-10 w-80 max-w-[calc(100%-1.5rem)] rounded-lg border border-graph-edge bg-graph-surface/92 p-3 text-xs text-graph-text shadow-xl shadow-black/25 backdrop-blur">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-graph-text">{node.title}</p>
@@ -1186,7 +1188,7 @@ function NodeDetailPanel({
         <button
           type="button"
           onClick={onClose}
-          className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-[#a7a7ad] transition hover:bg-[#303034] hover:text-graph-text"
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-graph-text-muted transition hover:bg-graph-hover hover:text-graph-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-graph-selection/60"
           aria-label="Chiudi dettaglio nodo"
         >
           <X size={14} aria-hidden="true" />
@@ -1200,11 +1202,11 @@ function NodeDetailPanel({
       </div>
 
       {visibleConnections.length > 0 && (
-        <div className="mt-3 rounded-md border border-[#38383d] bg-[#1f1f22]/80">
-          <div className="flex h-8 items-center justify-between border-b border-[#343438] px-2">
-            <span className="text-[11px] font-semibold text-[#d7d7da]">Vicini</span>
+        <div className="mt-3 rounded-md border border-graph-edge bg-graph-elevated/80">
+          <div className="flex h-8 items-center justify-between border-b border-graph-edge px-2">
+            <span className="text-[11px] font-semibold text-graph-text">Vicini</span>
             {hiddenConnectionCount > 0 && (
-              <span className="font-mono text-[10px] tabular-nums text-[#8f8f98]">
+              <span className="font-mono text-[10px] tabular-nums text-graph-text-muted">
                 +{hiddenConnectionCount}
               </span>
             )}
@@ -1215,14 +1217,16 @@ function NodeDetailPanel({
                 key={`${connection.direction}-${connection.id}-${connection.kind}`}
                 type="button"
                 onClick={(): void => onSelectConnection(connection.id)}
-                className="flex w-full min-w-0 items-center gap-2 px-2 py-1.5 text-left transition hover:bg-[#2a2a2e] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/25"
+                className="flex w-full min-w-0 items-center gap-2 px-2 py-1.5 text-left transition hover:bg-graph-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-graph-selection/40"
               >
                 <span
                   className={[
                     'grid h-5 w-5 shrink-0 place-items-center rounded border',
+                    // Outgoing links pick up the theme selection accent (same
+                    // hue as the canvas selection); incoming stay neutral.
                     connection.direction === 'out'
-                      ? 'border-[#d53f5f]/35 bg-[#d53f5f]/10 text-[#f0a2b1]'
-                      : 'border-[#6f7178]/45 bg-[#2b2c31] text-[#d7d7da]',
+                      ? 'border-graph-selection/35 bg-graph-selection/10 text-graph-selection'
+                      : 'border-graph-node-muted/45 bg-graph-elevated text-graph-text',
                   ].join(' ')}
                   aria-hidden="true"
                 >
@@ -1233,10 +1237,10 @@ function NodeDetailPanel({
                   )}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[12px] text-[#eeeeef]">
+                  <span className="block truncate text-[12px] text-graph-text">
                     {connection.title}
                   </span>
-                  <span className="block truncate font-mono text-[10px] text-[#8f8f98]">
+                  <span className="block truncate font-mono text-[10px] text-graph-text-muted">
                     {connection.kind}
                   </span>
                 </span>
@@ -1249,7 +1253,7 @@ function NodeDetailPanel({
       <button
         type="button"
         onClick={onOpen}
-        className="mt-3 inline-flex h-8 w-full items-center justify-center rounded-md border border-graph-edge bg-[#1f1f22] px-3 text-xs font-medium text-[#ededf0] transition hover:border-[#5a5a62] hover:bg-[#303034] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/25"
+        className="mt-3 inline-flex h-8 w-full items-center justify-center rounded-md border border-graph-edge bg-graph-elevated px-3 text-xs font-medium text-graph-text transition hover:border-graph-border-strong hover:bg-graph-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-graph-selection/40"
       >
         <ArrowSquareOut size={14} aria-hidden="true" className="mr-1.5" />
         Apri nota
@@ -1260,9 +1264,9 @@ function NodeDetailPanel({
 
 function NodeMetric({ label, value }: { label: string; value: string }): JSX.Element {
   return (
-    <div className="min-w-0 rounded-md border border-[#38383d] bg-[#1f1f22] px-2 py-1.5">
+    <div className="min-w-0 rounded-md border border-graph-edge bg-graph-elevated px-2 py-1.5">
       <p className="text-[10px] uppercase tracking-wide text-graph-text-muted">{label}</p>
-      <p className="truncate text-[12px] font-medium text-[#ededf0]">{value}</p>
+      <p className="truncate text-[12px] font-medium text-graph-text">{value}</p>
     </div>
   );
 }

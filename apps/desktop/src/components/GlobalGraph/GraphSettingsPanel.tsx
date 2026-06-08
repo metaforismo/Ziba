@@ -130,11 +130,13 @@ export function GraphSettingsPanel({
   };
 
   return (
-    <aside className="absolute bottom-3 right-3 top-3 z-20 flex w-[20rem] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-lg border border-[#3a3a3f] bg-[#242426]/95 text-[12px] text-[#e4e4e7] shadow-2xl shadow-black/35 backdrop-blur-xl">
-      <div className="flex items-center justify-between border-b border-[#36363a] px-3 py-2.5">
+    <aside className="absolute bottom-3 right-3 top-3 z-20 flex w-[20rem] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-lg border border-graph-edge bg-graph-surface/95 text-[12px] text-graph-text shadow-2xl shadow-black/35 backdrop-blur-xl">
+      <div className="flex items-center justify-between border-b border-graph-edge px-3 py-2.5">
         <div className="min-w-0">
-          <h2 className="truncate text-[14px] font-semibold text-[#f2f2f3]">Controlli grafo</h2>
-          <p className="mt-0.5 truncate text-[11px] text-[#9d9da4]">Filtri, gruppi e fisica.</p>
+          <h2 className="truncate text-[14px] font-semibold text-graph-text">Controlli grafo</h2>
+          <p className="mt-0.5 truncate text-[11px] text-graph-text-muted">
+            Filtri, gruppi e fisica.
+          </p>
         </div>
         <div className="flex items-center gap-1">
           <button
@@ -158,10 +160,10 @@ export function GraphSettingsPanel({
         </div>
       </div>
 
-      <div className="border-b border-[#36363a] px-3 py-2.5">
+      <div className="border-b border-graph-edge px-3 py-2.5">
         <div className="mb-2 flex items-center justify-between gap-3">
-          <span className="text-[11px] font-semibold text-[#a7a7ad]">Preset</span>
-          <span className="font-mono text-[10px] tabular-nums text-[#77777f]">
+          <span className="text-[11px] font-semibold text-graph-text-muted">Preset</span>
+          <span className="font-mono text-[10px] tabular-nums text-graph-text-muted">
             grado &gt;= {settings.query.minDegree}
           </span>
         </div>
@@ -173,7 +175,7 @@ export function GraphSettingsPanel({
               onClick={(): void => onApplyPreset(preset)}
               title={preset.description}
               aria-label={`Applica preset ${preset.label}`}
-              className="min-w-0 rounded-md border border-[#38383d] bg-[#1f1f22] px-2 py-1.5 text-[11px] font-medium text-[#d7d7da] transition hover:border-[#52525a] hover:bg-[#2a2a2e] hover:text-[#f2f2f3] active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/25"
+              className="min-w-0 rounded-md border border-graph-edge bg-graph-elevated px-2 py-1.5 text-[11px] font-medium text-graph-text transition hover:border-graph-border-strong hover:bg-graph-hover hover:text-graph-text active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-graph-selection/40"
             >
               <span className="block truncate">{preset.label}</span>
             </button>
@@ -238,7 +240,7 @@ export function GraphSettingsPanel({
                 e.stopPropagation();
                 onAddGroup({ name: 'Nuovo gruppo', query: '', color: nextGroupColor });
               }}
-              className="inline-flex h-6 items-center gap-1 rounded-md border border-[#45454a] px-2 text-[11px] text-[#d7d7da] transition hover:border-[#595960] hover:bg-[#303034]"
+              className="inline-flex h-6 items-center gap-1 rounded-md border border-graph-border-strong px-2 text-[11px] text-graph-text transition hover:border-graph-border-strong hover:bg-graph-hover"
             >
               <Plus size={12} aria-hidden="true" />
               Nuovo
@@ -246,10 +248,13 @@ export function GraphSettingsPanel({
           }
         >
           {settings.groups.length === 0 && (
-            <p className="text-[11px] leading-4 text-[#9d9da4]">Nessuna regola colore.</p>
+            <p className="text-[11px] leading-4 text-graph-text-muted">Nessuna regola colore.</p>
           )}
           {settings.groups.map((group) => (
-            <div key={group.id} className="rounded-md border border-[#38383d] bg-[#1f1f22] p-2">
+            <div
+              key={group.id}
+              className="rounded-md border border-graph-edge bg-graph-elevated p-2"
+            >
               <div className="flex items-center gap-2">
                 <input
                   aria-label={`Abilita ${group.name}`}
@@ -269,7 +274,7 @@ export function GraphSettingsPanel({
                   type="color"
                   value={group.color}
                   onChange={(e): void => onUpdateGroup(group.id, { color: e.target.value })}
-                  className="h-7 w-8 shrink-0 rounded border border-[#45454a] bg-[#1b1b1d]"
+                  className="h-7 w-8 shrink-0 rounded border border-graph-border-strong bg-graph-elevated"
                 />
                 <button
                   type="button"
@@ -423,18 +428,18 @@ function AccordionSection({
   children: ReactNode;
 }): JSX.Element {
   return (
-    <section className="border-b border-[#36363a]">
-      <div className="flex h-10 items-center gap-2 px-3 transition hover:bg-[#2a2a2e]">
+    <section className="border-b border-graph-edge">
+      <div className="flex h-10 items-center gap-2 px-3 transition hover:bg-graph-hover">
         <button
           type="button"
           onClick={onToggle}
-          className="inline-flex min-w-0 flex-1 items-center gap-2 text-left text-[13px] font-semibold text-[#e7e7ea] outline-none focus-visible:rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/25"
+          className="inline-flex min-w-0 flex-1 items-center gap-2 text-left text-[13px] font-semibold text-graph-text outline-none focus-visible:rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-graph-selection/40"
           aria-expanded={open}
         >
           {open ? (
-            <CaretDown size={14} aria-hidden="true" className="shrink-0 text-[#a7a7ad]" />
+            <CaretDown size={14} aria-hidden="true" className="shrink-0 text-graph-text-muted" />
           ) : (
-            <CaretRight size={14} aria-hidden="true" className="shrink-0 text-[#a7a7ad]" />
+            <CaretRight size={14} aria-hidden="true" className="shrink-0 text-graph-text-muted" />
           )}
           <span className="truncate">{title}</span>
         </button>
@@ -455,7 +460,7 @@ function Check({
   onChange(checked: boolean): void;
 }): JSX.Element {
   return (
-    <label className="flex h-8 items-center gap-2 rounded-md border border-[#38383d] bg-[#1f1f22] px-2 text-[12px] text-[#d7d7da] transition hover:border-[#47474d] hover:bg-[#252529]">
+    <label className="flex h-8 items-center gap-2 rounded-md border border-graph-edge bg-graph-elevated px-2 text-[12px] text-graph-text transition hover:border-graph-border-strong hover:bg-graph-hover">
       <input
         aria-label={label}
         type="checkbox"
@@ -484,10 +489,10 @@ function Slider({
   onChange(value: number): void;
 }): JSX.Element {
   return (
-    <label className="block space-y-1.5 text-[12px] text-[#d7d7da]">
+    <label className="block space-y-1.5 text-[12px] text-graph-text">
       <span className="flex items-center justify-between gap-3">
         <span className="truncate">{label}</span>
-        <span className="font-mono text-[11px] tabular-nums text-[#a7a7ad]">
+        <span className="font-mono text-[11px] tabular-nums text-graph-text-muted">
           {formatNumber(value)}
         </span>
       </span>
@@ -499,7 +504,7 @@ function Slider({
         step={step}
         value={value}
         onChange={(e): void => onChange(Number(e.target.value))}
-        className="ziba-graph-slider h-5 w-full accent-[#d7d7da]"
+        className="ziba-graph-slider h-5 w-full accent-graph-node"
       />
     </label>
   );
@@ -510,9 +515,12 @@ function formatNumber(value: number): string {
   return value.toLocaleString('it-IT', { maximumFractionDigits: 2 });
 }
 
-const fieldClass = 'grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-2 text-[#a7a7ad]';
+// Shared class fragments. Token-based so the settings panel follows the
+// active theme (previously dark-only hex rendered wrong on light themes).
+const fieldClass = 'grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-2 text-graph-text-muted';
 const inputClass =
-  'h-8 rounded-md border border-[#3d3d42] bg-[#19191b] px-2 text-[12px] text-[#eeeeef] outline-none transition placeholder:text-[#77777f] hover:border-[#4b4b52] focus:border-[#77777f] focus:ring-2 focus:ring-white/10';
+  'h-8 rounded-md border border-graph-edge bg-graph-elevated px-2 text-[12px] text-graph-text outline-none transition placeholder:text-graph-text-muted hover:border-graph-border-strong focus:border-graph-border-strong focus:ring-2 focus:ring-graph-selection/25';
 const iconButtonClass =
-  'grid size-7 place-items-center rounded-md text-[#a7a7ad] transition hover:bg-[#303034] hover:text-[#f2f2f3] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/25';
-const checkboxClass = 'size-3.5 rounded border-[#57575e] bg-[#171719] accent-[#d7d7da]';
+  'grid size-7 place-items-center rounded-md text-graph-text-muted transition hover:bg-graph-hover hover:text-graph-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-graph-selection/40';
+const checkboxClass =
+  'size-3.5 rounded border-graph-border-strong bg-graph-elevated accent-graph-node';

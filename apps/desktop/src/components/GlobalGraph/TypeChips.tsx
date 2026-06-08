@@ -57,10 +57,12 @@ export function TypeChips({ types, selectedType, onChange }: Props): JSX.Element
 }
 
 function chipClasses(active: boolean): string {
+  // Token-based so the type chips on the graph's bottom toolbar follow the
+  // active theme (previously dark-only hex rendered wrong on light themes).
   return [
-    'rounded-md border px-2 py-1 text-[12px] shadow-lg shadow-black/10 backdrop-blur transition-colors',
+    'rounded-md border px-2 py-1 text-[12px] shadow-lg shadow-black/10 backdrop-blur transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-graph-selection/50',
     active
-      ? 'border-[#85858c] bg-[#343438]/90 text-[#f4f4f5]'
-      : 'border-[#3a3a3f] bg-[#242426]/82 text-[#bfc0c6] hover:border-[#4d4d54] hover:bg-[#303034] hover:text-[#f4f4f5]',
+      ? 'border-graph-border-strong bg-graph-hover/90 text-graph-text'
+      : 'border-graph-edge bg-graph-surface/82 text-graph-text-muted hover:border-graph-border-strong hover:bg-graph-hover hover:text-graph-text',
   ].join(' ');
 }

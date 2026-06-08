@@ -34,6 +34,11 @@ module.exports = {
         graph: {
           bg: 'rgb(var(--graph-bg) / <alpha-value>)',
           surface: 'rgb(var(--graph-surface) / <alpha-value>)',
+          // Secondary floating-chrome surfaces (panels, inputs, hover) and
+          // an emphasised border — see `--graph-*` in globals.css.
+          elevated: 'rgb(var(--graph-elevated) / <alpha-value>)',
+          hover: 'rgb(var(--graph-hover) / <alpha-value>)',
+          'border-strong': 'rgb(var(--graph-border-strong) / <alpha-value>)',
           node: 'rgb(var(--graph-node) / <alpha-value>)',
           'node-muted': 'rgb(var(--graph-node-muted) / <alpha-value>)',
           edge: 'rgb(var(--graph-edge) / <alpha-value>)',

@@ -1,4 +1,5 @@
 import { BacklinksPanel } from './BacklinksPanel';
+import { Breadcrumb, notePathToSegments } from './Breadcrumb';
 import { DatabaseView } from './DatabaseView';
 import { Editor } from './Editor';
 import { GlobalGraph } from './GlobalGraph';
@@ -6,6 +7,7 @@ import { Resizer } from './Resizer';
 import { Ribbon } from './Ribbon';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
+import { useEditorStore } from '../stores/editor';
 import { useUiStore } from '../stores/ui';
 import { useVaultStore } from '../stores/vault';
 
@@ -17,6 +19,8 @@ export function Layout(): JSX.Element {
   const setBacklinksWidth = useUiStore((s) => s.setBacklinksWidth);
   const mainView = useUiStore((s) => s.mainView);
 
+  const currentVault = useVaultStore((s) => s.current);
+  const currentPath = useEditorStore((s) => s.currentPath);
   const pickAndOpenVault = useVaultStore((s) => s.pickAndOpenVault);
 
   return (
@@ -42,8 +46,14 @@ export function Layout(): JSX.Element {
 
         {mainView === 'editor' && (
           <>
-            <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-              <Editor />
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+              <Breadcrumb
+                vaultName={currentVault?.name ?? 'ziba'}
+                segments={currentPath === null ? [] : notePathToSegments(currentPath)}
+              />
+              <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+                <Editor />
+              </div>
             </div>
 
             {backlinksOpen && (

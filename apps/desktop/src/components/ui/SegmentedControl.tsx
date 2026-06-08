@@ -50,20 +50,22 @@ export function SegmentedControl<T extends string>({
 }
 
 function containerClass(variant: SegmentedVariant): string {
+  // Graph variant lives on the themed floating chrome — token-based so it
+  // follows every theme instead of the old dark-only hex.
   if (variant === 'graph') {
-    return 'inline-flex h-9 items-center overflow-hidden rounded-lg border border-[#3a3a3f] bg-[#242426]/86 shadow-lg shadow-black/20 backdrop-blur';
+    return 'inline-flex h-9 items-center overflow-hidden rounded-lg border border-graph-edge bg-graph-surface/86 shadow-lg shadow-black/20 backdrop-blur';
   }
   return 'inline-flex min-w-0 items-center gap-0.5 rounded-md border border-border bg-bg px-0.5 py-0.5';
 }
 
 function itemClass(variant: SegmentedVariant): string {
   if (variant === 'graph') {
-    return 'inline-flex h-full items-center gap-1 px-3 text-[12px] font-medium text-[#a9a9af] transition hover:bg-white/8 hover:text-[#f4f4f5]';
+    return 'inline-flex h-full items-center gap-1 px-3 text-[12px] font-medium text-graph-text-muted transition hover:bg-graph-hover hover:text-graph-text focus-visible:outline focus-visible:-outline-offset-2 focus-visible:outline-2 focus-visible:outline-graph-selection';
   }
   return 'inline-flex min-w-0 items-center gap-1 rounded px-2 py-0.5 text-xs font-semibold text-fg-muted transition hover:bg-bg-muted hover:text-fg';
 }
 
 function activeItemClass(variant: SegmentedVariant): string {
-  if (variant === 'graph') return 'bg-white/10 text-[#f4f4f5]';
+  if (variant === 'graph') return 'bg-graph-hover text-graph-text';
   return 'bg-bg-muted text-fg';
 }
