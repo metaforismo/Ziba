@@ -5,13 +5,15 @@ import {
   ArrowRight,
   ArrowSquareOut,
   CornersOut,
+  FunnelX,
   Gear,
+  Graph as GraphIcon,
   MagnifyingGlass,
   Minus,
   Plus,
   X,
 } from '@phosphor-icons/react';
-import type { NotePath } from '@ziba/core';
+import { MENTION_EDGE_KIND, type NotePath } from '@ziba/core';
 import type { FullGraph } from '../../../shared/ipc';
 import { ipc } from '../../lib/ipc';
 import { ipcErrorMessage } from '../../lib/ipc-error';
@@ -36,9 +38,11 @@ import { useGraphSettingsStore } from '../../stores/graph';
 import { useEditorStore } from '../../stores/editor';
 import { IconButton } from '../ui/IconButton';
 import { SegmentedControl } from '../ui/SegmentedControl';
+import { EmptyView } from '../ui/EmptyView';
 import { GraphSettingsPanel, type GraphPreset } from './GraphSettingsPanel';
 import type { GraphGroupRule } from '../../lib/graph-settings';
 import { graphGroupQueryMatchesNode } from '../../lib/graph-groups';
+import { useGraphPalette } from '../../lib/graph-palette';
 import { nextGraphKeyboardView } from './keyboard';
 
 // Logical canvas the simulation runs on. The SVG `viewBox` matches
@@ -54,7 +58,9 @@ import {
   GRAPH_ZOOM_MAX as ZOOM_MAX,
   GRAPH_FIT_PADDING as FIT_PADDING,
   GRAPH_LARGE_THRESHOLD as LARGE_GRAPH_WARN_THRESHOLD,
+  GRAPH_ANIMATION_NODE_CEILING,
 } from '../../lib/graph-tuning';
+import { useCameraTween } from '../../lib/graph-camera';
 
 const NODE_R_MIN = 3;
 const NODE_R_MAX = 18;
@@ -94,6 +100,16 @@ export function GlobalGraph(): JSX.Element {
   const graphFrameRef = useRef<HTMLDivElement | null>(null);
   const mountedRef = useRef(true);
 
+  // Smooth RAF-driven camera glide. `onSettle` syncs the final transform
+  // back into React state so later prop-driven renders don't snap the
+  // camera back to its pre-tween position (same contract as the manual
+  // pan/zoom settle paths).
+  const { animateTo: animateCamera, cancel: cancelCameraTween } = useCameraTween(
+    canvasRef,
+    setView,
+  );
+
+  const palette = useGraphPalette();
   const currentPath = useEditorStore((s) => s.currentPath);
   const objectTypeSchemas = useTagsStore((s) => s.objectTypeSchemas);
   const currentVaultRoot = useVaultStore((s) => s.current?.root ?? null);
@@ -248,14 +264,23 @@ export function GlobalGraph(): JSX.Element {
     return Array.from(byType.values()).sort((a, b) => a.label.localeCompare(b.label));
   }, [load, objectTypeSchemas]);
 
-  // Distinct relation kinds present in the graph (empty-string sentinel excluded).
+  // Distinct relation kinds present in the graph (empty-string sentinel
+  // and the reserved mention sentinel excluded — mentions get their own
+  // dedicated toggle).
   const kindOptions = useMemo<string[]>(() => {
     if (load.kind !== 'ready') return [];
     const seen = new Set<string>();
     for (const e of load.graph.edges) {
-      if (e.kind !== '') seen.add(e.kind);
+      if (e.kind !== '' && e.kind !== MENTION_EDGE_KIND) seen.add(e.kind);
     }
     return Array.from(seen).sort();
+  }, [load]);
+
+  // Whether the current graph has ANY soft references — drives whether
+  // the mention toggle is offered at all.
+  const hasMentionEdges = useMemo<boolean>(() => {
+    if (load.kind !== 'ready') return false;
+    return load.graph.edges.some((e) => e.kind === MENTION_EDGE_KIND);
   }, [load]);
 
   // path → type slug; feeds initializePositions for cluster-bias seeding.
@@ -413,29 +438,34 @@ export function GlobalGraph(): JSX.Element {
   // affordance via the toolbar button, so we clear userInteractedRef here.
   // The auto-fit useEffect below distinguishes initial settle (interacted=
   // false → fit) from refetch settles (interacted=true → preserve view).
-  const fitToScreen = useCallback((): void => {
-    if (canvasNodes.length === 0) return;
-    const bounds = computeBounds(canvasNodes);
-    const w = bounds.maxX - bounds.minX || 1;
-    const h = bounds.maxY - bounds.minY || 1;
-    const scaleX = (CANVAS_W - FIT_PADDING * 2) / w;
-    const scaleY = (CANVAS_H - FIT_PADDING * 2) / h;
-    const scale = Math.min(scaleX, scaleY, ZOOM_MAX);
-    const cx = (bounds.minX + bounds.maxX) / 2;
-    const cy = (bounds.minY + bounds.maxY) / 2;
-    // Translate so the centre of the bounding box ends up at the
-    // centre of the viewBox (after scaling).
-    const next: CanvasView = {
-      tx: CANVAS_W / 2 - cx * scale,
-      ty: CANVAS_H / 2 - cy * scale,
-      scale,
-    };
-    setView(next);
-    canvasRef.current?.setView(next);
-    // Explicit fit-to-screen press → re-arm the auto-fit on next layout
-    // change too, so the camera tracks new layouts until the user gestures.
-    userInteractedRef.current = false;
-  }, [canvasNodes]);
+  const fitToScreen = useCallback(
+    (animate = false): void => {
+      if (canvasNodes.length === 0) return;
+      const bounds = computeBounds(canvasNodes);
+      const w = bounds.maxX - bounds.minX || 1;
+      const h = bounds.maxY - bounds.minY || 1;
+      const scaleX = (CANVAS_W - FIT_PADDING * 2) / w;
+      const scaleY = (CANVAS_H - FIT_PADDING * 2) / h;
+      const scale = Math.min(scaleX, scaleY, ZOOM_MAX);
+      const cx = (bounds.minX + bounds.maxX) / 2;
+      const cy = (bounds.minY + bounds.maxY) / 2;
+      // Translate so the centre of the bounding box ends up at the
+      // centre of the viewBox (after scaling).
+      const next: CanvasView = {
+        tx: CANVAS_W / 2 - cx * scale,
+        ty: CANVAS_H / 2 - cy * scale,
+        scale,
+      };
+      // Skip the glide on very large graphs (per-frame transform writes
+      // get janky) and on the initial settle (animate=false).
+      const instant = !animate || canvasNodes.length > GRAPH_ANIMATION_NODE_CEILING;
+      animateCamera(next, { instant });
+      // Explicit fit-to-screen press → re-arm the auto-fit on next layout
+      // change too, so the camera tracks new layouts until the user gestures.
+      userInteractedRef.current = false;
+    },
+    [canvasNodes, animateCamera],
+  );
 
   // Auto-fit once the layout is ready. We fit on the FIRST settle and
   // only re-fit on subsequent layouts if the user hasn't yet panned or
@@ -458,8 +488,39 @@ export function GlobalGraph(): JSX.Element {
     fitToScreen();
   }, [layout, fitToScreen]);
 
+  // Smoothly re-center on the selected node (Obsidian-style focus). We
+  // keep the live scale and just glide the pan so the node lands at the
+  // viewBox centre. Only fires for a genuine selection change — clearing
+  // the selection or selecting the same node again is a no-op. Skipped on
+  // very large graphs by the tween's instant fallback.
+  const lastFocusedRef = useRef<NotePath | null>(null);
+  useEffect(() => {
+    if (selectedId === null) {
+      lastFocusedRef.current = null;
+      return;
+    }
+    if (lastFocusedRef.current === selectedId) return;
+    const node = canvasNodes.find((n) => n.id === selectedId);
+    if (node === undefined) return;
+    lastFocusedRef.current = selectedId;
+    const cur = canvasRef.current?.getView() ?? view;
+    const next: CanvasView = {
+      tx: CANVAS_W / 2 - node.x * cur.scale,
+      ty: CANVAS_H / 2 - node.y * cur.scale,
+      scale: cur.scale,
+    };
+    // The user is intentionally focusing — don't let a later layout
+    // refetch yank the camera back to fit-to-screen.
+    userInteractedRef.current = true;
+    animateCamera(next, { instant: canvasNodes.length > GRAPH_ANIMATION_NODE_CEILING });
+    // `view` intentionally excluded: we read the live transform via the
+    // handle, and including it would re-fire focus on every pan settle.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, canvasNodes, animateCamera]);
+
   const handleZoom = useCallback(
     (factor: number): void => {
+      cancelCameraTween();
       const cur = canvasRef.current?.getView() ?? view;
       const nextScale = clamp(cur.scale * factor, ZOOM_MIN, ZOOM_MAX);
       // Zoom about the centre of the viewBox so a button press feels
@@ -477,7 +538,7 @@ export function GlobalGraph(): JSX.Element {
       canvasRef.current?.setView(next);
       userInteractedRef.current = true;
     },
-    [view],
+    [view, cancelCameraTween],
   );
 
   // ---- Pan gesture --------------------------------------------------
@@ -490,21 +551,26 @@ export function GlobalGraph(): JSX.Element {
     startView: CanvasView;
   } | null>(null);
 
-  const handleBackgroundMouseDown = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
-    // Only left-button drag pans. Middle/right preserved for browser /
-    // future context-menu use.
-    if (e.button !== 0) return;
-    if (canvasRef.current === null) return;
-    panStateRef.current = {
-      startX: e.clientX,
-      startY: e.clientY,
-      startView: canvasRef.current.getView(),
-    };
-    setPanning(true);
-    // Same reasoning as wheel zoom: once the user has moved the camera,
-    // don't let a subsequent layout refetch fit-to-screen back over them.
-    userInteractedRef.current = true;
-  }, []);
+  const handleBackgroundMouseDown = useCallback(
+    (e: React.MouseEvent<SVGSVGElement>) => {
+      // Only left-button drag pans. Middle/right preserved for browser /
+      // future context-menu use.
+      if (e.button !== 0) return;
+      if (canvasRef.current === null) return;
+      // A manual drag must override any in-flight focus glide.
+      cancelCameraTween();
+      panStateRef.current = {
+        startX: e.clientX,
+        startY: e.clientY,
+        startView: canvasRef.current.getView(),
+      };
+      setPanning(true);
+      // Same reasoning as wheel zoom: once the user has moved the camera,
+      // don't let a subsequent layout refetch fit-to-screen back over them.
+      userInteractedRef.current = true;
+    },
+    [cancelCameraTween],
+  );
 
   // Window-level listeners for the move + up phases of the gesture so
   // the user can drag past the SVG bounds without the pan getting
@@ -545,47 +611,52 @@ export function GlobalGraph(): JSX.Element {
     };
   }, [panning]);
 
-  const handleWheel = useCallback((e: React.WheelEvent<SVGSVGElement>) => {
-    if (canvasRef.current === null) return;
-    // We don't preventDefault here — React's synthetic wheel listener
-    // is passive, so calling preventDefault would be a no-op anyway.
-    // The SVG sits inside a flex container that doesn't itself scroll,
-    // so the page won't accidentally scroll while the user zooms.
-    const cur = canvasRef.current.getView();
-    // Negative deltaY = scrolling up = zooming in. Tiny exponent so
-    // trackpad pinches feel smooth instead of jumping in big steps.
-    const factor = Math.exp(-e.deltaY * 0.0015);
-    const nextScale = clamp(cur.scale * factor, ZOOM_MIN, ZOOM_MAX);
-    if (nextScale === cur.scale) return;
-    // Zoom about the cursor: the world point under the cursor must
-    // stay under the cursor after the scale change. That's the
-    // standard `tx' = cx - (cx - tx) * ratio` formula in viewBox
-    // space. We approximate the cursor position by the SVG's
-    // boundingClientRect — exact, since the wheel event has clientX/Y.
-    const target = e.currentTarget;
-    const rect = target.getBoundingClientRect();
-    // Map cursor from screen → viewBox coords. Because we use
-    // preserveAspectRatio="xMidYMid meet" the actual rendered area
-    // may be letterboxed; for v0.3 we assume centred fit is close
-    // enough — being a few px off in the zoom anchor isn't
-    // perceptible during a continuous gesture.
-    const px = ((e.clientX - rect.left) / rect.width) * CANVAS_W;
-    const py = ((e.clientY - rect.top) / rect.height) * CANVAS_H;
-    const ratio = nextScale / cur.scale;
-    const next: CanvasView = {
-      tx: px - (px - cur.tx) * ratio,
-      ty: py - (py - cur.ty) * ratio,
-      scale: nextScale,
-    };
-    canvasRef.current.setView(next);
-    userInteractedRef.current = true;
-    // We do NOT setView() here on every frame — that would trigger a
-    // React render per wheel tick. Instead we sync at the next
-    // selection / refetch boundary. (View state is also re-synced via
-    // the imperative handle's setView path when needed.) The
-    // userInteractedRef flip prevents the next layout-changed effect
-    // from yanking the camera back.
-  }, []);
+  const handleWheel = useCallback(
+    (e: React.WheelEvent<SVGSVGElement>) => {
+      if (canvasRef.current === null) return;
+      // Wheel zoom overrides any in-flight focus glide.
+      cancelCameraTween();
+      // We don't preventDefault here — React's synthetic wheel listener
+      // is passive, so calling preventDefault would be a no-op anyway.
+      // The SVG sits inside a flex container that doesn't itself scroll,
+      // so the page won't accidentally scroll while the user zooms.
+      const cur = canvasRef.current.getView();
+      // Negative deltaY = scrolling up = zooming in. Tiny exponent so
+      // trackpad pinches feel smooth instead of jumping in big steps.
+      const factor = Math.exp(-e.deltaY * 0.0015);
+      const nextScale = clamp(cur.scale * factor, ZOOM_MIN, ZOOM_MAX);
+      if (nextScale === cur.scale) return;
+      // Zoom about the cursor: the world point under the cursor must
+      // stay under the cursor after the scale change. That's the
+      // standard `tx' = cx - (cx - tx) * ratio` formula in viewBox
+      // space. We approximate the cursor position by the SVG's
+      // boundingClientRect — exact, since the wheel event has clientX/Y.
+      const target = e.currentTarget;
+      const rect = target.getBoundingClientRect();
+      // Map cursor from screen → viewBox coords. Because we use
+      // preserveAspectRatio="xMidYMid meet" the actual rendered area
+      // may be letterboxed; for v0.3 we assume centred fit is close
+      // enough — being a few px off in the zoom anchor isn't
+      // perceptible during a continuous gesture.
+      const px = ((e.clientX - rect.left) / rect.width) * CANVAS_W;
+      const py = ((e.clientY - rect.top) / rect.height) * CANVAS_H;
+      const ratio = nextScale / cur.scale;
+      const next: CanvasView = {
+        tx: px - (px - cur.tx) * ratio,
+        ty: py - (py - cur.ty) * ratio,
+        scale: nextScale,
+      };
+      canvasRef.current.setView(next);
+      userInteractedRef.current = true;
+      // We do NOT setView() here on every frame — that would trigger a
+      // React render per wheel tick. Instead we sync at the next
+      // selection / refetch boundary. (View state is also re-synced via
+      // the imperative handle's setView path when needed.) The
+      // userInteractedRef flip prevents the next layout-changed effect
+      // from yanking the camera back.
+    },
+    [cancelCameraTween],
+  );
 
   const handleGraphFrameMouseDownCapture = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (isKeyboardInputTarget(e.target)) return;
@@ -609,11 +680,12 @@ export function GlobalGraph(): JSX.Element {
       );
       if (next === null) return;
       e.preventDefault();
+      cancelCameraTween();
       setView(next);
       canvasRef.current?.setView(next);
       userInteractedRef.current = true;
     },
-    [view],
+    [view, cancelCameraTween],
   );
 
   const handleScopeChange = useCallback(
@@ -669,6 +741,13 @@ export function GlobalGraph(): JSX.Element {
     [updateGraphQuery],
   );
 
+  const handleShowMentionsChange = useCallback(
+    (next: boolean): void => {
+      updateGraphQuery({ showMentions: next });
+    },
+    [updateGraphQuery],
+  );
+
   const handleApplyPreset = useCallback(
     (preset: GraphPreset): void => {
       updateGraphQuery(preset.query);
@@ -720,37 +799,37 @@ export function GlobalGraph(): JSX.Element {
   return (
     <div
       className={[
-        'flex h-full w-full flex-col bg-[#1d1d1f] text-[#e6e6e8]',
+        'flex h-full w-full flex-col bg-graph-bg text-graph-text',
         surfaceFullscreen ? 'fixed inset-0 z-50' : '',
       ].join(' ')}
     >
       <div
         ref={graphFrameRef}
         tabIndex={0}
-        className="relative min-h-0 flex-1 overflow-hidden bg-[#1d1d1f] outline-none"
+        className="relative min-h-0 flex-1 overflow-hidden bg-graph-bg outline-none"
         onKeyDown={handleGraphKeyDown}
         onMouseDownCapture={handleGraphFrameMouseDownCapture}
       >
         <div className="pointer-events-none absolute left-4 right-4 top-3 z-10 flex items-start justify-between gap-3">
-          <div className="min-w-0 rounded-lg border border-[#36363a]/90 bg-[#242426]/80 px-3 py-2 shadow-lg shadow-black/20 backdrop-blur">
+          <div className="min-w-0 rounded-lg border border-graph-edge/90 bg-graph-surface/80 px-3 py-2 shadow-lg shadow-black/20 backdrop-blur">
             <div className="flex min-w-0 items-baseline gap-3">
-              <h1 className="truncate text-[14px] font-semibold text-[#f0f0f2]">
+              <h1 className="truncate text-[14px] font-semibold text-graph-text">
                 Grafo {graphScope === 'local' ? 'locale' : 'globale'}
               </h1>
               {isReady && (
-                <span className="truncate font-mono text-[11px] tabular-nums text-[#9d9da4]">
+                <span className="truncate font-mono text-[11px] tabular-nums text-graph-text-muted">
                   {nodeCount} {nodeCount === 1 ? 'nodo' : 'nodi'} · {edgeCount}{' '}
                   {edgeCount === 1 ? 'arco' : 'archi'}
                 </span>
               )}
             </div>
             {graphScope === 'local' && localRootTitle !== null && (
-              <p className="mt-1 truncate text-[11px] text-[#9d9da4]">
+              <p className="mt-1 truncate text-[11px] text-graph-text-muted">
                 Root: {localRootTitle} · profondità {graphSettings.query.localDepth}
               </p>
             )}
             {hasActiveFilters && (
-              <p className="mt-1 truncate text-[11px] text-[#9d9da4]">
+              <p className="mt-1 truncate text-[11px] text-graph-text-muted">
                 {hiddenNodeCount} nodi nascosti · {hiddenEdgeCount} collegamenti nascosti
               </p>
             )}
@@ -765,14 +844,14 @@ export function GlobalGraph(): JSX.Element {
               variant="graph"
             />
             {searchOpen && (
-              <label className="flex h-9 w-64 max-w-[38vw] items-center gap-2 rounded-lg border border-[#3a3a3f] bg-[#242426]/86 px-2.5 text-[#b7b7bd] shadow-lg shadow-black/20 backdrop-blur transition focus-within:border-[#5a5a62] focus-within:ring-2 focus-within:ring-white/10">
+              <label className="flex h-9 w-64 max-w-[38vw] items-center gap-2 rounded-lg border border-graph-edge bg-graph-surface/86 px-2.5 text-graph-text-muted shadow-lg shadow-black/20 backdrop-blur transition focus-within:border-graph-border-strong focus-within:ring-2 focus-within:ring-graph-selection/25">
                 <MagnifyingGlass size={16} aria-hidden="true" />
                 <input
                   type="text"
                   value={search}
                   onChange={(e): void => updateGraphQuery({ search: e.target.value })}
                   placeholder="Cerca"
-                  className="min-w-0 flex-1 bg-transparent text-[13px] text-[#f0f0f2] outline-none placeholder:text-[#87878f]"
+                  className="min-w-0 flex-1 bg-transparent text-[13px] text-graph-text outline-none placeholder:text-graph-text-muted"
                   spellCheck={false}
                   autoComplete="off"
                   autoCorrect="off"
@@ -780,7 +859,7 @@ export function GlobalGraph(): JSX.Element {
                 />
               </label>
             )}
-            <div className="flex h-9 items-center divide-x divide-[#3a3a3f] overflow-hidden rounded-lg border border-[#3a3a3f] bg-[#242426]/86 shadow-lg shadow-black/20 backdrop-blur">
+            <div className="flex h-9 items-center divide-x divide-graph-edge overflow-hidden rounded-lg border border-graph-edge bg-graph-surface/86 shadow-lg shadow-black/20 backdrop-blur">
               <IconButton
                 onClick={(): void => setSearchOpen((open) => !open)}
                 label={searchOpen ? 'Nascondi ricerca grafo' : 'Mostra ricerca grafo'}
@@ -812,7 +891,7 @@ export function GlobalGraph(): JSX.Element {
                 icon={<Plus size={15} aria-hidden="true" />}
               />
               <IconButton
-                onClick={fitToScreen}
+                onClick={(): void => fitToScreen(true)}
                 label="Adatta alla finestra"
                 variant="graph"
                 icon={<CornersOut size={16} aria-hidden="true" />}
@@ -841,13 +920,16 @@ export function GlobalGraph(): JSX.Element {
             kinds={kindOptions}
             selectedKinds={selectedKinds}
             onChange={handleKindsChange}
+            hasMentions={hasMentionEdges}
+            showMentions={graphSettings.query.showMentions}
+            onShowMentionsChange={handleShowMentionsChange}
           />
-          <label className="flex h-8 items-center gap-1.5 rounded-lg border border-[#3a3a3f] bg-[#242426]/84 px-2 text-[12px] text-[#c8c8ce] shadow-lg shadow-black/20 backdrop-blur transition hover:border-[#4f4f56] hover:text-[#f0f0f2]">
+          <label className="flex h-8 items-center gap-1.5 rounded-lg border border-graph-edge bg-graph-surface/84 px-2 text-[12px] text-graph-text-muted shadow-lg shadow-black/20 backdrop-blur transition hover:border-graph-border-strong hover:text-graph-text">
             <input
               type="checkbox"
               checked={clusterOverlayOn}
               onChange={(e): void => setClusterOverlayOn(e.target.checked)}
-              className="size-3.5 accent-[#d7d7da]"
+              className="size-3.5 accent-graph-node"
             />
             Cluster
           </label>
@@ -877,14 +959,11 @@ export function GlobalGraph(): JSX.Element {
           <GraphStatus tone="danger" title="Impossibile caricare il grafo" detail={load.message} />
         )}
         {load.kind === 'ready' && nodeCount === 0 && (
-          <GraphStatus
-            tone="neutral"
-            title={totalNodeCount === 0 ? 'Nessun nodo nel grafo' : 'Nessun risultato nel grafo'}
-            detail={
-              totalNodeCount === 0
-                ? 'Il vault non contiene ancora note collegabili.'
-                : 'I filtri correnti nascondono tutti i nodi. Allarga la ricerca o disattiva un filtro.'
-            }
+          <GraphEmptyOverlay
+            totalNodeCount={totalNodeCount}
+            // The graph honours filters via the settings store; resetting
+            // the whole graph settings is the real "clear filters" action.
+            onResetFilters={resetGraphSettings}
           />
         )}
         {load.kind === 'ready' && nodeCount > 0 && (
@@ -917,10 +996,15 @@ export function GlobalGraph(): JSX.Element {
             showGrid={graphSettings.display.showGrid}
             linkOpacity={graphSettings.forces.linkOpacity}
             focusMode={graphSettings.query.focusMode}
+            palette={palette}
           />
         )}
         {load.kind === 'ready' && nodeCount > 0 && (
-          <Legend visibleTypes={legendTypes} visibleKinds={legendKinds} />
+          <Legend
+            visibleTypes={legendTypes}
+            visibleKinds={legendKinds}
+            showMentions={hasMentionEdges && graphSettings.query.showMentions}
+          />
         )}
         {load.kind === 'ready' && selectedNode !== null && (
           <NodeDetailPanel
@@ -998,35 +1082,81 @@ function GraphStatus({
     <div className="absolute inset-0 flex items-center justify-center p-6">
       <div
         className={[
-          'w-full max-w-sm rounded-lg border bg-[#242426]/92 p-5 text-center shadow-xl shadow-black/25 backdrop-blur',
-          isDanger ? 'border-[#d53f5f]/55' : 'border-[#3a3a3f]',
+          'w-full max-w-sm rounded-lg border bg-graph-surface/92 p-5 text-center shadow-xl shadow-black/25 backdrop-blur',
+          isDanger ? 'border-red-500/55' : 'border-graph-edge',
         ].join(' ')}
       >
         <div
           aria-hidden="true"
           className={[
             'mx-auto mb-4 h-24 w-48 rounded-md border',
-            isDanger ? 'border-[#d53f5f]/30 bg-[#d53f5f]/10' : 'border-[#38383d] bg-[#1d1d1f]',
+            isDanger ? 'border-red-500/30 bg-red-500/10' : 'border-graph-edge bg-graph-bg',
           ].join(' ')}
         >
           <div className="flex h-full items-center justify-center gap-3">
-            <span className="h-2.5 w-2.5 rounded-full bg-[#b8babf]" />
-            <span className="h-px w-12 bg-[#484a50]" />
-            <span className="h-4 w-4 rounded-full border border-[#d53f5f]/55 bg-[#d53f5f]/30" />
-            <span className="h-px w-10 bg-[#484a50]" />
-            <span className="h-2 w-2 rounded-full bg-[#6f7178]" />
+            <span className="h-2.5 w-2.5 rounded-full bg-graph-node" />
+            <span className="h-px w-12 bg-graph-edge" />
+            {/* Mirrors the canvas selection accent so the placeholder reads
+                as "this is the graph" in every theme. */}
+            <span className="h-4 w-4 rounded-full border border-graph-selection/55 bg-graph-selection/30" />
+            <span className="h-px w-10 bg-graph-edge" />
+            <span className="h-2 w-2 rounded-full bg-graph-node-muted" />
           </div>
         </div>
         <h2
           className={
             isDanger
-              ? 'text-sm font-semibold text-[#f0a2b1]'
-              : 'text-sm font-semibold text-[#f2f2f3]'
+              ? 'text-sm font-semibold text-red-500 dark:text-red-400'
+              : 'text-sm font-semibold text-graph-text'
           }
         >
           {title}
         </h2>
-        <p className="mt-1 text-xs leading-5 text-[#a7a7ad]">{detail}</p>
+        <p className="mt-1 text-xs leading-5 text-graph-text-muted">{detail}</p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Empty-state overlay for the graph surface. The graph canvas itself uses
+ * hardcoded dark colors (a deliberate, theme-independent visualization
+ * surface), but the empty overlay is a normal UI affordance, so it uses
+ * design tokens and reads correctly in every theme — per the UX brief.
+ *
+ * Distinguishes a truly empty vault (no linkable notes yet) from a
+ * filtered-to-nothing state, surfacing a real "Azzera filtri" action only
+ * in the latter case (wired to the graph settings store's reset).
+ */
+function GraphEmptyOverlay({
+  totalNodeCount,
+  onResetFilters,
+}: {
+  totalNodeCount: number;
+  onResetFilters: () => void;
+}): JSX.Element {
+  const isEmptyVault = totalNodeCount === 0;
+  return (
+    <div className="absolute inset-0 flex items-center justify-center p-6">
+      <div className="w-full max-w-sm rounded-xl border border-border bg-bg-subtle/95 p-6 shadow-xl backdrop-blur">
+        <EmptyView
+          icon={
+            isEmptyVault ? (
+              <GraphIcon size={28} weight="duotone" />
+            ) : (
+              <FunnelX size={28} weight="duotone" />
+            )
+          }
+          title={isEmptyVault ? 'Nessun nodo nel grafo' : 'Nessun risultato'}
+          description={
+            isEmptyVault
+              ? 'Il vault non contiene ancora note collegabili. Crea note e collegale con [[wikilink]] per popolare il grafo.'
+              : 'I filtri correnti nascondono tutti i nodi. Allarga la ricerca o azzera i filtri.'
+          }
+          // Only the filtered-to-nothing state gets a reset action; an
+          // empty vault has no filters to clear.
+          {...(isEmptyVault ? {} : { action: { label: 'Azzera filtri', onClick: onResetFilters } })}
+        />
       </div>
     </div>
   );
@@ -1049,16 +1179,16 @@ function NodeDetailPanel({
   const hiddenConnectionCount = Math.max(0, connections.length - visibleConnections.length);
 
   return (
-    <aside className="absolute bottom-3 right-3 z-10 w-80 max-w-[calc(100%-1.5rem)] rounded-lg border border-[#3a3a3f] bg-[#242426]/92 p-3 text-xs text-[#e6e6e8] shadow-xl shadow-black/25 backdrop-blur">
+    <aside className="absolute bottom-3 right-3 z-10 w-80 max-w-[calc(100%-1.5rem)] rounded-lg border border-graph-edge bg-graph-surface/92 p-3 text-xs text-graph-text shadow-xl shadow-black/25 backdrop-blur">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-[#f2f2f3]">{node.title}</p>
-          <p className="mt-1 truncate font-mono text-[11px] text-[#9d9da4]">{node.id}</p>
+          <p className="truncate text-sm font-semibold text-graph-text">{node.title}</p>
+          <p className="mt-1 truncate font-mono text-[11px] text-graph-text-muted">{node.id}</p>
         </div>
         <button
           type="button"
           onClick={onClose}
-          className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-[#a7a7ad] transition hover:bg-[#303034] hover:text-[#f2f2f3]"
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-graph-text-muted transition hover:bg-graph-hover hover:text-graph-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-graph-selection/60"
           aria-label="Chiudi dettaglio nodo"
         >
           <X size={14} aria-hidden="true" />
@@ -1072,11 +1202,11 @@ function NodeDetailPanel({
       </div>
 
       {visibleConnections.length > 0 && (
-        <div className="mt-3 rounded-md border border-[#38383d] bg-[#1f1f22]/80">
-          <div className="flex h-8 items-center justify-between border-b border-[#343438] px-2">
-            <span className="text-[11px] font-semibold text-[#d7d7da]">Vicini</span>
+        <div className="mt-3 rounded-md border border-graph-edge bg-graph-elevated/80">
+          <div className="flex h-8 items-center justify-between border-b border-graph-edge px-2">
+            <span className="text-[11px] font-semibold text-graph-text">Vicini</span>
             {hiddenConnectionCount > 0 && (
-              <span className="font-mono text-[10px] tabular-nums text-[#8f8f98]">
+              <span className="font-mono text-[10px] tabular-nums text-graph-text-muted">
                 +{hiddenConnectionCount}
               </span>
             )}
@@ -1087,14 +1217,16 @@ function NodeDetailPanel({
                 key={`${connection.direction}-${connection.id}-${connection.kind}`}
                 type="button"
                 onClick={(): void => onSelectConnection(connection.id)}
-                className="flex w-full min-w-0 items-center gap-2 px-2 py-1.5 text-left transition hover:bg-[#2a2a2e] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/25"
+                className="flex w-full min-w-0 items-center gap-2 px-2 py-1.5 text-left transition hover:bg-graph-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-graph-selection/40"
               >
                 <span
                   className={[
                     'grid h-5 w-5 shrink-0 place-items-center rounded border',
+                    // Outgoing links pick up the theme selection accent (same
+                    // hue as the canvas selection); incoming stay neutral.
                     connection.direction === 'out'
-                      ? 'border-[#d53f5f]/35 bg-[#d53f5f]/10 text-[#f0a2b1]'
-                      : 'border-[#6f7178]/45 bg-[#2b2c31] text-[#d7d7da]',
+                      ? 'border-graph-selection/35 bg-graph-selection/10 text-graph-selection'
+                      : 'border-graph-node-muted/45 bg-graph-elevated text-graph-text',
                   ].join(' ')}
                   aria-hidden="true"
                 >
@@ -1105,10 +1237,10 @@ function NodeDetailPanel({
                   )}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[12px] text-[#eeeeef]">
+                  <span className="block truncate text-[12px] text-graph-text">
                     {connection.title}
                   </span>
-                  <span className="block truncate font-mono text-[10px] text-[#8f8f98]">
+                  <span className="block truncate font-mono text-[10px] text-graph-text-muted">
                     {connection.kind}
                   </span>
                 </span>
@@ -1121,7 +1253,7 @@ function NodeDetailPanel({
       <button
         type="button"
         onClick={onOpen}
-        className="mt-3 inline-flex h-8 w-full items-center justify-center rounded-md border border-[#3a3a3f] bg-[#1f1f22] px-3 text-xs font-medium text-[#ededf0] transition hover:border-[#5a5a62] hover:bg-[#303034] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/25"
+        className="mt-3 inline-flex h-8 w-full items-center justify-center rounded-md border border-graph-edge bg-graph-elevated px-3 text-xs font-medium text-graph-text transition hover:border-graph-border-strong hover:bg-graph-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-graph-selection/40"
       >
         <ArrowSquareOut size={14} aria-hidden="true" className="mr-1.5" />
         Apri nota
@@ -1132,9 +1264,9 @@ function NodeDetailPanel({
 
 function NodeMetric({ label, value }: { label: string; value: string }): JSX.Element {
   return (
-    <div className="min-w-0 rounded-md border border-[#38383d] bg-[#1f1f22] px-2 py-1.5">
-      <p className="text-[10px] uppercase tracking-wide text-[#9d9da4]">{label}</p>
-      <p className="truncate text-[12px] font-medium text-[#ededf0]">{value}</p>
+    <div className="min-w-0 rounded-md border border-graph-edge bg-graph-elevated px-2 py-1.5">
+      <p className="text-[10px] uppercase tracking-wide text-graph-text-muted">{label}</p>
+      <p className="truncate text-[12px] font-medium text-graph-text">{value}</p>
     </div>
   );
 }

@@ -8,6 +8,17 @@ Il formato si basa su [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e
 
 ### Added
 
+- Overhaul UX dell'intera app. Empty state brandizzato quando nessuna nota e'
+  aperta (sostituisce il placeholder finto), con primitive riusabili
+  `EmptyView` e `Skeleton` per stati vuoti e di loading coerenti su editor,
+  grafo, database, ricerca, riferimenti e indice.
+- I riferimenti morbidi (mentions) ora compaiono anche nel grafo GLOBALE come
+  edge dashed e attenuati, con toggle dedicato.
+- Gallery view del database completata (prima era uno stub); Board e Calendar
+  rifiniti per allinearsi alla Table.
+- Chrome dell'app: breadcrumb vault / cartella / nota, Tooltip riusabile,
+  navigazione a tab da tastiera con le frecce, e PropertyEditor collassabile
+  con stato persistito.
 - Grafo con default piu' ariosi, frecce visibili, modalita'
   globale/locale, refresh, ricerca compatta e fullscreen della surface.
 - Pannello `Riferimenti` con sezioni Backlinks/Mentions, filtro, sort,
@@ -26,6 +37,16 @@ Il formato si basa su [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e
 - Mini-grafo locale con mentions come riferimenti morbidi: le citazioni testuali
   appaiono come edge dashed senza duplicare i backlinks espliciti.
 
+### Changed
+
+- Colori del grafo ora theme-aware su tutti e 5 i temi scuri piu' la light mode
+  (prima erano hardcoded per il tema scuro).
+- Animazioni di camera del grafo (re-center, zoom-to-fit) ora guidate da RAF e
+  fluide, con rispetto della preferenza `prefers-reduced-motion`.
+- Tab `Object` del right pane mostrato solo per le note tipizzate; breadcrumb
+  unificato e riconciliato in un solo elemento.
+- Sidebar, ribbon e tab con polish visivo e fix WAI-ARIA per accessibilita'.
+
 ### Fixed
 
 - Il menu delle viste Database ora si chiude con click esterno/Escape, mostra
@@ -43,6 +64,8 @@ Il formato si basa su [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e
 - I temi scuri applicano anche la classe Tailwind `.dark`, quindi le utility
   `dark:` tornano coerenti con i token `data-theme` ed evitano stati
   bianco-su-bianco o nero-su-nero.
+- Il validator delle query del database rifiuta le chiavi composte solo da
+  spazi bianchi.
 
 ## [1.0.1] - 2026-05-10
 

@@ -23,6 +23,7 @@ import {
   type FullGraph,
   type FullTextHit,
   type IndexStoreAdapter,
+  type MentionEdge,
   type NotePath,
   type NoteSummary,
   type ObjectTypeRow,
@@ -897,6 +898,47 @@ export class SqliteIndexStore implements IndexStoreAdapter {
       kind: r.kind,
     }));
     return Promise.resolve({ nodes, edges });
+  }
+
+  async getMentionEdges(perTargetLimit: number, totalLimit: number): Promise<MentionEdge[]> {
+    const s = this.require();
+    type TitleRow = { path: string; title: string };
+    // Reuse the existing `listNotes` statement — we only need path+title.
+    const notes = (s.listNotes.all() as Array<TitleRow & { mtime: number }>).map((r) => ({
+      path: r.path,
+      title: r.title,
+    }));
+
+    const out: MentionEdge[] = [];
+    const safePerTarget = perTargetLimit > 0 ? perTargetLimit : 1;
+
+    for (const target of notes) {
+      if (out.length >= totalLimit) break;
+      const title = target.title.trim();
+      // Single-character / empty titles produce noisy FTS matches; skip
+      // them the same way the per-note `getReferences` skips empty titles.
+      if (title.length < 2) continue;
+      const matchExpr = escapeFts5Query(title);
+      if (matchExpr.length === 0) continue;
+      type FtsRow = { path: string; title: string; snippet: string };
+      let hits: FtsRow[];
+      try {
+        hits = s.searchFts.all(matchExpr, safePerTarget) as FtsRow[];
+      } catch {
+        // Malformed FTS expression for this title — skip it, keep going.
+        continue;
+      }
+      for (const hit of hits) {
+        if (out.length >= totalLimit) break;
+        // Soft reference points FROM the mentioning note (hit) TO the
+        // note whose title was found (target). Skip self-mentions; the
+        // pure merge step also guards this, but bailing early is cheaper.
+        if (hit.path === target.path) continue;
+        out.push({ source: hit.path, target: target.path, targetTitle: target.title });
+      }
+    }
+
+    return out;
   }
 }
 

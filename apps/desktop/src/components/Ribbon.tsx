@@ -7,13 +7,19 @@ import {
   PaintBrush,
   SlidersHorizontal,
 } from '@phosphor-icons/react';
+import type { JSX } from 'react';
 import { useSearchStore } from '../stores/search';
-import { THEME_IDS } from '../lib/theme';
+import { THEMES, THEME_IDS, type ThemeId } from '../lib/theme';
 import { useUiStore } from '../stores/ui';
+import { Tooltip } from './ui/Tooltip';
 
-function nextThemeId(current: (typeof THEME_IDS)[number]): (typeof THEME_IDS)[number] {
+function nextThemeId(current: ThemeId): ThemeId {
   const idx = THEME_IDS.indexOf(current);
   return THEME_IDS[(idx + 1) % THEME_IDS.length] ?? THEME_IDS[0];
+}
+
+function themeLabel(id: ThemeId): string {
+  return THEMES.find((t) => t.id === id)?.label ?? id;
 }
 
 export function Ribbon(): JSX.Element {
@@ -54,21 +60,21 @@ export function Ribbon(): JSX.Element {
       <RibbonButton
         label="Organizza"
         disabled
-        title="Organizza è disponibile dalla sezione Strumenti nella sidebar"
+        tooltip="Organizza è disponibile dalla sezione Strumenti nella sidebar"
         icon={<SlidersHorizontal size={20} aria-hidden="true" />}
       />
 
       <div className="mt-auto flex flex-col items-center gap-1">
         <RibbonButton
-          label="Tema"
-          title={`Tema: ${themeId}`}
+          label="Cambia tema"
+          tooltip={`Tema: ${themeLabel(themeId)}`}
           onClick={(): void => setThemeId(nextThemeId(themeId))}
           icon={<PaintBrush size={20} aria-hidden="true" />}
         />
         <RibbonButton
           label="Impostazioni"
           disabled
-          title="Impostazioni in arrivo nel pannello dedicato"
+          tooltip="Impostazioni in arrivo nel pannello dedicato"
           icon={<Gear size={20} aria-hidden="true" />}
         />
       </div>
@@ -81,34 +87,46 @@ function RibbonButton({
   icon,
   active = false,
   disabled = false,
-  title,
+  tooltip,
   onClick,
 }: {
   label: string;
   icon: JSX.Element;
   active?: boolean;
   disabled?: boolean;
-  title?: string;
+  /** Optional richer hint shown in the tooltip; defaults to `label`. */
+  tooltip?: string;
   onClick?: () => void;
 }): JSX.Element {
-  return (
+  const hint = tooltip ?? label;
+  const button = (
     <button
       type="button"
       aria-label={label}
       aria-pressed={active}
       disabled={disabled}
-      title={title ?? label}
+      // Native title only when disabled: disabled buttons don't emit the
+      // hover/focus events our <Tooltip> relies on, so we fall back to the
+      // browser tooltip to keep the "why is this disabled" hint reachable.
+      title={disabled ? hint : undefined}
       onClick={onClick}
       className={
-        'mb-1 inline-flex size-9 items-center justify-center rounded-lg transition ' +
+        'mb-1 inline-flex size-9 items-center justify-center rounded-lg transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent motion-reduce:transition-none ' +
         (active
           ? 'bg-bg-muted text-fg shadow-sm'
           : disabled
             ? 'cursor-not-allowed text-fg-muted/45'
-            : 'text-fg-muted hover:bg-bg-muted hover:text-fg')
+            : 'text-fg-muted hover:bg-bg-muted hover:text-fg active:translate-y-px')
       }
     >
       {icon}
     </button>
+  );
+
+  if (disabled) return button;
+  return (
+    <Tooltip label={hint} placement="right">
+      {button}
+    </Tooltip>
   );
 }

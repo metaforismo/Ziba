@@ -200,6 +200,17 @@ export type GraphNode = {
   color: string | null;
 };
 
+/**
+ * Distinct sentinel `kind` for soft references (unlinked mentions): a
+ * note whose body contains another note's title verbatim but WITHOUT an
+ * explicit `[[wikilink]]`. We use a reserved, non-empty marker so the
+ * UI can style these like Obsidian's unresolved/soft edges (dashed +
+ * dimmed) and dedupe them against explicit links. The `:` prefix can
+ * never collide with a user-authored `relations:<kind>` key because
+ * frontmatter relation kinds are bare identifiers.
+ */
+export const MENTION_EDGE_KIND = ':mention';
+
 export type GraphEdge = {
   source: NotePath;
   target: NotePath;
@@ -207,7 +218,8 @@ export type GraphEdge = {
   /**
    * v1.0 Phase 5: relation kind. The empty string `''` is the
    * sentinel for generic body wikilinks; non-empty values match the
-   * frontmatter `relations:<kind>` key.
+   * frontmatter `relations:<kind>` key. The reserved `MENTION_EDGE_KIND`
+   * marks a soft reference (unlinked textual mention).
    */
   kind: string;
 };
@@ -216,3 +228,63 @@ export type FullGraph = {
   nodes: GraphNode[];
   edges: GraphEdge[];
 };
+
+/**
+ * A candidate soft-reference edge (source mentions target's title in
+ * its body, no explicit wikilink). Kept as a separate shape from
+ * `GraphEdge` so the merge step in `mergeMentionEdges` is a pure,
+ * unit-testable function with no DB dependency.
+ */
+export type MentionEdge = {
+  source: NotePath;
+  target: NotePath;
+  targetTitle: string;
+};
+
+/**
+ * Merge soft-reference (mention) edges into a base set of explicit
+ * graph edges, applying the dedupe/cleanup rules:
+ *
+ *   - An explicit edge (wikilink or typed relation) ALWAYS wins over a
+ *     mention for the same `source → target` pair, regardless of kind.
+ *   - Self-mentions (`source === target`) are dropped.
+ *   - Duplicate mentions for the same pair collapse to one.
+ *   - Mentions whose endpoints aren't both real nodes are dropped.
+ *
+ * Pure function: the adapter resolves candidate mentions, this decides
+ * which survive. Returns a NEW array (explicit edges first, then the
+ * surviving mention edges) — order is stable for deterministic layout.
+ */
+export function mergeMentionEdges(
+  explicitEdges: readonly GraphEdge[],
+  mentionCandidates: readonly MentionEdge[],
+  knownNodePaths: ReadonlySet<NotePath>,
+): GraphEdge[] {
+  const explicitPairs = new Set<string>();
+  for (const edge of explicitEdges) {
+    explicitPairs.add(`${edge.source} ${edge.target}`);
+  }
+
+  const seenMentionPairs = new Set<string>();
+  const merged: GraphEdge[] = [...explicitEdges];
+
+  for (const candidate of mentionCandidates) {
+    if (candidate.source === candidate.target) continue;
+    if (!knownNodePaths.has(candidate.source)) continue;
+    if (!knownNodePaths.has(candidate.target)) continue;
+    const key = `${candidate.source} ${candidate.target}`;
+    // Explicit link wins: never emit a mention for a pair that already
+    // has any explicit edge between the same endpoints.
+    if (explicitPairs.has(key)) continue;
+    if (seenMentionPairs.has(key)) continue;
+    seenMentionPairs.add(key);
+    merged.push({
+      source: candidate.source,
+      target: candidate.target,
+      targetTitle: candidate.targetTitle,
+      kind: MENTION_EDGE_KIND,
+    });
+  }
+
+  return merged;
+}

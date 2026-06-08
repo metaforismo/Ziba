@@ -1,9 +1,19 @@
 import clsx from 'clsx';
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { MagnifyingGlass } from '@phosphor-icons/react';
 import { useSearchStore } from '../../stores/search';
 import { useVaultStore } from '../../stores/vault';
+import { EmptyView } from '../ui/EmptyView';
+import { HighlightedTitle } from './HighlightedTitle';
 import { SnippetText } from './SnippetText';
+
+/** Longest query we echo verbatim in the no-results line before eliding. */
+const MAX_ECHOED_QUERY = 80;
+
+function elideQuery(q: string): string {
+  return q.length > MAX_ECHOED_QUERY ? `${q.slice(0, MAX_ECHOED_QUERY)}…` : q;
+}
 
 /**
  * Cmd/Ctrl+K command palette: full-text search across the open vault.
@@ -71,7 +81,13 @@ export function SearchPalette(): JSX.Element | null {
 
   const trimmedQuery = query.trim();
   const showEmptyHint = trimmedQuery === '';
+  // Guard against a debounce race: `loading` stays true while a newer
+  // query is in flight, so we never flash "no results" against a stale
+  // empty list. Whitespace-only queries collapse to `trimmedQuery === ''`,
+  // so they land in the hint branch, not the no-results branch.
   const showNoResults = !showEmptyHint && !loading && error === null && results.length === 0;
+  const showResultCount = !showEmptyHint && error === null && results.length > 0;
+  const resultCountLabel = results.length === 1 ? '1 risultato' : `${results.length} risultati`;
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>): void => {
     if (e.key === 'Escape') {
@@ -147,9 +163,13 @@ export function SearchPalette(): JSX.Element | null {
           )}
 
           {showNoResults && (
-            <p className="px-3 py-3 text-xs text-fg-muted">
-              Nessun risultato per «{trimmedQuery}».
-            </p>
+            <div className="px-3 py-7">
+              <EmptyView
+                icon={<MagnifyingGlass size={26} weight="duotone" />}
+                title="Nessun risultato"
+                description={`Nessuna nota corrisponde a «${elideQuery(trimmedQuery)}». Prova termini diversi o la sintassi FTS5 (foo OR bar, "frase esatta", -escludi).`}
+              />
+            </div>
           )}
 
           {results.length > 0 && (
@@ -175,7 +195,11 @@ export function SearchPalette(): JSX.Element | null {
                         selected ? 'bg-bg-muted text-fg' : 'text-fg-subtle hover:bg-bg-muted',
                       )}
                     >
-                      <span className="block truncate font-semibold text-fg">{hit.title}</span>
+                      <HighlightedTitle
+                        title={hit.title}
+                        query={trimmedQuery}
+                        className="block truncate font-semibold text-fg"
+                      />
                       <SnippetText
                         snippet={hit.snippet}
                         className="mt-0.5 block truncate text-xs text-fg-muted"
@@ -187,6 +211,17 @@ export function SearchPalette(): JSX.Element | null {
             </ul>
           )}
         </div>
+
+        {(showResultCount || currentVault !== null) && (
+          <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border px-3 py-1.5 text-[11px] text-fg-muted">
+            <span aria-live="polite" className="tabular-nums">
+              {showResultCount ? resultCountLabel : ''}
+            </span>
+            <span className="min-w-0 truncate" title={`Ambito: ${currentVault.name}`}>
+              in {currentVault.name}
+            </span>
+          </div>
+        )}
       </div>
     </div>,
     document.body,

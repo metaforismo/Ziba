@@ -1,8 +1,28 @@
+import type { NotePath } from '@ziba/core';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { FileTree } from './FileTree';
 
 describe('FileTree', () => {
+  it('marks the active file row as the current page', () => {
+    render(
+      <FileTree
+        rows={[{ kind: 'file', path: 'Projects/Ziba.md' as NotePath, title: 'Ziba', depth: 1 }]}
+        currentPath={'Projects/Ziba.md' as NotePath}
+        focusedPath={null}
+        folderIcons={{}}
+        onToggleFolder={vi.fn()}
+        onSelectFile={vi.fn()}
+        onContextMenu={vi.fn()}
+        onFocusPath={vi.fn()}
+      />,
+    );
+
+    const row = screen.getByRole('button', { name: /Ziba/ });
+    expect(row).toHaveAttribute('aria-current', 'page');
+    expect(row.closest('[role="treeitem"]')).toHaveAttribute('aria-selected', 'true');
+  });
+
   it('renders the custom folder icon label for a folder row', () => {
     render(
       <FileTree

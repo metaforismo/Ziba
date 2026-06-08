@@ -2,8 +2,12 @@ import { describe, it, expect, expectTypeOf } from 'vitest';
 import {
   detectProperty,
   extractProperties,
+  mergeMentionEdges,
+  MENTION_EDGE_KIND,
   type DatabaseQuery,
   type DetectedProperty,
+  type GraphEdge,
+  type MentionEdge,
   type ScalarFilter,
 } from './index.js';
 
@@ -224,5 +228,65 @@ describe('query types', () => {
       expectTypeOf(p.value).toBeNumber();
     }
     expect(p.type).toBe('number');
+  });
+});
+
+describe('mergeMentionEdges', () => {
+  const A = 'A.md';
+  const B = 'B.md';
+  const C = 'C.md';
+  const known = new Set([A, B, C]);
+
+  function mention(source: string, target: string): MentionEdge {
+    return { source, target, targetTitle: target };
+  }
+
+  it('adds mention edges as a distinct kind after explicit edges', () => {
+    const explicit: GraphEdge[] = [{ source: A, target: B, targetTitle: 'B', kind: '' }];
+    const merged = mergeMentionEdges(explicit, [mention(B, C)], known);
+    expect(merged).toEqual([
+      { source: A, target: B, targetTitle: 'B', kind: '' },
+      { source: B, target: C, targetTitle: C, kind: MENTION_EDGE_KIND },
+    ]);
+  });
+
+  it('drops a mention when an explicit edge already exists for the same pair', () => {
+    const explicit: GraphEdge[] = [{ source: A, target: B, targetTitle: 'B', kind: '' }];
+    const merged = mergeMentionEdges(explicit, [mention(A, B)], known);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]?.kind).toBe('');
+  });
+
+  it('lets an explicit edge of ANY kind win over a mention for that pair', () => {
+    const explicit: GraphEdge[] = [{ source: A, target: B, targetTitle: 'B', kind: 'author' }];
+    const merged = mergeMentionEdges(explicit, [mention(A, B)], known);
+    expect(merged.filter((e) => e.kind === MENTION_EDGE_KIND)).toHaveLength(0);
+  });
+
+  it('does NOT dedupe a mention against the reverse-direction explicit edge', () => {
+    // A→B explicit should not suppress a B→A mention (different pair).
+    const explicit: GraphEdge[] = [{ source: A, target: B, targetTitle: 'B', kind: '' }];
+    const merged = mergeMentionEdges(explicit, [mention(B, A)], known);
+    expect(merged).toContainEqual({
+      source: B,
+      target: A,
+      targetTitle: A,
+      kind: MENTION_EDGE_KIND,
+    });
+  });
+
+  it('skips self-mentions', () => {
+    const merged = mergeMentionEdges([], [mention(A, A)], known);
+    expect(merged).toEqual([]);
+  });
+
+  it('collapses duplicate mentions for the same pair', () => {
+    const merged = mergeMentionEdges([], [mention(A, B), mention(A, B)], known);
+    expect(merged).toHaveLength(1);
+  });
+
+  it('drops mentions whose endpoints are not both known nodes', () => {
+    const merged = mergeMentionEdges([], [mention(A, 'ghost.md'), mention('ghost.md', B)], known);
+    expect(merged).toEqual([]);
   });
 });

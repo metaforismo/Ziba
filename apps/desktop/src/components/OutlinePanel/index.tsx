@@ -1,7 +1,8 @@
-import { MagnifyingGlass } from '@phosphor-icons/react';
+import { ListBullets, MagnifyingGlass, TextAa } from '@phosphor-icons/react';
 import type { JSX } from 'react';
 import { useMemo, useState } from 'react';
 import { dispatchScrollToHeading, extractOutlineHeadings } from '../../lib/outline';
+import { EmptyView } from '../ui/EmptyView';
 
 export type OutlinePanelProps = {
   currentPath: string | null;
@@ -41,11 +42,26 @@ export function OutlinePanel({ currentPath, markdown }: OutlinePanelProps): JSX.
 
       <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
         {currentPath === null ? (
-          <p className="px-2 py-3 text-sm text-fg-muted">Nessuna nota aperta.</p>
+          <EmptyView
+            compact
+            icon={<ListBullets size={20} weight="duotone" />}
+            title="Nessuna nota aperta"
+            description="Apri una nota per vedere il suo indice."
+          />
         ) : headings.length === 0 ? (
-          <p className="px-2 py-3 text-sm text-fg-muted">Nessun titolo nella nota.</p>
+          <EmptyView
+            compact
+            icon={<TextAa size={20} weight="duotone" />}
+            title="Nessun titolo"
+            description="Aggiungi intestazioni (#, ##) per costruire l'indice della nota."
+          />
         ) : visibleHeadings.length === 0 ? (
-          <p className="px-2 py-3 text-sm text-fg-muted">Nessun risultato.</p>
+          <EmptyView
+            compact
+            icon={<MagnifyingGlass size={20} weight="duotone" />}
+            title="Nessun risultato"
+            description={`Nessun titolo corrisponde a «${query.trim()}».`}
+          />
         ) : (
           <ol role="list" className="space-y-px">
             {visibleHeadings.map((heading) => (

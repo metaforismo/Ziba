@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/ziba-logo.png" alt="Ziba logo" width="120" />
+
 # [Ziba](docs/name.md)
 
 ### A local-first, open-source knowledge workspace for markdown notes, typed objects, databases, and graphs.
@@ -29,6 +31,37 @@ fork, automate, and keep forever.
 </div>
 
 ---
+
+## Screenshots
+
+<!-- screenshots added post-merge -->
+
+<div align="center">
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/screenshots/editor.png" alt="Markdown editor with wikilinks, callouts, math, and the property editor" width="100%" /><br />
+      <sub><b>Editor</b> — markdown with wikilinks, callouts, math, and typed properties</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/screenshots/graph.png" alt="Global knowledge graph with backlinks and soft-reference edges" width="100%" /><br />
+      <sub><b>Graph</b> — backlinks and dashed soft references across the vault</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/screenshots/database.png" alt="Database view driven by typed object properties" width="100%" /><br />
+      <sub><b>Database</b> — table, board, calendar, and gallery views</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/screenshots/empty-state.png" alt="Branded empty state shown when no note is open" width="100%" /><br />
+      <sub><b>Empty state</b> — branded, consistent empty and loading states</sub>
+    </td>
+  </tr>
+</table>
+
+</div>
 
 ## Why Ziba
 
@@ -173,7 +206,10 @@ editing your files however you want.
 
 - Local mini-graph around the current note, including backlinks, outbound
   wikilinks, and soft mention references.
-- Global graph with pan, zoom, search, and node selection.
+- Global graph with pan, zoom, search, and node selection, where soft mention
+  references render as dashed, dimmed, toggleable edges alongside hard links.
+- Theme-aware graph colors across all five dark themes and light mode, with
+  smooth, reduced-motion-aware camera animations for re-center and zoom-to-fit.
 - Obsidian-style global and local graph modes with compact controls,
   search, refresh, fit, fullscreen, and focusable local neighborhoods.
 - Constellation mode with type clusters, color groups, relation-kind filters,
@@ -187,6 +223,9 @@ editing your files however you want.
 - File tree with nested folders.
 - Context menus for file and folder actions.
 - Recent vaults and starter vault generation.
+- Five built-in dark themes plus a light mode, applied consistently across the
+  editor, graph, and database views.
+- Branded, theme-aware empty and loading states across every panel.
 - Typed IPC boundary between Electron main and renderer.
 - Watcher-based updates when files change on disk.
 

@@ -21,6 +21,7 @@ import { ipcErrorMessage } from '../../lib/ipc-error';
 import { navigateToNote } from '../../lib/navigate';
 import { createStarterVault } from '../../lib/starter-vault';
 import { buildTree } from '../../lib/tree';
+import { useDelayedFlag } from '../../lib/useDelayedFlag';
 import { useEditorStore } from '../../stores/editor';
 import { useSearchStore } from '../../stores/search';
 import { useTagsStore } from '../../stores/tags';
@@ -33,6 +34,7 @@ import { NewNoteButton } from './NewNoteButton';
 import { stripMdExtension } from './path-utils';
 import { SidebarDialogs, type DialogState } from './SidebarDialogs';
 import { TagsSection } from './TagsSection';
+import { SkeletonRows } from '../ui/Skeleton';
 import { TypesSection } from './TypesSection';
 import { TreeContextMenu } from './TreeContextMenu';
 import type { ContextMenuItem } from './TreeContextMenu';
@@ -72,6 +74,7 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
   const notes = useVaultStore((s) => s.notes);
   const folders = useVaultStore((s) => s.folders);
   const currentVault = useVaultStore((s) => s.current);
+  const indexProgress = useVaultStore((s) => s.indexProgress);
   const currentPath = useEditorStore((s) => s.currentPath);
   const openNote = useEditorStore((s) => s.openNote);
   const createUntitledNote = useEditorStore((s) => s.createUntitledNote);
@@ -135,6 +138,14 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
   // — matters at vault scale (~1000+ notes) where the recursive walk
   // is no longer free.
   const flatRows = useMemo(() => flattenTree(tree, expandedSet), [tree, expandedSet]);
+
+  // Initial-index skeleton: only while the index is running AND we have no
+  // notes to show yet. Once the first batch lands (notes.length > 0) the
+  // real tree takes over. Min-display delay avoids flashing on fast opens.
+  const showIndexSkeleton = useDelayedFlag(
+    indexProgress !== null && currentVault !== null && notes.length === 0,
+    150,
+  );
 
   // Auto-expand the chain of folders that lead to the currently-open note,
   // so the active row is always visible after opening from another surface
@@ -542,20 +553,27 @@ export function Sidebar({ onSelectNote }: SidebarProps = {}): JSX.Element {
       )}
 
       <div className="relative min-h-[7rem] flex-1 overflow-y-auto border-t border-border/70 pt-2">
-        <FileTree
-          rows={flatRows}
-          currentPath={currentPath}
-          focusedPath={focusedPath}
-          folderIcons={folderIcons}
-          onCreateStarter={
-            flatRows.length === 0 ? (): void => void handleCreateStarter() : undefined
-          }
-          starterCreating={starterCreating}
-          onToggleFolder={toggleFolder}
-          onSelectFile={handleSelectFile}
-          onContextMenu={handleContextMenu}
-          onFocusPath={setFocusedPath}
-        />
+        {showIndexSkeleton ? (
+          // Initial vault index in progress with no notes yet — show a
+          // skeleton instead of the (misleading) empty-vault CTA. The
+          // min-display delay keeps fast re-indexes from flashing it.
+          <SkeletonRows rows={9} label="Indicizzazione del vault in corso…" className="px-3 py-1" />
+        ) : (
+          <FileTree
+            rows={flatRows}
+            currentPath={currentPath}
+            focusedPath={focusedPath}
+            folderIcons={folderIcons}
+            onCreateStarter={
+              flatRows.length === 0 ? (): void => void handleCreateStarter() : undefined
+            }
+            starterCreating={starterCreating}
+            onToggleFolder={toggleFolder}
+            onSelectFile={handleSelectFile}
+            onContextMenu={handleContextMenu}
+            onFocusPath={setFocusedPath}
+          />
+        )}
         {refreshing && (
           <div
             className="pointer-events-none absolute right-2 top-2 rounded bg-bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wide text-fg-muted"

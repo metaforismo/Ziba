@@ -305,4 +305,59 @@ describe('<DatabaseView>', () => {
     fireEvent.click(deleteButton);
     expect(mock.getSpy(IpcChannels.deleteDatabaseView)).not.toHaveBeenCalled();
   });
+
+  it('renders the gallery layout as title cards that open the note on click', async () => {
+    const galleryFile: DatabaseViewsFile = {
+      version: 1,
+      activeViewId: 'gallery',
+      views: [
+        makeView({ id: 'gallery', name: 'Galleria', layout: 'gallery', columns: ['status'] }),
+      ],
+    };
+    mock.setHandler(IpcChannels.listDatabaseViews, async () => galleryFile);
+
+    render(<DatabaseView />);
+
+    // The card surfaces the row title and the visible property value.
+    const card = await screen.findByRole('button', { name: /Ziba/ });
+    expect(card).toBeInTheDocument();
+    expect(screen.getByText('active')).toBeInTheDocument();
+
+    fireEvent.click(card);
+    // navigateToNote flips the UI store to the editor view — assert the
+    // intent landed rather than the note body (which loads async).
+    await waitFor(() => {
+      expect(mock.getSpy(IpcChannels.loadNote)).toHaveBeenCalled();
+    });
+  });
+
+  it('shows a filter-aware empty state and resets filters via the CTA', async () => {
+    const emptyResult: DatabaseResult = { rows: [], groups: [], totalCount: 0 };
+    mock.setHandler(IpcChannels.runDatabaseQuery, async () => emptyResult);
+    // A view carrying a real filter so the empty state reads as
+    // "filtered to nothing" rather than "empty vault".
+    const filteredView = makeView({
+      id: 'default',
+      name: 'Tutte',
+      query: { filters: [{ kind: 'eq', key: 'status', value: 'done' }], limit: 1000 },
+    });
+    const filteredFile: DatabaseViewsFile = {
+      version: 1,
+      activeViewId: 'default',
+      views: [filteredView],
+    };
+    mock.setHandler(IpcChannels.listDatabaseViews, async () => filteredFile);
+
+    render(<DatabaseView />);
+
+    const resetButton = await screen.findByRole('button', { name: 'Azzera filtri' });
+    expect(screen.getByRole('heading', { name: 'Nessun risultato' })).toBeInTheDocument();
+
+    fireEvent.click(resetButton);
+
+    await waitFor(() => {
+      expect(useDatabaseStore.getState().query.filters).toEqual([]);
+      expect(useDatabaseStore.getState().selectedType).toBeNull();
+    });
+  });
 });

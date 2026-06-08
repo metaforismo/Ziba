@@ -1,5 +1,11 @@
 import type { Note, NotePath, NoteSummary } from '../types/note.js';
-import type { DatabaseQuery, DatabaseResult, DetectedProperty, FullGraph } from '../query/index.js';
+import type {
+  DatabaseQuery,
+  DatabaseResult,
+  DetectedProperty,
+  FullGraph,
+  MentionEdge,
+} from '../query/index.js';
 import type { RelationEntry } from '../markdown/relations.js';
 import type { ObjectTypeSchema } from '../types/schema.js';
 
@@ -169,6 +175,25 @@ export interface IndexStoreAdapter {
    * global graph rendering. Powers v0.3 Wave 2 global graph view.
    */
   getFullGraph(): Promise<FullGraph>;
+
+  /**
+   * Soft references for the GLOBAL graph: pairs (source → target) where
+   * the source note's body contains the target note's title verbatim
+   * but WITHOUT an explicit `[[wikilink]]`/relation. Reuses the same
+   * FTS-on-title detection as the per-note `getReferences`, but batched
+   * across the whole vault.
+   *
+   * Implementations MUST:
+   *   - skip self-mentions,
+   *   - cap the FTS hits per target at `perTargetLimit`,
+   *   - cap the TOTAL number of returned candidates at `totalLimit`
+   *     (mentions can be quadratic in pathological vaults; the caller
+   *     also gates this behind a node-count threshold for perf).
+   *
+   * Dedupe against explicit edges is the CALLER's job (see
+   * `mergeMentionEdges`) so this method stays a thin query.
+   */
+  getMentionEdges(perTargetLimit: number, totalLimit: number): Promise<MentionEdge[]>;
 
   /**
    * v1.0: replace all relations originating from `sourcePath`. The

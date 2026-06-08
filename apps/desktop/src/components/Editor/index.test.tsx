@@ -53,4 +53,15 @@ describe('<Editor>', () => {
 
     expect(container.querySelector('.ziba-editor-content')).toHaveClass('mx-auto', 'max-w-[760px]');
   });
+
+  it('does not render an in-content location breadcrumb (single chrome breadcrumb only)', () => {
+    const { container, getByLabelText, getByRole } = render(<Editor />);
+
+    // The folder-path segment that the old in-content breadcrumb showed
+    // ("Projects") must be gone — the persistent <Breadcrumb> in Layout
+    // is now the single source of location. Title editing + save stay.
+    expect(container.textContent).not.toContain('Projects');
+    expect(getByLabelText('Titolo nota')).toBeInTheDocument();
+    expect(getByRole('button', { name: 'Salva' })).toBeInTheDocument();
+  });
 });

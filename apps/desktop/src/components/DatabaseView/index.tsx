@@ -9,10 +9,14 @@ import type {
   DatabaseViewsFile,
   PropertyType,
 } from '../../../shared/ipc';
+import { FunnelX, Table as TableIcon } from '@phosphor-icons/react';
 import { useDatabaseStore } from '../../stores/database';
 import { navigateToNote } from '../../lib/navigate';
 import { ipc } from '../../lib/ipc';
 import { ipcErrorMessage } from '../../lib/ipc-error';
+import { useDelayedFlag } from '../../lib/useDelayedFlag';
+import { EmptyView } from '../ui/EmptyView';
+import { SkeletonRows } from '../ui/Skeleton';
 import { useUiStore, type DatabaseViewMode } from '../../stores/ui';
 import { useVaultStore } from '../../stores/vault';
 import { useTagsStore } from '../../stores/tags';
@@ -531,6 +535,11 @@ export function DatabaseView(props: DatabaseViewProps = {}): JSX.Element {
   const isEmpty = result !== null && result.rows.length === 0;
   const emptyDueToFilters = isEmpty && hasFilterOrFolder;
   const emptyDueToVault = isEmpty && !hasFilterOrFolder;
+  // First-load skeleton: only while we have no result yet AND loading has
+  // outlasted the min-display delay, so a warm SQLite query never flashes
+  // a placeholder. Subsequent refreshes keep the last good table visible
+  // (the header already shows an "Aggiorno…" hint).
+  const showLoadingSkeleton = useDelayedFlag(result === null && loading && error === null, 150);
 
   // No vault open — Layout.tsx normally won't mount us in that case
   // (App.tsx renders <EmptyState />), but we guard defensively.
@@ -731,24 +740,20 @@ export function DatabaseView(props: DatabaseViewProps = {}): JSX.Element {
 
       <div className="min-h-0 flex-1">
         {emptyDueToVault && (
-          <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center text-fg-muted">
-            <p className="text-sm">
-              Nessuna nota da mostrare. Crea note nel vault per popolare la tabella.
-            </p>
-          </div>
+          <EmptyView
+            icon={<TableIcon size={28} weight="duotone" />}
+            title="Nessuna nota da mostrare"
+            description="Crea note nel vault per popolare questa vista."
+          />
         )}
 
         {emptyDueToFilters && (
-          <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center text-fg-muted">
-            <p className="text-sm">Nessuna nota corrisponde ai filtri.</p>
-            <button
-              type="button"
-              onClick={clearAllFilters}
-              className="rounded border border-border bg-bg-subtle px-3 py-1 text-xs text-fg-subtle hover:bg-bg-muted hover:text-fg"
-            >
-              Mostra tutte le note
-            </button>
-          </div>
+          <EmptyView
+            icon={<FunnelX size={28} weight="duotone" />}
+            title="Nessun risultato"
+            description="Nessuna nota corrisponde ai filtri o al tipo selezionato."
+            action={{ label: 'Azzera filtri', onClick: clearAllFilters }}
+          />
         )}
 
         {!isEmpty && result !== null && databaseViewMode === 'table' && (
@@ -775,11 +780,15 @@ export function DatabaseView(props: DatabaseViewProps = {}): JSX.Element {
           <GalleryView rows={rows} columns={visibleColumns} onRowClick={onRowClick} />
         )}
 
-        {result === null && error === null && (
-          <div className="flex h-full items-center justify-center p-8 text-fg-muted">
-            <span className="text-sm">Carico…</span>
-          </div>
-        )}
+        {result === null &&
+          error === null &&
+          (showLoadingSkeleton ? (
+            <SkeletonRows rows={8} label="Caricamento note…" className="p-4" />
+          ) : (
+            // Holds layout height before the delay elapses so a fast query
+            // doesn't shift the surface when the table mounts.
+            <div className="h-full" aria-hidden="true" />
+          ))}
       </div>
     </section>
   );

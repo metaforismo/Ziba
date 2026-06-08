@@ -25,6 +25,28 @@ module.exports = {
           DEFAULT: 'rgb(var(--accent) / <alpha-value>)',
           fg: 'rgb(var(--accent-fg) / <alpha-value>)',
         },
+        // Graph-surface palette. Theme-derived (see `--graph-*` in
+        // globals.css) so the knowledge graph chrome follows all 5
+        // themes + light/dark instead of hardcoding dark hex. SVG
+        // `fill`/`stroke` attributes still read these via the
+        // `useGraphPalette()` hook (a class does nothing on a <circle>),
+        // but graph OVERLAY chrome (panels, legend) uses these classes.
+        graph: {
+          bg: 'rgb(var(--graph-bg) / <alpha-value>)',
+          surface: 'rgb(var(--graph-surface) / <alpha-value>)',
+          // Secondary floating-chrome surfaces (panels, inputs, hover) and
+          // an emphasised border — see `--graph-*` in globals.css.
+          elevated: 'rgb(var(--graph-elevated) / <alpha-value>)',
+          hover: 'rgb(var(--graph-hover) / <alpha-value>)',
+          'border-strong': 'rgb(var(--graph-border-strong) / <alpha-value>)',
+          node: 'rgb(var(--graph-node) / <alpha-value>)',
+          'node-muted': 'rgb(var(--graph-node-muted) / <alpha-value>)',
+          edge: 'rgb(var(--graph-edge) / <alpha-value>)',
+          'edge-mention': 'rgb(var(--graph-edge-mention) / <alpha-value>)',
+          text: 'rgb(var(--graph-text) / <alpha-value>)',
+          'text-muted': 'rgb(var(--graph-text-muted) / <alpha-value>)',
+          selection: 'rgb(var(--graph-selection) / <alpha-value>)',
+        },
       },
     },
   },

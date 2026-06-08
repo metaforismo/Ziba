@@ -132,3 +132,45 @@ describe('deriveLocalGraphView', () => {
     expect(view.hiddenEdgeCount).toBe(2);
   });
 });
+
+describe('deriveGraphView — soft references (mentions)', () => {
+  const MENTION_KIND = ':mention';
+  // D is connected to the graph ONLY via a mention edge. With mentions
+  // shown it is not an orphan; with mentions hidden it should become one.
+  const GRAPH_WITH_MENTION: FullGraph = {
+    nodes: [...GRAPH.nodes, { path: 'Notes/D.md', title: 'Delta', type: null, color: null }],
+    edges: [
+      ...GRAPH.edges,
+      { source: 'Notes/D.md', target: 'Inbox/A.md', targetTitle: 'Alpha', kind: MENTION_KIND },
+    ],
+  };
+
+  it('keeps a mention-only node when mentions are shown and orphans are hidden', () => {
+    const view = deriveGraphView(
+      GRAPH_WITH_MENTION,
+      settings({ query: { includeOrphans: false, showMentions: true } }),
+    );
+    expect(view.graph.nodes.map((n) => n.path)).toContain('Notes/D.md');
+    expect(view.graph.edges.some((e) => e.kind === MENTION_KIND)).toBe(true);
+  });
+
+  it('demotes a mention-only node to orphan when mentions are hidden', () => {
+    const view = deriveGraphView(
+      GRAPH_WITH_MENTION,
+      settings({ query: { includeOrphans: false, showMentions: false } }),
+    );
+    // The mention edge is filtered out first, so D has no edges → orphan.
+    expect(view.graph.nodes.map((n) => n.path)).not.toContain('Notes/D.md');
+    expect(view.graph.edges.some((e) => e.kind === MENTION_KIND)).toBe(false);
+  });
+
+  it('hides mention edges but keeps the node when it also has an explicit link', () => {
+    const view = deriveGraphView(
+      GRAPH_WITH_MENTION,
+      settings({ query: { includeOrphans: true, showMentions: false } }),
+    );
+    // A is still present (explicit links), just no mention edges anywhere.
+    expect(view.graph.nodes.map((n) => n.path)).toContain('Inbox/A.md');
+    expect(view.graph.edges.every((e) => e.kind !== MENTION_KIND)).toBe(true);
+  });
+});

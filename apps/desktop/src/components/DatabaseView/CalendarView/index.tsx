@@ -14,6 +14,12 @@ import { buildMonthGrid, formatMonthTitle } from './helpers';
 // Sharing one frozen instance keeps reference equality across renders.
 const EMPTY_ROWS: readonly DatabaseRow[] = Object.freeze([]);
 
+// Shared control styling for the month-navigation buttons. Matches the
+// focus-visible + disabled treatment used by the DatabaseView header
+// controls so the calendar chrome feels part of the same toolbar family.
+const CALENDAR_NAV_CLASS =
+  'min-h-7 rounded border border-border bg-bg px-2 py-0.5 text-fg-subtle hover:bg-bg-muted hover:text-fg disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
+
 /**
  * Detect whether a property key resolves to a `date`-typed property
  * across the rows. Uses the same first-non-empty heuristic as the
@@ -93,6 +99,10 @@ export function CalendarView(): JSX.Element {
     setCursor({ year: now.getFullYear(), month: now.getMonth() });
   };
 
+  // "Oggi" is a no-op when the grid already shows the current month;
+  // disabling it gives the user a clear affordance for where they are.
+  const isOnCurrentMonth = cursor.year === today.getFullYear() && cursor.month === today.getMonth();
+
   const onPillClick = (path: NotePath): void => {
     void navigateToNote(path);
   };
@@ -128,14 +138,16 @@ export function CalendarView(): JSX.Element {
               type="button"
               onClick={goToPrevMonth}
               aria-label="Mese precedente"
-              className="rounded border border-border bg-bg px-2 py-0.5 text-fg-subtle hover:bg-bg-muted hover:text-fg"
+              className={CALENDAR_NAV_CLASS}
             >
               ‹
             </button>
             <button
               type="button"
               onClick={goToToday}
-              className="rounded border border-border bg-bg px-2 py-0.5 text-fg-subtle hover:bg-bg-muted hover:text-fg"
+              disabled={isOnCurrentMonth}
+              aria-label="Vai al mese corrente"
+              className={CALENDAR_NAV_CLASS}
             >
               Oggi
             </button>
@@ -143,7 +155,7 @@ export function CalendarView(): JSX.Element {
               type="button"
               onClick={goToNextMonth}
               aria-label="Mese successivo"
-              className="rounded border border-border bg-bg px-2 py-0.5 text-fg-subtle hover:bg-bg-muted hover:text-fg"
+              className={CALENDAR_NAV_CLASS}
             >
               ›
             </button>

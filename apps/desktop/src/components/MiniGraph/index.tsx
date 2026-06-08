@@ -301,6 +301,7 @@ export function MiniGraph({ currentPath, onLoadingChange }: Props): JSX.Element 
                   data-edge-kind={e.kind}
                   data-source={e.source}
                   data-target={e.target}
+                  className="graph-fade"
                   x1={x1}
                   y1={y1}
                   x2={x2}
@@ -311,7 +312,7 @@ export function MiniGraph({ currentPath, onLoadingChange }: Props): JSX.Element 
                       : isInbound
                         ? 'rgb(var(--accent))'
                         : isMention
-                          ? 'rgb(var(--fg-muted) / 0.55)'
+                          ? 'rgb(var(--graph-edge-mention) / 0.85)'
                           : 'rgb(var(--fg-muted))'
                   }
                   strokeWidth={1.25}

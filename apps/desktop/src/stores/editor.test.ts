@@ -108,6 +108,75 @@ describe('useEditorStore workspace tabs', () => {
   });
 });
 
+describe('useEditorStore openNote failure', () => {
+  it('surfaces a toast and re-throws when the target note cannot be loaded', async () => {
+    installMockIpc({
+      [IpcChannels.loadNote]: async () => {
+        throw new Error('ENOENT: file deleted');
+      },
+      [IpcChannels.listNotes]: async () => [],
+      [IpcChannels.listFolders]: async () => [],
+      [IpcChannels.getTypedPaths]: async () => [],
+    });
+    const { editor } = await loadStores();
+    const { useEditorStore } = editor;
+    const toastMod = await import('./toast');
+
+    await expect(useEditorStore.getState().openNote('Deleted/Gone.md')).rejects.toThrow();
+
+    const toasts = toastMod.useToastStore.getState().toasts;
+    expect(toasts.some((t) => t.kind === 'error')).toBe(true);
+    // The failed open must not leave a half-open tab behind.
+    expect(Object.values(useEditorStore.getState().workspace.tabsById)).toHaveLength(0);
+  });
+});
+
+describe('useEditorStore vault switch', () => {
+  beforeEach(() => {
+    installMockIpc({
+      [IpcChannels.loadNote]: async (args: { path: string }) => note(args.path, `# ${args.path}`),
+      [IpcChannels.listNotes]: async () => [],
+      [IpcChannels.listFolders]: async () => [],
+      [IpcChannels.getTypedPaths]: async () => [],
+    });
+  });
+
+  it('clears open tabs when the vault root changes so stale notes do not survive the switch', async () => {
+    const { editor, vault } = await loadStores();
+    const { useEditorStore } = editor;
+    const { useVaultStore } = vault;
+
+    useVaultStore.setState({ current: { root: '/vault-a', name: 'vault-a', openedAt: 1 } });
+    await useEditorStore.getState().openNote('Projects/Ziba.md');
+    await useEditorStore.getState().openNote('Inbox/Idea.md', { mode: 'new-tab' });
+    expect(Object.values(useEditorStore.getState().workspace.tabsById)).toHaveLength(2);
+
+    // Switching to a different vault must drop the previous vault's tabs.
+    useVaultStore.setState({ current: { root: '/vault-b', name: 'vault-b', openedAt: 2 } });
+
+    const state = useEditorStore.getState();
+    expect(Object.values(state.workspace.tabsById)).toHaveLength(0);
+    expect(state.currentPath).toBeNull();
+    expect(state.currentNote).toBeNull();
+    expect(state.dirty).toBe(false);
+  });
+
+  it('clears open tabs when the vault is closed', async () => {
+    const { editor, vault } = await loadStores();
+    const { useEditorStore } = editor;
+    const { useVaultStore } = vault;
+
+    useVaultStore.setState({ current: { root: '/vault-a', name: 'vault-a', openedAt: 1 } });
+    await useEditorStore.getState().openNote('Projects/Ziba.md');
+    expect(Object.values(useEditorStore.getState().workspace.tabsById)).toHaveLength(1);
+
+    useVaultStore.setState({ current: null });
+
+    expect(Object.values(useEditorStore.getState().workspace.tabsById)).toHaveLength(0);
+    expect(useEditorStore.getState().currentPath).toBeNull();
+  });
+});
+
 describe('useEditorStore createUntitledNote', () => {
   it('creates the next available Senza titolo note in the requested folder and opens it', async () => {
     const created: string[] = [];

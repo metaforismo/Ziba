@@ -9,6 +9,9 @@ describe('<KindFilterDropdown>', () => {
         kinds={['author', 'cites']}
         selectedKinds={new Set()}
         onChange={vi.fn()}
+        hasMentions={false}
+        showMentions={true}
+        onShowMentionsChange={vi.fn()}
       />,
     );
     expect(screen.getByRole('button', { name: /Filtra relazioni: Tutte/ })).toBeInTheDocument();
@@ -20,6 +23,9 @@ describe('<KindFilterDropdown>', () => {
         kinds={['author', 'cites']}
         selectedKinds={new Set(['author'])}
         onChange={vi.fn()}
+        hasMentions={false}
+        showMentions={true}
+        onShowMentionsChange={vi.fn()}
       />,
     );
     expect(screen.getByRole('button', { name: /Filtra relazioni \(1\)/ })).toBeInTheDocument();
@@ -31,6 +37,9 @@ describe('<KindFilterDropdown>', () => {
         kinds={['author', 'cites']}
         selectedKinds={new Set()}
         onChange={vi.fn()}
+        hasMentions={false}
+        showMentions={true}
+        onShowMentionsChange={vi.fn()}
       />,
     );
     fireEvent.click(screen.getByRole('button', { name: /Filtra relazioni/ }));
@@ -45,6 +54,9 @@ describe('<KindFilterDropdown>', () => {
         kinds={['author', 'cites']}
         selectedKinds={new Set()}
         onChange={onChange}
+        hasMentions={false}
+        showMentions={true}
+        onShowMentionsChange={vi.fn()}
       />,
     );
     fireEvent.click(screen.getByRole('button', { name: /Filtra relazioni/ }));
@@ -62,6 +74,9 @@ describe('<KindFilterDropdown>', () => {
         kinds={['author', 'cites']}
         selectedKinds={new Set(['author'])}
         onChange={onChange}
+        hasMentions={false}
+        showMentions={true}
+        onShowMentionsChange={vi.fn()}
       />,
     );
     fireEvent.click(screen.getByRole('button', { name: /Filtra relazioni/ }));
@@ -71,8 +86,50 @@ describe('<KindFilterDropdown>', () => {
   });
 
   it('shows the empty hint when no kinds are available', () => {
-    render(<KindFilterDropdown kinds={[]} selectedKinds={new Set()} onChange={vi.fn()} />);
+    render(
+      <KindFilterDropdown
+        kinds={[]}
+        selectedKinds={new Set()}
+        onChange={vi.fn()}
+        hasMentions={false}
+        showMentions={true}
+        onShowMentionsChange={vi.fn()}
+      />,
+    );
     fireEvent.click(screen.getByRole('button', { name: /Filtra relazioni/ }));
     expect(screen.getByText('Nessuna relazione tipizzata nel grafo.')).toBeInTheDocument();
+  });
+
+  it('offers a soft-reference toggle when the graph has mentions', () => {
+    const onShowMentionsChange = vi.fn();
+    render(
+      <KindFilterDropdown
+        kinds={[]}
+        selectedKinds={new Set()}
+        onChange={vi.fn()}
+        hasMentions={true}
+        showMentions={true}
+        onShowMentionsChange={onShowMentionsChange}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Filtra relazioni/ }));
+    const toggle = screen.getByLabelText('Riferimenti deboli');
+    expect(toggle).toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(onShowMentionsChange).toHaveBeenCalledWith(false);
+  });
+
+  it('counts a hidden mention toggle in the button label', () => {
+    render(
+      <KindFilterDropdown
+        kinds={['author']}
+        selectedKinds={new Set()}
+        onChange={vi.fn()}
+        hasMentions={true}
+        showMentions={false}
+        onShowMentionsChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('button', { name: /Filtra relazioni \(1\)/ })).toBeInTheDocument();
   });
 });

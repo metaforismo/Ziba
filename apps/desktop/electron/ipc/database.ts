@@ -28,7 +28,11 @@ const ALLOWED_FILTER_KINDS = new Set<ScalarFilter['kind']>([
 const ALLOWED_SORT_DIRECTIONS = new Set(['asc', 'desc']);
 
 function assertNonEmptyKey(key: unknown, where: string): asserts key is string {
-  if (typeof key !== 'string' || key.length === 0) {
+  // Reject not just `''` but whitespace-only keys (`'   '`, tabs, newlines).
+  // A blank key can never match a real `prop_key` in the index, so it would
+  // silently return zero rows — surfacing it as an explicit INVALID_QUERY
+  // is far less confusing than "the filter mysteriously hides everything".
+  if (typeof key !== 'string' || key.trim().length === 0) {
     throw new IpcError('INVALID_QUERY', `Chiave di proprietà non valida in ${where}.`);
   }
 }
@@ -46,9 +50,15 @@ function validateFilter(f: ScalarFilter, idx: number): void {
   }
 }
 
-export async function runDatabaseQuery(args: { query: DatabaseQuery }): Promise<DatabaseResult> {
-  const store = requireIndexStore();
-  const q = args.query;
+/**
+ * Validate + normalise a renderer-supplied `DatabaseQuery` before it
+ * reaches the SQLite adapter. Pure (no store dependency) so it can be
+ * unit-tested in isolation; throws `IpcError('INVALID_QUERY', …)` on any
+ * malformed shape and returns the query with its `limit` clamped into
+ * `[1, LIMIT_MAX]`.
+ */
+export function validateDatabaseQuery(query: DatabaseQuery): DatabaseQuery {
+  const q = query;
   if (q === null || typeof q !== 'object') {
     throw new IpcError('INVALID_QUERY', 'La query deve essere un oggetto.');
   }
@@ -81,5 +91,10 @@ export async function runDatabaseQuery(args: { query: DatabaseQuery }): Promise<
   const requested = q.limit ?? LIMIT_DEFAULT;
   const limit = Math.max(1, Math.min(requested, LIMIT_MAX));
 
-  return store.runQuery({ ...q, limit });
+  return { ...q, limit };
+}
+
+export async function runDatabaseQuery(args: { query: DatabaseQuery }): Promise<DatabaseResult> {
+  const store = requireIndexStore();
+  return store.runQuery(validateDatabaseQuery(args.query));
 }

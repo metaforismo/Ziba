@@ -7,6 +7,12 @@ import type {
   DetectedProperty,
   PropertyType,
 } from '../../../shared/ipc';
+import {
+  NUMBER_FORMATTER,
+  PropertyValueView,
+  detectPropertyType,
+  typeBadge,
+} from './propertyShared';
 
 type SortSpec = NonNullable<DatabaseQuery['sort']>;
 
@@ -31,53 +37,6 @@ type Props = {
   onRowClick(path: string): void;
   onCellCommit?(args: DatabaseCellCommit): void;
 };
-
-/**
- * Italian-locale date formatter for `date`-typed cells. Module-scoped so we
- * pay the formatter construction cost once per session, not per cell.
- */
-const DATE_FORMATTER = new Intl.DateTimeFormat('it', { dateStyle: 'medium' });
-
-/**
- * Number formatter — Italian locale (decimal comma, dot thousands sep).
- */
-const NUMBER_FORMATTER = new Intl.NumberFormat('it');
-
-/** One-letter prefix used in column headers to hint the property type. */
-function typeBadge(type: PropertyType | 'title'): string {
-  switch (type) {
-    case 'title':
-      return 'A';
-    case 'text':
-      return 'T';
-    case 'number':
-      return '#';
-    case 'boolean':
-      return '✓';
-    case 'date':
-      return '📅';
-    case 'url':
-      return '🔗';
-    case 'string-array':
-      return '⋯';
-    default:
-      return '·';
-  }
-}
-
-/**
- * Heuristic: pick the type to render the column header with, by sampling
- * the first non-null value across rows. We deliberately don't track per-row
- * types — the indexer already validated detection, and a stable header
- * type matches the user's mental model of "this column is a date".
- */
-function detectColumnType(rows: readonly DatabaseRow[], key: string): PropertyType | null {
-  for (const row of rows) {
-    const prop = row.properties[key];
-    if (prop !== undefined) return prop.type;
-  }
-  return null;
-}
 
 /**
  * Format the value of a single group key for the group header. We accept
@@ -113,64 +72,6 @@ function groupKeyToString(value: DatabaseGroup['value']): string | null {
   if (value === null) return null;
   if (typeof value === 'boolean') return value ? 'true' : 'false';
   return String(value);
-}
-
-/** Cell renderer — branches on the detected property type. */
-function PropertyCell({ prop }: { prop: DetectedProperty | undefined }): JSX.Element {
-  if (prop === undefined) {
-    return <span className="text-fg-muted">—</span>;
-  }
-  switch (prop.type) {
-    case 'text':
-      return <span className="truncate">{prop.value}</span>;
-    case 'number':
-      return (
-        <span className="block text-right tabular-nums">{NUMBER_FORMATTER.format(prop.value)}</span>
-      );
-    case 'boolean':
-      return (
-        <span aria-label={prop.value ? 'vero' : 'falso'} className="text-fg-subtle">
-          {prop.value ? '✓' : '✗'}
-        </span>
-      );
-    case 'date': {
-      // The indexer normalises to YYYY-MM-DD; constructing a Date from that
-      // is timezone-safe (UTC midnight) and `Intl` formats it in the user's
-      // locale.
-      const d = new Date(`${prop.value}T00:00:00Z`);
-      const label = Number.isNaN(d.getTime()) ? prop.value : DATE_FORMATTER.format(d);
-      return <span className="truncate">{label}</span>;
-    }
-    case 'url':
-      return (
-        <a
-          href={prop.value}
-          target="_blank"
-          rel="noreferrer"
-          // Stop the row-click from firing when the user clicks the link.
-          onClick={(e): void => e.stopPropagation()}
-          className="truncate text-accent hover:underline"
-        >
-          {prop.value}
-        </a>
-      );
-    case 'string-array':
-      if (prop.value.length === 0) return <span className="text-fg-muted">—</span>;
-      return (
-        <span className="flex flex-wrap gap-1">
-          {prop.value.map((v, i) => (
-            <span
-              key={`${v}-${i}`}
-              className="rounded bg-bg-muted px-1.5 py-0.5 text-[11px] text-fg-subtle"
-            >
-              {v}
-            </span>
-          ))}
-        </span>
-      );
-    default:
-      return <span className="text-fg-muted">—</span>;
-  }
 }
 
 function editableValue(prop: DetectedProperty | undefined): string {
@@ -338,7 +239,7 @@ export function Table({
   // Pre-compute per-column type once so we don't traverse rows per cell.
   const columnTypes = new Map<string, PropertyType | null>();
   for (const key of columns) {
-    columnTypes.set(key, detectColumnType(rows, key));
+    columnTypes.set(key, detectPropertyType(rows, key));
   }
 
   // Build a lookup of group-key → count for the group header rows. The
@@ -557,7 +458,7 @@ function RowItem({
             )}
           >
             {onCellCommit === undefined ? (
-              <PropertyCell prop={row.properties[key]} />
+              <PropertyValueView prop={row.properties[key]} />
             ) : (
               <EditablePropertyCell
                 row={row}
