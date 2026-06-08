@@ -196,9 +196,31 @@ export type GraphNode = {
    * the type slug and a matching `object_types` row with a non-null
    * `color` exist. Null otherwise (no schema, or schema with no color
    * declared).
+   *
+   * NOTE (graph monochrome redesign): the renderer no longer auto-tints
+   * nodes from this schema color. It is kept on the wire because the
+   * type-filter chips still surface it; node tinting now comes ONLY from
+   * user-defined graph groups.
    */
   color: string | null;
+  /**
+   * Graph monochrome redesign: marks a "phantom" node — a wikilink
+   * target (`[[Concept]]`) that has no backing note file. Rendered gray,
+   * smaller and dimmer (Obsidian's unresolved nodes). Absent/false for
+   * every real note. The `path` of an unresolved node is the synthetic
+   * `UNRESOLVED_NODE_PREFIX + lower(title)` id, never a real file path.
+   */
+  unresolved?: boolean;
 };
+
+/**
+ * Synthetic id prefix for unresolved (phantom) graph nodes. Chosen so it
+ * can never collide with a real vault-relative path: real `NotePath`s are
+ * POSIX paths ending in `.md`, and the `:` after the prefix is not a path
+ * separator we emit. Mirrors the MiniGraph `broken:` convention but is
+ * distinct so the two id-spaces never overlap if ever merged.
+ */
+export const UNRESOLVED_NODE_PREFIX = 'unresolved:';
 
 /**
  * Distinct sentinel `kind` for soft references (unlinked mentions): a
@@ -287,4 +309,93 @@ export function mergeMentionEdges(
   }
 
   return merged;
+}
+
+/**
+ * A broken outgoing wikilink: `source` links to `targetTitle` via
+ * `[[targetTitle]]` but no note resolves to that title (its row in the
+ * `relations` table has `target_path IS NULL`). The adapter surfaces
+ * these so the global graph can render the missing target as an
+ * Obsidian-style gray "unresolved" phantom node.
+ */
+export type BrokenLink = {
+  source: NotePath;
+  targetTitle: string;
+};
+
+/**
+ * Stable synthetic id for an unresolved node, derived from its title.
+ * Case-insensitive (Obsidian title resolution is case-insensitive), so
+ * `[[Concept]]` and `[[concept]]` from different notes collapse onto ONE
+ * phantom node. Whitespace is trimmed; the original casing is preserved
+ * for display in the returned node's `title`.
+ */
+export function unresolvedNodeId(title: string): NotePath {
+  return `${UNRESOLVED_NODE_PREFIX}${title.trim().toLowerCase()}`;
+}
+
+/**
+ * Fold broken wikilinks into a base graph as unresolved phantom nodes +
+ * their incoming edges. Pure & unit-tested so the SQLite adapter stays a
+ * thin query.
+ *
+ * Rules:
+ *   - A broken link whose `targetTitle` already resolves to a real node
+ *     (case-insensitive title match against an existing node) is DROPPED:
+ *     the target exists, so it isn't a phantom. (Defensive — the adapter
+ *     only passes genuinely unresolved targets, but a title can match a
+ *     real note via casing differences the SQL `target_path` join missed.)
+ *   - Phantom nodes dedupe by synthetic id (case-insensitive title), so
+ *     many `[[Concept]]` links across notes share one gray node.
+ *   - One edge per (source → phantom) pair; duplicate links collapse.
+ *   - Links whose `source` isn't a known real node are dropped (dangling).
+ *
+ * Returns a NEW graph: original nodes/edges first (stable order), then the
+ * phantom nodes, then the phantom edges. Edge `kind` is `''` (generic
+ * wikilink) so the renderer styles the connector like any other link.
+ */
+export function mergeUnresolvedNodes(
+  graph: FullGraph,
+  brokenLinks: readonly BrokenLink[],
+): FullGraph {
+  const knownPaths = new Set<NotePath>();
+  const knownTitlesLower = new Set<string>();
+  for (const node of graph.nodes) {
+    knownPaths.add(node.path);
+    knownTitlesLower.add(node.title.trim().toLowerCase());
+  }
+
+  const phantomNodes = new Map<NotePath, GraphNode>();
+  const phantomEdges: GraphEdge[] = [];
+  const seenEdgePairs = new Set<string>();
+
+  for (const link of brokenLinks) {
+    const title = link.targetTitle.trim();
+    if (title === '') continue;
+    // Source must be a real node, else the edge dangles.
+    if (!knownPaths.has(link.source)) continue;
+    // Target resolves to a real note after all → not a phantom.
+    if (knownTitlesLower.has(title.toLowerCase())) continue;
+
+    const id = unresolvedNodeId(title);
+    if (!phantomNodes.has(id)) {
+      phantomNodes.set(id, {
+        path: id,
+        title,
+        type: null,
+        color: null,
+        unresolved: true,
+      });
+    }
+
+    const pairKey = `${link.source} ${id}`;
+    if (seenEdgePairs.has(pairKey)) continue;
+    seenEdgePairs.add(pairKey);
+    phantomEdges.push({ source: link.source, target: id, targetTitle: title, kind: '' });
+  }
+
+  return {
+    nodes: [...graph.nodes, ...phantomNodes.values()],
+    edges: [...graph.edges, ...phantomEdges],
+  };
 }

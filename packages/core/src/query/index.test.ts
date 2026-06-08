@@ -3,10 +3,16 @@ import {
   detectProperty,
   extractProperties,
   mergeMentionEdges,
+  mergeUnresolvedNodes,
+  unresolvedNodeId,
+  UNRESOLVED_NODE_PREFIX,
   MENTION_EDGE_KIND,
+  type BrokenLink,
   type DatabaseQuery,
   type DetectedProperty,
+  type FullGraph,
   type GraphEdge,
+  type GraphNode,
   type MentionEdge,
   type ScalarFilter,
 } from './index.js';
@@ -288,5 +294,96 @@ describe('mergeMentionEdges', () => {
   it('drops mentions whose endpoints are not both known nodes', () => {
     const merged = mergeMentionEdges([], [mention(A, 'ghost.md'), mention('ghost.md', B)], known);
     expect(merged).toEqual([]);
+  });
+});
+
+describe('unresolvedNodeId', () => {
+  it('prefixes and lowercases the trimmed title so casing/whitespace collapse', () => {
+    expect(unresolvedNodeId('Concept')).toBe(`${UNRESOLVED_NODE_PREFIX}concept`);
+    expect(unresolvedNodeId('  Concept  ')).toBe(unresolvedNodeId('concept'));
+  });
+});
+
+describe('mergeUnresolvedNodes', () => {
+  const A = 'A.md';
+  const B = 'B.md';
+
+  function node(path: string, title: string): GraphNode {
+    return { path, title, type: null, color: null };
+  }
+
+  function graph(nodes: GraphNode[], edges: GraphEdge[] = []): FullGraph {
+    return { nodes, edges };
+  }
+
+  function broken(source: string, targetTitle: string): BrokenLink {
+    return { source, targetTitle };
+  }
+
+  it('adds an unresolved phantom node + edge for a wikilink with no backing file', () => {
+    const base = graph([node(A, 'A')]);
+    const out = mergeUnresolvedNodes(base, [broken(A, 'Concept')]);
+
+    const phantomId = unresolvedNodeId('Concept');
+    const phantom = out.nodes.find((n) => n.path === phantomId);
+    expect(phantom).toEqual({
+      path: phantomId,
+      title: 'Concept',
+      type: null,
+      color: null,
+      unresolved: true,
+    });
+    expect(out.edges).toContainEqual({
+      source: A,
+      target: phantomId,
+      targetTitle: 'Concept',
+      kind: '',
+    });
+    // Original node untouched and not flagged unresolved.
+    expect(out.nodes.find((n) => n.path === A)?.unresolved).toBeUndefined();
+  });
+
+  it('does NOT create a phantom when the target resolves to an existing note (case-insensitive)', () => {
+    // B.md exists with title "Concept"; a broken link to "concept" must
+    // not spawn a phantom (the target is real, casing differs).
+    const base = graph([node(A, 'A'), node(B, 'Concept')]);
+    const out = mergeUnresolvedNodes(base, [broken(A, 'concept')]);
+
+    expect(out.nodes.some((n) => n.unresolved === true)).toBe(false);
+    expect(out.nodes).toHaveLength(2);
+    expect(out.edges).toHaveLength(0);
+  });
+
+  it('dedupes phantom nodes across sources but keeps one edge per source', () => {
+    const base = graph([node(A, 'A'), node(B, 'B')]);
+    const out = mergeUnresolvedNodes(base, [
+      broken(A, 'Concept'),
+      broken(B, 'concept'), // same phantom, different casing
+    ]);
+
+    const phantomId = unresolvedNodeId('Concept');
+    expect(out.nodes.filter((n) => n.path === phantomId)).toHaveLength(1);
+    expect(out.edges.filter((e) => e.target === phantomId)).toHaveLength(2);
+  });
+
+  it('collapses duplicate broken links from the same source into one edge', () => {
+    const base = graph([node(A, 'A')]);
+    const out = mergeUnresolvedNodes(base, [broken(A, 'Concept'), broken(A, 'Concept')]);
+    const phantomId = unresolvedNodeId('Concept');
+    expect(out.edges.filter((e) => e.target === phantomId)).toHaveLength(1);
+  });
+
+  it('drops broken links whose source is not a known node, and empty titles', () => {
+    const base = graph([node(A, 'A')]);
+    const out = mergeUnresolvedNodes(base, [broken('ghost.md', 'Concept'), broken(A, '   ')]);
+    expect(out.nodes).toHaveLength(1);
+    expect(out.edges).toHaveLength(0);
+  });
+
+  it('returns the original graph unchanged when there are no broken links', () => {
+    const base = graph([node(A, 'A')], [{ source: A, target: A, targetTitle: 'A', kind: '' }]);
+    const out = mergeUnresolvedNodes(base, []);
+    expect(out.nodes).toEqual(base.nodes);
+    expect(out.edges).toEqual(base.edges);
   });
 });

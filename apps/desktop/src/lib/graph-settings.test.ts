@@ -47,7 +47,6 @@ describe('graph settings defaults', () => {
       linkOpacity: 0.34,
     });
     expect(DEFAULT_GRAPH_SETTINGS.groups).toEqual([]);
-    expect(DEFAULT_GRAPH_SETTINGS.groupsSeeded).toBe(false);
   });
 });
 
@@ -111,6 +110,8 @@ describe('graph settings storage', () => {
             nodeDistance: Number.NaN,
             linkOpacity: 0.7,
           },
+          // Legacy field from the old auto-seed era — must be tolerated and
+          // dropped, without disturbing the user's persisted groups.
           groupsSeeded: 'yes',
           groups: [
             { id: 'ok', name: 'People', enabled: true, query: 'type:person', color: '#ef4444' },
@@ -152,7 +153,8 @@ describe('graph settings storage', () => {
     expect(settings.groups).toEqual([
       { id: 'ok', name: 'People', enabled: true, query: 'type:person', color: '#ef4444' },
     ]);
-    expect(settings.groupsSeeded).toBe(false);
+    // The legacy `groupsSeeded` key is no longer part of the schema.
+    expect('groupsSeeded' in settings).toBe(false);
   });
 
   it('migrates old persisted settings by filling newly added fields', async () => {
@@ -189,6 +191,5 @@ describe('graph settings storage', () => {
       showGrid: false,
     });
     expect(settings.forces.linkOpacity).toBe(0.32);
-    expect(settings.groupsSeeded).toBe(false);
   });
 });

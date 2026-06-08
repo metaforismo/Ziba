@@ -13,7 +13,7 @@ import {
   Plus,
   X,
 } from '@phosphor-icons/react';
-import { MENTION_EDGE_KIND, type NotePath } from '@ziba/core';
+import { MENTION_EDGE_KIND, UNRESOLVED_NODE_PREFIX, type NotePath } from '@ziba/core';
 import type { FullGraph } from '../../../shared/ipc';
 import { ipc } from '../../lib/ipc';
 import { ipcErrorMessage } from '../../lib/ipc-error';
@@ -31,7 +31,7 @@ import {
 import { computeBounds, initializePositions, runGlobalLayout } from './layout';
 import { TypeChips, type TypeChip } from './TypeChips';
 import { KindFilterDropdown } from './KindFilterDropdown';
-import { Legend } from './Legend';
+import { Legend, type LegendGroup } from './Legend';
 import { useTagsStore } from '../../stores/tags';
 import { useVaultStore } from '../../stores/vault';
 import { useGraphSettingsStore } from '../../stores/graph';
@@ -64,6 +64,10 @@ import { useCameraTween } from '../../lib/graph-camera';
 
 const NODE_R_MIN = 3;
 const NODE_R_MAX = 18;
+// Unresolved phantom nodes render at a fraction of a real note's
+// degree-scaled radius so they read as subordinate "missing concept"
+// discs (Obsidian).
+const UNRESOLVED_RADIUS_SCALE = 0.62;
 
 const ZOOM_STEP = 1.25;
 
@@ -121,7 +125,6 @@ export function GlobalGraph(): JSX.Element {
   const addGraphGroup = useGraphSettingsStore((s) => s.addGroup);
   const updateGraphGroup = useGraphSettingsStore((s) => s.updateGroup);
   const removeGraphGroup = useGraphSettingsStore((s) => s.removeGroup);
-  const seedGraphGroups = useGraphSettingsStore((s) => s.seedGroupsFromTopLevelFolders);
   const resetGraphSettings = useGraphSettingsStore((s) => s.resetSettings);
   const search = graphSettings.query.search;
   const selectedType = graphSettings.query.types[0] ?? null;
@@ -179,11 +182,6 @@ export function GlobalGraph(): JSX.Element {
   useEffect(() => {
     setGraphSettingsVaultRoot(currentVaultRoot);
   }, [currentVaultRoot, setGraphSettingsVaultRoot]);
-
-  useEffect(() => {
-    if (load.kind !== 'ready') return;
-    seedGraphGroups(load.graph.nodes.map((node) => node.path));
-  }, [load, seedGraphGroups]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -347,17 +345,33 @@ export function GlobalGraph(): JSX.Element {
   const canvasNodes = useMemo<CanvasNode[]>(() => {
     if (layout === null) return [];
     const maxDegree = Array.from(degreeMap.values()).reduce((acc, v) => (v > acc ? v : acc), 0);
-    const nodeMeta = new Map<NotePath, { type: string | null; color: string | null }>();
+    const nodeMeta = new Map<
+      NotePath,
+      { type: string | null; color: string | null; unresolved: boolean }
+    >();
     for (const n of visibleGraph.nodes) {
       nodeMeta.set(n.path, {
         type: n.type,
-        color: groupColorForNode(n, graphSettings.groups) ?? n.color,
+        // Monochrome redesign: node color comes ONLY from user-defined
+        // group rules. The type-schema color (`n.color`) no longer tints
+        // the node — that produced "too many colors". Phantom (unresolved)
+        // nodes are forced gray and must never take a group color, so we
+        // skip the group lookup for them entirely.
+        color: n.unresolved === true ? null : groupColorForNode(n, graphSettings.groups),
+        unresolved: n.unresolved === true,
       });
     }
     return layout.map((p) => {
       const degree = degreeMap.get(p.id) ?? 0;
-      const r = scaleRadius(degree, maxDegree);
       const meta = nodeMeta.get(p.id);
+      const unresolved = meta?.unresolved ?? false;
+      // Unresolved nodes read as smaller, dimmer "concept without a note"
+      // discs (Obsidian). We shrink their degree-scaled radius so they're
+      // visibly subordinate to real notes even when several links point
+      // at the same missing concept.
+      const r = unresolved
+        ? Math.max(NODE_R_MIN * 0.6, scaleRadius(degree, maxDegree) * UNRESOLVED_RADIUS_SCALE)
+        : scaleRadius(degree, maxDegree);
       return {
         id: p.id,
         x: p.x,
@@ -367,6 +381,7 @@ export function GlobalGraph(): JSX.Element {
         title: titleMap.get(p.id) ?? p.id,
         type: meta?.type ?? null,
         color: meta?.color ?? null,
+        unresolved,
       };
     });
   }, [layout, degreeMap, titleMap, visibleGraph, graphSettings.groups]);
@@ -387,14 +402,28 @@ export function GlobalGraph(): JSX.Element {
     return set ?? EMPTY_SET;
   }, [selectedId, adjacency]);
 
-  // Legend data: when a type chip is active show only that type; otherwise all.
-  const legendTypes = useMemo(() => {
-    if (selectedType === null)
-      return typeChips.map((t) => ({ id: t.id, label: t.label, color: t.color }));
-    const active = typeChips.find((t) => t.id === selectedType);
-    if (active === undefined) return [];
-    return [{ id: active.id, label: active.label, color: active.color }];
-  }, [typeChips, selectedType]);
+  // Legend groups: the active user-defined group rules — the ONLY source
+  // of node color in the monochrome model. We only legend groups that can
+  // actually tint a currently-visible node, so the legend doesn't claim a
+  // color that never appears.
+  const legendGroups = useMemo<LegendGroup[]>(() => {
+    const active = graphSettings.groups.filter((g) => g.enabled);
+    if (active.length === 0) return [];
+    return active
+      .filter((g) =>
+        visibleGraph.nodes.some(
+          (n) => n.unresolved !== true && graphGroupQueryMatchesNode(n, g.query),
+        ),
+      )
+      .map((g) => ({ id: g.id, label: g.name, color: g.color }));
+  }, [graphSettings.groups, visibleGraph]);
+
+  // Whether any unresolved phantom node is currently visible → drives the
+  // gray "Non risolte" legend entry.
+  const hasUnresolved = useMemo<boolean>(
+    () => visibleGraph.nodes.some((n) => n.unresolved === true),
+    [visibleGraph],
+  );
 
   const legendKinds = useMemo(() => {
     if (selectedKinds.size === 0) return [];
@@ -703,6 +732,10 @@ export function GlobalGraph(): JSX.Element {
 
   const handleNodeClick = useCallback(
     (id: NotePath): void => {
+      // Unresolved phantom nodes are not real notes: no selection, no
+      // local-root pivot. Clicking is a deliberate no-op for now (a
+      // future iteration may create+open the missing note Obsidian-style).
+      if (isUnresolvedId(id)) return;
       if (graphScope === 'local') {
         setLocalRootId(id);
         setSelectedId(id);
@@ -715,6 +748,9 @@ export function GlobalGraph(): JSX.Element {
   );
 
   const handleNodeDoubleClick = useCallback((id: NotePath): void => {
+    // No backing file for unresolved phantom nodes — opening would 404.
+    // No-op until create-on-click lands.
+    if (isUnresolvedId(id)) return;
     // Sync the live transform back into React state before opening
     // the editor — otherwise on next mount the canvas would snap
     // back to the last React-tracked view.
@@ -1001,7 +1037,8 @@ export function GlobalGraph(): JSX.Element {
         )}
         {load.kind === 'ready' && nodeCount > 0 && (
           <Legend
-            visibleTypes={legendTypes}
+            groups={legendGroups}
+            hasUnresolved={hasUnresolved}
             visibleKinds={legendKinds}
             showMentions={hasMentionEdges && graphSettings.query.showMentions}
           />
@@ -1010,7 +1047,11 @@ export function GlobalGraph(): JSX.Element {
           <NodeDetailPanel
             node={selectedNode}
             connections={selectedConnections}
-            onSelectConnection={setSelectedId}
+            onSelectConnection={(id): void => {
+              // Don't pivot selection onto a phantom (no backing note).
+              if (isUnresolvedId(id)) return;
+              setSelectedId(id);
+            }}
             onOpen={(): void => {
               void navigateToNote(selectedNode.id);
             }}
@@ -1036,6 +1077,11 @@ function clamp(n: number, lo: number, hi: number): number {
   if (n < lo) return lo;
   if (n > hi) return hi;
   return n;
+}
+
+/** True for synthetic ids of unresolved (phantom) graph nodes. */
+function isUnresolvedId(id: string): boolean {
+  return id.startsWith(UNRESOLVED_NODE_PREFIX);
 }
 
 function isKeyboardInputTarget(target: EventTarget | null): boolean {
