@@ -9,6 +9,7 @@ import {
   type RefObject,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { Button } from './Button';
 
 export type DialogProps = {
   open: boolean;
@@ -265,10 +266,6 @@ export function ConfirmDialog({
 }: ConfirmDialogBaseProps): JSX.Element | null {
   const cancelRef = useRef<HTMLButtonElement | null>(null);
 
-  const confirmClass = destructive
-    ? 'bg-red-600 text-white hover:bg-red-700'
-    : 'bg-accent text-accent-fg hover:opacity-90';
-
   return (
     <Dialog
       open={open}
@@ -279,21 +276,13 @@ export function ConfirmDialog({
       initialFocusRef={cancelRef}
       footer={
         <>
-          <button
-            ref={cancelRef}
-            type="button"
-            onClick={onCancel}
-            className="rounded px-3 py-1.5 text-sm text-fg-subtle hover:bg-bg-muted hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
-          >
+          <Button ref={cancelRef} variant="ghost" onClick={onCancel}>
             {cancelLabel}
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            className={`rounded px-3 py-1.5 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent ${confirmClass}`}
-          >
+          </Button>
+          {/* Destructive confirms read red; benign ones use the accent fill. */}
+          <Button variant={destructive ? 'danger' : 'primary'} onClick={onConfirm}>
             {confirmLabel}
-          </button>
+          </Button>
         </>
       }
     />

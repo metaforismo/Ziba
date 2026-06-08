@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type JSX } from 'react';
+import { Button } from '../ui/Button';
 import { Dialog } from '../ui/Dialog';
+import { Input } from '../ui/Input';
 
 export type PromptDialogProps = {
   title: string;
@@ -45,8 +47,8 @@ export function PromptDialog({
   useEffect(() => {
     // Select-all on open so renames feel snappy: the user types right over
     // the existing name without an extra Cmd-A. Dialog focuses the input
-    // (via initialFocusRef); we only add the selection here. Deferred a frame
-    // so it runs after Dialog's own focus rAF.
+    // (via initialFocusRef); we only add the selection here. Order-independent
+    // because focusing an input preserves an existing selection.
     const id = window.requestAnimationFrame(() => {
       inputRef.current?.select();
     });
@@ -70,28 +72,18 @@ export function PromptDialog({
       initialFocusRef={inputRef}
       footer={
         <>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded px-3 py-1.5 text-sm text-fg-subtle hover:bg-bg-muted hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
-          >
+          <Button variant="ghost" onClick={onCancel}>
             {cancelLabel}
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={!canSubmit}
-            className="rounded bg-accent px-3 py-1.5 text-sm font-medium text-accent-fg hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50"
-          >
+          </Button>
+          <Button variant="primary" onClick={handleSubmit} disabled={!canSubmit}>
             {okLabel}
-          </button>
+          </Button>
         </>
       }
     >
       {message !== undefined && <p className="mb-3 text-xs text-fg-muted">{message}</p>}
-      <input
+      <Input
         ref={inputRef}
-        type="text"
         value={value}
         placeholder={placeholder}
         onChange={(e): void => setValue(e.target.value)}
@@ -101,7 +93,6 @@ export function PromptDialog({
             handleSubmit();
           }
         }}
-        className="w-full rounded border border-border bg-bg-subtle px-2 py-1.5 text-sm text-fg outline-none focus:border-accent"
       />
       {validationError !== null && <p className="mt-1 text-xs text-red-500">{validationError}</p>}
     </Dialog>
