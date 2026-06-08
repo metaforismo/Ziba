@@ -125,7 +125,6 @@ export function GlobalGraph(): JSX.Element {
   const addGraphGroup = useGraphSettingsStore((s) => s.addGroup);
   const updateGraphGroup = useGraphSettingsStore((s) => s.updateGroup);
   const removeGraphGroup = useGraphSettingsStore((s) => s.removeGroup);
-  const seedGraphGroups = useGraphSettingsStore((s) => s.seedGroupsFromTopLevelFolders);
   const resetGraphSettings = useGraphSettingsStore((s) => s.resetSettings);
   const search = graphSettings.query.search;
   const selectedType = graphSettings.query.types[0] ?? null;
@@ -183,15 +182,6 @@ export function GlobalGraph(): JSX.Element {
   useEffect(() => {
     setGraphSettingsVaultRoot(currentVaultRoot);
   }, [currentVaultRoot, setGraphSettingsVaultRoot]);
-
-  useEffect(() => {
-    if (load.kind !== 'ready') return;
-    // Exclude synthetic unresolved nodes: their ids aren't real paths and
-    // would seed bogus top-level "folder" groups.
-    seedGraphGroups(
-      load.graph.nodes.filter((node) => node.unresolved !== true).map((node) => node.path),
-    );
-  }, [load, seedGraphGroups]);
 
   useEffect(() => {
     mountedRef.current = true;

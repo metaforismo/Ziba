@@ -52,7 +52,6 @@ export type GraphSettings = {
   display: GraphDisplaySettings;
   forces: GraphForceSettings;
   groups: GraphGroupRule[];
-  groupsSeeded: boolean;
 };
 
 export const GRAPH_SETTINGS_STORAGE_KEY = 'ziba.graph-settings.v1';
@@ -91,8 +90,9 @@ export const DEFAULT_GRAPH_SETTINGS: GraphSettings = {
     nodeDistance: 48,
     linkOpacity: 0.34,
   },
+  // Monochrome by default: no color groups until the user creates one
+  // (matches Obsidian — there is no auto-seeding from folders).
   groups: [],
-  groupsSeeded: false,
 };
 
 const DISPLAY_LIMITS = {
@@ -124,7 +124,6 @@ function cloneDefaults(): GraphSettings {
     display: { ...DEFAULT_GRAPH_SETTINGS.display },
     forces: { ...DEFAULT_GRAPH_SETTINGS.forces },
     groups: [],
-    groupsSeeded: DEFAULT_GRAPH_SETTINGS.groupsSeeded,
   };
 }
 
@@ -266,7 +265,6 @@ export function validateGraphSettings(raw: unknown): GraphSettings {
       ),
     },
     groups,
-    groupsSeeded: bool(raw.groupsSeeded, defaults.groupsSeeded),
   };
 }
 

@@ -43,7 +43,6 @@ describe('useGraphSettingsStore', () => {
     expect(useGraphSettingsStore.getState().settings.groups).toEqual([
       { id: groupId, name: 'People', query: 'type:person', color: '#14b8a6', enabled: false },
     ]);
-    expect(useGraphSettingsStore.getState().settings.groupsSeeded).toBe(true);
 
     useGraphSettingsStore.getState().removeGroup(groupId);
     expect(useGraphSettingsStore.getState().settings.groups).toEqual([]);
@@ -53,67 +52,66 @@ describe('useGraphSettingsStore', () => {
     expect(useGraphSettingsStore.getState().settings).toEqual(DEFAULT_GRAPH_SETTINGS);
   });
 
-  it('does not add automatic groups after a manual group has been created', async () => {
+  it('starts monochrome with no groups and never auto-seeds folder groups', async () => {
+    const { DEFAULT_GRAPH_SETTINGS, useGraphSettingsStore } = await loadGraphStore();
+
+    // Default state for a fresh vault: zero color groups (Obsidian-like).
+    expect(DEFAULT_GRAPH_SETTINGS.groups).toEqual([]);
+
+    useGraphSettingsStore.getState().setVaultRoot('/vault-a');
+    expect(useGraphSettingsStore.getState().settings.groups).toEqual([]);
+
+    // No mounting / folder data should ever inject groups: the store has no
+    // seeding action anymore. The graph stays monochrome until the user
+    // creates a group manually.
+    expect(
+      (useGraphSettingsStore.getState() as Record<string, unknown>).seedGroupsFromTopLevelFolders,
+    ).toBeUndefined();
+
+    // Nothing got persisted for this vault yet (no settings changes).
+    const persistedRaw = window.localStorage.getItem(STORAGE_KEY);
+    expect(persistedRaw === null || JSON.parse(persistedRaw)['/vault-a'] === undefined).toBe(true);
+  });
+
+  it('keeps manually-created groups and persists them per vault', async () => {
     const { useGraphSettingsStore } = await loadGraphStore();
 
     useGraphSettingsStore.getState().setVaultRoot('/vault-a');
-    useGraphSettingsStore.getState().addGroup({
-      name: 'Manuale',
-      query: 'type:idea',
-      color: '#64748b',
+    const id = useGraphSettingsStore.getState().addGroup({
+      name: 'Persone',
+      query: 'type:person',
+      color: '#14b8a6',
     });
-    useGraphSettingsStore.getState().seedGroupsFromTopLevelFolders(['Projects', 'People']);
 
-    expect(useGraphSettingsStore.getState().settings.groups.map((group) => group.name)).toEqual([
-      'Manuale',
-    ]);
-    expect(useGraphSettingsStore.getState().settings.groupsSeeded).toBe(true);
-  });
-
-  it('seeds automatic folder groups once and does not regenerate after deletion', async () => {
-    const { useGraphSettingsStore } = await loadGraphStore();
-
-    useGraphSettingsStore.getState().setVaultRoot('/vault-a');
-    useGraphSettingsStore
-      .getState()
-      .seedGroupsFromTopLevelFolders(['Projects', 'People', 'Areas', 'Resources']);
-
-    expect(useGraphSettingsStore.getState().settings.groupsSeeded).toBe(true);
-    expect(useGraphSettingsStore.getState().settings.groups.map((group) => group.name)).toEqual([
-      'Projects',
-      'People',
-      'Areas',
-      'Resources',
+    expect(useGraphSettingsStore.getState().settings.groups).toEqual([
+      { id, name: 'Persone', query: 'type:person', color: '#14b8a6', enabled: true },
     ]);
 
-    for (const group of useGraphSettingsStore.getState().settings.groups) {
-      useGraphSettingsStore.getState().removeGroup(group.id);
-    }
-
-    useGraphSettingsStore.getState().seedGroupsFromTopLevelFolders(['Projects', 'People']);
-
-    expect(useGraphSettingsStore.getState().settings.groups).toEqual([]);
-    expect(useGraphSettingsStore.getState().settings.groupsSeeded).toBe(true);
-
+    // Persisted for /vault-a only.
     const persisted = JSON.parse(window.localStorage.getItem(STORAGE_KEY)!);
-    expect(persisted['/vault-a'].groupsSeeded).toBe(true);
-    expect(persisted['/vault-a'].groups).toEqual([]);
+    expect(persisted['/vault-a'].groups).toEqual([
+      { id, name: 'Persone', query: 'type:person', color: '#14b8a6', enabled: true },
+    ]);
   });
 
-  it('does not burn the automatic seed flag when there are no folders yet', async () => {
+  it('reloads persisted user groups when returning to a vault', async () => {
     const { useGraphSettingsStore } = await loadGraphStore();
 
     useGraphSettingsStore.getState().setVaultRoot('/vault-a');
-    useGraphSettingsStore.getState().seedGroupsFromTopLevelFolders([]);
+    const id = useGraphSettingsStore.getState().addGroup({
+      name: 'Progetti',
+      query: 'path:Projects',
+      color: '#6366f1',
+    });
 
-    expect(useGraphSettingsStore.getState().settings.groupsSeeded).toBe(false);
+    // Switch away and back: the group must survive the round-trip through
+    // localStorage (the persistence path, not in-memory state).
+    useGraphSettingsStore.getState().setVaultRoot('/vault-b');
     expect(useGraphSettingsStore.getState().settings.groups).toEqual([]);
 
-    useGraphSettingsStore.getState().seedGroupsFromTopLevelFolders(['Projects']);
-
-    expect(useGraphSettingsStore.getState().settings.groups.map((group) => group.name)).toEqual([
-      'Projects',
+    useGraphSettingsStore.getState().setVaultRoot('/vault-a');
+    expect(useGraphSettingsStore.getState().settings.groups).toEqual([
+      { id, name: 'Progetti', query: 'path:Projects', color: '#6366f1', enabled: true },
     ]);
-    expect(useGraphSettingsStore.getState().settings.groupsSeeded).toBe(true);
   });
 });

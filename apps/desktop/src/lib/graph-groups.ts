@@ -1,5 +1,3 @@
-import type { GraphGroupRule } from './graph-settings';
-
 export type GraphGroupQueryToken =
   | { kind: 'plain'; value: string }
   | { kind: 'type'; value: string }
@@ -16,19 +14,6 @@ export type GraphGroupMatchNode = {
   title: string;
   type: string | null;
 };
-
-export const AUTO_GRAPH_GROUP_LIMIT = 6;
-
-// Muted defaults for automatic folder groups. Green is intentionally absent so
-// semantic/manual green choices keep their visual meaning.
-export const AUTO_GRAPH_GROUP_COLORS = [
-  '#64748b',
-  '#6366f1',
-  '#8b5cf6',
-  '#d97706',
-  '#dc2626',
-  '#2563eb',
-] as const;
 
 type ScannedToken = {
   raw: string;
@@ -164,66 +149,4 @@ export function graphGroupQueryMatchesNode(
   const parsed = typeof query === 'string' ? parseGraphGroupQuery(query) : query;
   if (parsed.clauses.length === 0) return false;
   return parsed.clauses.some((clause) => clause.every((token) => tokenMatchesNode(node, token)));
-}
-
-function topLevelFolder(path: string): string | null {
-  const normalized = path.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
-  if (normalized === '') return null;
-
-  const first = normalized.split('/')[0]?.trim() ?? '';
-  if (first === '') return null;
-  if (!normalized.includes('/') && /\.md$/i.test(first)) return null;
-  return first;
-}
-
-function slugForFolder(folder: string, index: number): string {
-  const slug = folder
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-  return slug === '' ? `folder-${index + 1}` : slug;
-}
-
-function quotedQueryValue(value: string): string {
-  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
-}
-
-export function buildAutoGraphGroupsFromFolders(folders: readonly string[]): GraphGroupRule[] {
-  const topLevelFolders: string[] = [];
-  const seenFolders = new Set<string>();
-
-  for (const path of folders) {
-    const folder = topLevelFolder(path);
-    if (folder === null) continue;
-
-    const key = normalizePath(folder);
-    if (seenFolders.has(key)) continue;
-
-    seenFolders.add(key);
-    topLevelFolders.push(folder);
-    if (topLevelFolders.length >= AUTO_GRAPH_GROUP_LIMIT) break;
-  }
-
-  const usedIds = new Set<string>();
-  return topLevelFolders.map((folder, index) => {
-    const baseId = `auto-folder-${slugForFolder(folder, index)}`;
-    let id = baseId;
-    let suffix = 2;
-    while (usedIds.has(id)) {
-      id = `${baseId}-${suffix}`;
-      suffix += 1;
-    }
-    usedIds.add(id);
-
-    return {
-      id,
-      name: folder,
-      query: `path:${quotedQueryValue(folder)}`,
-      color:
-        AUTO_GRAPH_GROUP_COLORS[index % AUTO_GRAPH_GROUP_COLORS.length] ??
-        AUTO_GRAPH_GROUP_COLORS[0],
-      enabled: true,
-    };
-  });
 }

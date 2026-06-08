@@ -91,14 +91,11 @@ describe('<GlobalGraph>', () => {
     useGraphSettingsStore.setState((prev) => ({
       ...prev,
       // Match the mounted vault root so the component's setVaultRoot effect
-      // bails instead of reloading (and re-seeding) persisted settings,
-      // which would clobber the group we set here.
+      // bails instead of reloading persisted settings, which would clobber
+      // the group we set here.
       vaultRoot: '/vault-a',
       settings: {
         ...prev.settings,
-        // groupsSeeded: true keeps the auto folder-group seeding from
-        // injecting competing groups, isolating this assertion to our rule.
-        groupsSeeded: true,
         groups: [
           { id: 'g1', name: 'Progetti', query: 'path:Projects', color: '#abcdef', enabled: true },
         ],
