@@ -34,8 +34,6 @@ fork, automate, and keep forever.
 
 ## Screenshots
 
-<!-- screenshots added post-merge -->
-
 <div align="center">
 
 <table>
