@@ -3,11 +3,11 @@ import { EditorContent, useEditor } from '@tiptap/react';
 import type { Editor as TiptapEditor } from '@tiptap/core';
 import type { SuggestionKeyDownProps, SuggestionProps } from '@tiptap/suggestion';
 import type { Frontmatter } from '@ziba/core';
-import { Check, CheckCircle, NotePencil } from '@phosphor-icons/react';
 import type { DatabaseViewDefinition } from '../../../shared/ipc';
 import { useEditorStore } from '../../stores/editor';
 import { useUiStore } from '../../stores/ui';
 import { useVaultStore } from '../../stores/vault';
+import { useSearchStore } from '../../stores/search';
 import { ipc } from '../../lib/ipc';
 import { ipcErrorMessage } from '../../lib/ipc-error';
 import { SCROLL_TO_HEADING_EVENT, type ScrollToHeadingDetail } from '../../lib/outline';
@@ -27,6 +27,7 @@ import {
 import { RelationPickerPopup } from './RelationPickerPopup';
 import { DatabaseBlockPickerPopup } from './DatabaseBlockPickerPopup';
 import { SlashMenuPopup } from './SlashMenuPopup';
+import { EmptyEditor } from './EmptyEditor';
 import { useResolvedWikilinks } from './useResolvedWikilinks';
 import { useWikilinkTypes } from './useWikilinkTypes';
 import { WikilinkPopup } from './WikilinkPopup';
@@ -150,6 +151,7 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
   const setMainView = useUiStore((s) => s.setMainView);
   const backlinksOpen = useUiStore((s) => s.backlinksOpen);
   const notes = useVaultStore((s) => s.notes);
+  const openSearchPalette = useSearchStore((s) => s.openPalette);
   const [starterCreating, setStarterCreating] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
 
@@ -739,98 +741,21 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
   }, [databasePicker.views.length, editor]);
 
   if (currentNote === null) {
-    const showStarterAction = notes.length === 0;
-
     return (
-      <section className="flex h-full w-full min-w-0 bg-bg">
-        <div className="mx-auto flex w-full max-w-[760px] flex-col px-8 py-10">
-          <div className="mb-10 flex items-center justify-between gap-4 text-sm">
-            <div className="truncate text-fg-muted">
-              <span>Projects</span>
-              <span className="mx-3 text-border">/</span>
-              <span>Ziba.md</span>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              {showStarterAction && (
-                <button
-                  type="button"
-                  onClick={(): void => {
-                    void handleCreateStarter();
-                  }}
-                  disabled={starterCreating}
-                  className="inline-flex min-h-8 items-center rounded-md bg-accent px-3 text-xs font-semibold text-accent-fg transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {starterCreating ? 'Creo la base...' : 'Crea struttura iniziale'}
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={(): void => {
-                  void handleCreateBlankNote();
-                }}
-                className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-border bg-bg-subtle px-3 text-xs font-medium text-fg-subtle transition hover:bg-bg-muted hover:text-fg"
-              >
-                <NotePencil size={15} aria-hidden="true" />
-                Crea nota
-              </button>
-            </div>
-          </div>
-
-          <article className="max-w-[620px]">
-            <h1 className="text-5xl font-semibold leading-none text-fg">Ziba</h1>
-
-            <div className="mt-6 flex items-center gap-2 text-sm text-fg-muted">
-              <CheckCircle size={16} aria-hidden="true" className="text-accent" />
-              <span>Salvata</span>
-            </div>
-
-            <button
-              type="button"
-              disabled
-              className="mt-8 flex min-h-12 w-full items-center justify-between rounded-lg border border-border bg-bg-subtle px-4 text-left text-sm text-fg-subtle shadow-sm"
-            >
-              <span>Proprietà</span>
-              <span aria-hidden="true">›</span>
-            </button>
-
-            <div className="mt-8 border-t border-border pt-8">
-              <h2 className="text-2xl font-semibold text-fg">
-                Costruire un secondo cervello semplice
-              </h2>
-              <p className="mt-5 max-w-[58ch] text-base leading-8 text-fg-subtle">
-                Ziba è il mio spazio per catturare idee, collegare concetti e costruire conoscenza
-                che resta nel tempo.
-              </p>
-
-              <div className="mt-6 space-y-3 text-base text-fg-subtle">
-                <StarterTask checked label="Raccogliere idee ogni giorno" />
-                <StarterTask label="Collegare le note tra loro" />
-                <StarterTask label="Ritrovare e usare le conoscenze" />
-              </div>
-            </div>
-
-            <div className="mt-8 border-t border-border pt-7">
-              <h3 className="text-xl font-semibold text-fg">Collegamenti utili</h3>
-              <p className="mt-5 text-base leading-8 text-fg-subtle">
-                Approfondimento su{' '}
-                <span className="rounded-md bg-bg-muted px-2 py-1 text-accent">
-                  [[Ricerca semantica]]
-                </span>{' '}
-                e costruzione di reti di conoscenza.
-              </p>
-              <div className="mt-6 inline-flex rounded-full border border-border bg-bg-subtle px-3 py-1 text-sm text-accent">
-                #prodotto
-              </div>
-            </div>
-          </article>
-
-          {notes.length > 0 && (
-            <div className="mt-10 max-w-[620px] rounded-md border border-border bg-bg-subtle px-4 py-3 text-sm text-fg-muted">
-              Seleziona una nota dalla barra laterale per aprirla.
-            </div>
-          )}
-        </div>
-      </section>
+      <EmptyEditor
+        notes={notes}
+        starterCreating={starterCreating}
+        onCreateBlankNote={(): void => {
+          void handleCreateBlankNote();
+        }}
+        onCreateStarter={(): void => {
+          void handleCreateStarter();
+        }}
+        onOpenSearch={openSearchPalette}
+        onOpenNote={(path): void => {
+          void openNote(path);
+        }}
+      />
     );
   }
 
@@ -1010,28 +935,3 @@ export function Editor({ onSave }: EditorProps): JSX.Element {
 // Re-export the editor type so callers can pass refs around without
 // importing from `@tiptap/core` directly.
 export type { TiptapEditor };
-
-function StarterTask({
-  label,
-  checked = false,
-}: {
-  label: string;
-  checked?: boolean;
-}): JSX.Element {
-  return (
-    <div className="flex items-center gap-3">
-      <span
-        aria-hidden="true"
-        className={
-          'inline-flex size-5 shrink-0 items-center justify-center rounded border ' +
-          (checked
-            ? 'border-accent bg-accent text-accent-fg'
-            : 'border-border bg-bg text-transparent')
-        }
-      >
-        {checked && <Check size={13} weight="bold" />}
-      </span>
-      <span>{label}</span>
-    </div>
-  );
-}

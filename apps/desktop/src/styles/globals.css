@@ -667,3 +667,43 @@ option {
   font-size: 0.85em;
   font-weight: 500;
 }
+
+/*
+ * Empty-editor entrance: one orchestrated reveal (logo, copy, actions)
+ * is more delightful than scattered micro-animations. Children fade up
+ * with a small stagger. Fully disabled under prefers-reduced-motion so
+ * the state appears instantly for users who opt out of motion.
+ */
+@keyframes ziba-empty-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ziba-empty-editor-stagger > * {
+    animation: ziba-empty-rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .ziba-empty-editor-stagger > *:nth-child(1) {
+    animation-delay: 0.02s;
+  }
+  .ziba-empty-editor-stagger > *:nth-child(2) {
+    animation-delay: 0.06s;
+  }
+  .ziba-empty-editor-stagger > *:nth-child(3) {
+    animation-delay: 0.1s;
+  }
+  .ziba-empty-editor-stagger > *:nth-child(4) {
+    animation-delay: 0.14s;
+  }
+  .ziba-empty-editor-stagger > *:nth-child(5) {
+    animation-delay: 0.18s;
+  }
+  .ziba-empty-editor-stagger > *:nth-child(6) {
+    animation-delay: 0.22s;
+  }
+}
