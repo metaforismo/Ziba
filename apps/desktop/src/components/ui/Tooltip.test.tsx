@@ -50,4 +50,24 @@ describe('<Tooltip>', () => {
     fireEvent.focus(screen.getByRole('button', { name: 'Grafo' }));
     expect(focused).toBe(true);
   });
+
+  it('dismisses on Escape while keeping focus on the trigger', () => {
+    render(
+      <Tooltip label="Apri grafo">
+        <button type="button">Grafo</button>
+      </Tooltip>,
+    );
+
+    const trigger = screen.getByRole('button', { name: 'Grafo' });
+    const tip = screen.getByRole('tooltip', { hidden: true });
+
+    trigger.focus();
+    fireEvent.focus(trigger);
+    expect(tip).toHaveAttribute('aria-hidden', 'false');
+
+    fireEvent.keyDown(trigger, { key: 'Escape' });
+    expect(tip).toHaveAttribute('aria-hidden', 'true');
+    // Focus stays on the trigger (Escape dismisses the bubble, not focus).
+    expect(document.activeElement).toBe(trigger);
+  });
 });

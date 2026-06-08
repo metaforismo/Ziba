@@ -1,5 +1,5 @@
 import { CaretDown, FolderOpen, LinkSimple, Plus, X } from '@phosphor-icons/react';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { ConfirmDialog } from './Sidebar/ConfirmDialog';
 import { ipcErrorMessage } from '../lib/ipc-error';
 import { useEditorStore, type EditorPane, type EditorTab } from '../stores/editor';
@@ -81,6 +81,11 @@ export function TopBar({ onChangeVault, sidebarWidth }: TopBarProps): JSX.Elemen
   const pendingCloseTab =
     pendingCloseTabId === null ? null : (workspace.tabsById[pendingCloseTabId] ?? null);
 
+  // Per-tab element refs so arrow-key navigation can move DOM focus between
+  // tabs (WAI-ARIA tabs APG). Inactive tabs carry tabIndex=-1 but stay
+  // programmatically focusable.
+  const tabRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
   const vaultCellWidth = Math.max(
     MIN_VAULT_CELL_WIDTH,
     sidebarWidth + RIBBON_WIDTH - TITLEBAR_CHROME_INSET,
@@ -104,6 +109,45 @@ export function TopBar({ onChangeVault, sidebarWidth }: TopBarProps): JSX.Elemen
       return;
     }
     closeTab(tab.id);
+  };
+
+  // Roving-focus keyboard navigation across the tab strip (WAI-ARIA tabs
+  // APG, manual activation): Arrow Left/Right move focus between tabs and
+  // Home/End jump to the ends. We move focus only — selection still requires
+  // Enter/Space — so arrowing never silently swaps the open note. The close
+  // button stops propagation, so these handlers only fire from the tab itself.
+  const handleTabKeyDown = (event: KeyboardEvent<HTMLDivElement>, index: number): void => {
+    let targetIndex: number | null = null;
+    switch (event.key) {
+      case 'ArrowRight':
+        targetIndex = (index + 1) % tabs.length;
+        break;
+      case 'ArrowLeft':
+        targetIndex = (index - 1 + tabs.length) % tabs.length;
+        break;
+      case 'Home':
+        targetIndex = 0;
+        break;
+      case 'End':
+        targetIndex = tabs.length - 1;
+        break;
+      case 'Enter':
+      case ' ': {
+        event.preventDefault();
+        const tab = tabs[index];
+        if (tab !== undefined) {
+          selectTab(tab.id);
+          setMainView('editor');
+        }
+        return;
+      }
+      default:
+        return;
+    }
+    event.preventDefault();
+    const targetTab = tabs[targetIndex];
+    if (targetTab === undefined) return;
+    tabRefs.current.get(targetTab.id)?.focus();
   };
 
   return (
@@ -143,12 +187,16 @@ export function TopBar({ onChangeVault, sidebarWidth }: TopBarProps): JSX.Elemen
             Nessuna nota aperta
           </div>
         ) : (
-          tabs.map((tab) => {
+          tabs.map((tab, index) => {
             const active = pane?.activeTabId === tab.id;
             const label = tabLabels.get(tab.id) ?? tab.title;
             return (
               <div
                 key={tab.id}
+                ref={(el): void => {
+                  if (el === null) tabRefs.current.delete(tab.id);
+                  else tabRefs.current.set(tab.id, el);
+                }}
                 role="tab"
                 aria-selected={active}
                 tabIndex={active ? 0 : -1}
@@ -157,13 +205,7 @@ export function TopBar({ onChangeVault, sidebarWidth }: TopBarProps): JSX.Elemen
                   selectTab(tab.id);
                   setMainView('editor');
                 }}
-                onKeyDown={(event): void => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    selectTab(tab.id);
-                    setMainView('editor');
-                  }
-                }}
+                onKeyDown={(event): void => handleTabKeyDown(event, index)}
                 title={tab.path}
                 className={
                   'app-no-drag group relative flex h-10 max-w-[14rem] min-w-[8rem] cursor-pointer items-center gap-2 rounded-t-lg border-x border-t px-3 text-left text-[13px] outline-none transition focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent ' +

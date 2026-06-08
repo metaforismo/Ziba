@@ -127,6 +127,81 @@ describe('TopBar', () => {
     expect(screen.getByRole('tab', { name: 'Index — Inbox' })).toBeInTheDocument();
   });
 
+  describe('keyboard navigation', () => {
+    const renderThreeTabs = (): void => {
+      const base = useEditorStore.getState().workspace.tabsById['tab-1']!;
+      useEditorStore.setState({
+        workspace: {
+          panes: [{ id: 'pane-1', tabIds: ['tab-1', 'tab-2', 'tab-3'], activeTabId: 'tab-1' }],
+          activePaneId: 'pane-1',
+          tabsById: {
+            'tab-1': { ...base, id: 'tab-1', path: 'A.md', title: 'A' },
+            'tab-2': { ...base, id: 'tab-2', path: 'B.md', title: 'B' },
+            'tab-3': { ...base, id: 'tab-3', path: 'C.md', title: 'C' },
+          },
+        },
+      });
+    };
+
+    const tab = (name: string): HTMLElement => screen.getByRole('tab', { name });
+
+    it('moves focus with ArrowRight/ArrowLeft and wraps around', () => {
+      renderThreeTabs();
+      renderTopBar();
+      const a = tab('A');
+      const b = tab('B');
+      const c = tab('C');
+
+      a.focus();
+      fireEvent.keyDown(a, { key: 'ArrowRight' });
+      expect(document.activeElement).toBe(b);
+
+      fireEvent.keyDown(b, { key: 'ArrowRight' });
+      expect(document.activeElement).toBe(c);
+
+      // Wraps past the last tab back to the first.
+      fireEvent.keyDown(c, { key: 'ArrowRight' });
+      expect(document.activeElement).toBe(a);
+
+      // ArrowLeft wraps from the first back to the last.
+      fireEvent.keyDown(a, { key: 'ArrowLeft' });
+      expect(document.activeElement).toBe(c);
+    });
+
+    it('jumps to first/last with Home/End', () => {
+      renderThreeTabs();
+      renderTopBar();
+      const a = tab('A');
+      const b = tab('B');
+      const c = tab('C');
+
+      b.focus();
+      fireEvent.keyDown(b, { key: 'End' });
+      expect(document.activeElement).toBe(c);
+
+      fireEvent.keyDown(c, { key: 'Home' });
+      expect(document.activeElement).toBe(a);
+    });
+
+    it('activates the focused tab with Enter without arrowing selecting it', () => {
+      const selectTab = vi.fn();
+      renderThreeTabs();
+      useEditorStore.setState({ selectTab });
+      renderTopBar();
+      const a = tab('A');
+      const b = tab('B');
+
+      a.focus();
+      // Arrowing moves focus only — it must NOT select the note.
+      fireEvent.keyDown(a, { key: 'ArrowRight' });
+      expect(selectTab).not.toHaveBeenCalled();
+
+      // Enter on the focused tab activates it.
+      fireEvent.keyDown(b, { key: 'Enter' });
+      expect(selectTab).toHaveBeenCalledWith('tab-2');
+    });
+  });
+
   it('aligns the vault cell divider with the sidebar divider below', () => {
     renderTopBar({ sidebarWidth: 284 });
 

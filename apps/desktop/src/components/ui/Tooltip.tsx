@@ -1,11 +1,13 @@
 import {
   cloneElement,
   useCallback,
+  useEffect,
   useId,
   useRef,
   useState,
   type FocusEvent,
   type JSX,
+  type KeyboardEvent,
   type MouseEvent,
   type ReactElement,
 } from 'react';
@@ -69,6 +71,11 @@ export function Tooltip({
     setOpen(false);
   }, [clearTimer]);
 
+  // Clear any pending open timer on unmount so the delayed setOpen never
+  // fires on an unmounted component (e.g. a tab/ribbon button removed while
+  // hovered mid-delay).
+  useEffect(() => clearTimer, [clearTimer]);
+
   // Preserve any handlers already on the child so wrapping a button that
   // also wants its own onMouseEnter/onFocus keeps working.
   const childProps = children.props as {
@@ -76,6 +83,7 @@ export function Tooltip({
     onMouseLeave?: (e: MouseEvent) => void;
     onFocus?: (e: FocusEvent) => void;
     onBlur?: (e: FocusEvent) => void;
+    onKeyDown?: (e: KeyboardEvent) => void;
     'aria-describedby'?: string;
   };
 
@@ -100,6 +108,14 @@ export function Tooltip({
     onBlur: (e: FocusEvent): void => {
       childProps.onBlur?.(e);
       close();
+    },
+    // WAI-ARIA tooltip requirement: Escape dismisses the tooltip while
+    // keeping focus on the trigger (we don't blur, so the user stays put).
+    onKeyDown: (e: KeyboardEvent): void => {
+      childProps.onKeyDown?.(e);
+      if (e.key === 'Escape' && open) {
+        close();
+      }
     },
   } as Partial<typeof childProps>);
 
