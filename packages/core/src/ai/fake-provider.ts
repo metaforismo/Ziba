@@ -8,10 +8,24 @@
 //   2. Token overlap → higher cosine similarity, so ranking order is
 //      testable without standing up Ollama.
 
-import { hashContent } from './vector.js';
 import type { EmbeddingProvider } from './types.js';
 
 const DEFAULT_DIM = 32;
+
+/**
+ * Tiny pure-JS FNV-1a hash → unsigned 32-bit int. NOT cryptographic — the
+ * fake provider only needs determinism + reasonable token spread, and core
+ * must stay free of the crypto builtin. Same input always yields the same value.
+ */
+function fnv1a(text: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    // h *= 16777619, kept in 32-bit range via Math.imul.
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
 
 export class FakeEmbeddingProvider implements EmbeddingProvider {
   readonly id: string;
@@ -33,16 +47,15 @@ export class FakeEmbeddingProvider implements EmbeddingProvider {
     // Empty input still needs a non-zero vector (cosine of a zero vector is
     // undefined); seed one dimension from the raw text hash.
     if (tokens.length === 0) {
-      const h = parseInt(hashContent(text).slice(0, 8), 16);
-      vec[h % this.dim] = 1;
+      vec[fnv1a(text) % this.dim] = 1;
       return vec;
     }
     for (const tok of tokens) {
-      // Two independent hash slices: one picks the bucket, one the sign,
-      // so distinct tokens spread across dimensions rather than piling up.
-      const h = hashContent(tok);
-      const bucket = parseInt(h.slice(0, 8), 16) % this.dim;
-      const sign = (parseInt(h.slice(8, 10), 16) & 1) === 0 ? 1 : -1;
+      // Two independent hashes (the token, and the token salted) so the
+      // bucket and the sign are uncorrelated — distinct tokens spread
+      // across dimensions rather than piling up on one.
+      const bucket = fnv1a(tok) % this.dim;
+      const sign = (fnv1a(`${tok}#sign`) & 1) === 0 ? 1 : -1;
       vec[bucket] = (vec[bucket] ?? 0) + sign;
     }
     // L2-normalize so every vector is unit length → cosine == dot product
@@ -57,8 +70,7 @@ export class FakeEmbeddingProvider implements EmbeddingProvider {
       for (let i = 0; i < this.dim; i++) vec[i] = (vec[i] ?? 0) / norm;
     } else {
       // Degenerate (e.g. tokens cancelled out); fall back to a hash seed.
-      const h = parseInt(hashContent(text).slice(0, 8), 16);
-      vec[h % this.dim] = 1;
+      vec[fnv1a(text) % this.dim] = 1;
     }
     return vec;
   }

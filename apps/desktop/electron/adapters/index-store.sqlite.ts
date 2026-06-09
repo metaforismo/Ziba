@@ -415,7 +415,15 @@ export class SqliteIndexStore implements IndexStoreAdapter {
         FROM note_embeddings e
         JOIN notes n ON n.path = e.source_path
       `),
-      countEmbeddings: db.prepare(`SELECT COUNT(*) AS c FROM note_embeddings`),
+      // INNER JOIN notes so the count matches `getAllEmbeddings` (which
+      // drops orphan embeddings whose note row is gone). Otherwise the
+      // "Indicizzate X/Y" status could claim more indexed rows than are
+      // actually searchable.
+      countEmbeddings: db.prepare(`
+        SELECT COUNT(*) AS c
+        FROM note_embeddings e
+        JOIN notes n ON n.path = e.source_path
+      `),
       countNotes: db.prepare(`SELECT COUNT(*) AS c FROM notes`),
       clearEmbeddings: db.prepare(`DELETE FROM note_embeddings`),
     };

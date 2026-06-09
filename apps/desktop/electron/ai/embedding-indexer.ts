@@ -13,7 +13,6 @@
 
 import type { BrowserWindow } from 'electron';
 import {
-  hashContent,
   prepareEmbedText,
   rankBySimilarity,
   type EmbeddingProvider,
@@ -24,6 +23,7 @@ import {
   type SemanticSettings,
 } from '@ziba/core';
 import { IpcChannels, type EmbeddingProgressPayload } from '../../shared/ipc.js';
+import { hashContent } from './content-hash.js';
 import { OllamaEmbeddingProvider } from './ollama-embeddings.js';
 
 /** What the indexer needs to read a note's body for embedding. */
@@ -45,6 +45,9 @@ export class EmbeddingIndexer {
   private pendingPaths = new Set<NotePath>();
   private debounceTimer: NodeJS.Timeout | null = null;
   private disposed = false;
+  // Promise for the in-flight pass (full or flush), so dispose() can await
+  // it and the caller (teardown) can safely close the DB afterwards.
+  private activePass: Promise<void> | null = null;
 
   constructor(
     private readonly store: IndexStoreAdapter,
@@ -52,9 +55,12 @@ export class EmbeddingIndexer {
     private readonly listPaths: () => Promise<NotePath[]>,
     private readonly getWindow: () => BrowserWindow | null,
     settings: SemanticSettings,
+    // Seam for tests: swap in a deterministic provider (the production path
+    // always builds an Ollama HTTP provider).
+    private readonly providerFactory: (s: SemanticSettings) => EmbeddingProvider = buildProvider,
   ) {
     this.settings = settings;
-    this.provider = buildProvider(settings);
+    this.provider = providerFactory(settings);
   }
 
   // ---- lifecycle ------------------------------------------------------
@@ -64,11 +70,19 @@ export class EmbeddingIndexer {
    *  re-embedded on the next pass (their meta no longer matches). */
   updateSettings(settings: SemanticSettings): void {
     this.settings = settings;
-    this.provider = buildProvider(settings);
+    this.provider = this.providerFactory(settings);
   }
 
-  /** Cancel any in-flight pass and stop accepting work. */
-  dispose(): void {
+  /**
+   * Cancel any in-flight pass, stop accepting work, and RESOLVE once the
+   * current batch has settled. `teardown()` awaits this BEFORE closing the
+   * DB so an in-flight `embedBatch` can never write to a closed store.
+   *
+   * The batch loop checks `this.disposed` between batches and right after
+   * each `provider.embed`, so awaiting `activePass` is bounded by one
+   * batch (≤ BATCH_SIZE embeds), not the whole vault.
+   */
+  async dispose(): Promise<void> {
     this.disposed = true;
     this.cancelRequested = true;
     if (this.debounceTimer) {
@@ -76,6 +90,14 @@ export class EmbeddingIndexer {
       this.debounceTimer = null;
     }
     this.pendingPaths.clear();
+    const pass = this.activePass;
+    if (pass) {
+      try {
+        await pass;
+      } catch {
+        // The pass swallows its own store errors; this is belt-and-braces.
+      }
+    }
   }
 
   isEnabled(): boolean {
@@ -158,6 +180,17 @@ export class EmbeddingIndexer {
   }
 
   private async embedPaths(paths: NotePath[], force: boolean): Promise<void> {
+    // Track the pass so dispose() can await it before the DB closes.
+    const pass = this.runPass(paths, force);
+    this.activePass = pass;
+    try {
+      await pass;
+    } finally {
+      if (this.activePass === pass) this.activePass = null;
+    }
+  }
+
+  private async runPass(paths: NotePath[], force: boolean): Promise<void> {
     this.running = true;
     this.cancelRequested = false;
     await this.emitProgress();
@@ -174,7 +207,9 @@ export class EmbeddingIndexer {
     } finally {
       this.running = false;
       this.cancelRequested = false;
-      await this.emitProgress();
+      // Skip the progress emit once disposed — the window may be tearing
+      // down and getEmbeddingCounts would hit a closing DB.
+      if (!this.disposed) await this.emitProgress();
     }
   }
 
@@ -218,20 +253,33 @@ export class EmbeddingIndexer {
       return;
     }
 
+    // The embed call is the long await where a vault switch most likely
+    // lands. If we were disposed while it ran, the DB is about to close (or
+    // already has) — bail BEFORE the upsert loop so we don't write to a
+    // closed store.
+    if (this.disposed) return;
+
     if (!this.store.upsertEmbedding) return;
     for (let i = 0; i < toEmbed.length; i++) {
+      if (this.disposed) return;
       const item = toEmbed[i]!;
       const vec = vectors[i];
       if (!vec || vec.length === 0) continue;
-      await this.store.upsertEmbedding({
-        sourcePath: item.path,
-        title: '', // joined from notes on read
-        contentHash: item.hash,
-        modelId: this.provider.id,
-        dim: vec.length,
-        vector: vec,
-        mtimeMs: Date.now(),
-      });
+      try {
+        await this.store.upsertEmbedding({
+          sourcePath: item.path,
+          title: '', // joined from notes on read
+          contentHash: item.hash,
+          modelId: this.provider.id,
+          dim: vec.length,
+          vector: vec,
+          mtimeMs: Date.now(),
+        });
+      } catch {
+        // Best-effort: a closed-DB throw (vault switched out from under us)
+        // or a transient write error just skips this note. The store is a
+        // cache — the next pass re-embeds it.
+      }
     }
   }
 

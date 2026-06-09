@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  blobToFloat32,
-  cosineSimilarity,
-  float32ToBlob,
-  hashContent,
-  prepareEmbedText,
-} from './vector.js';
+import { blobToFloat32, cosineSimilarity, float32ToBlob, prepareEmbedText } from './vector.js';
 
 describe('cosineSimilarity', () => {
   it('returns 1 for identical vectors (identity)', () => {
@@ -72,20 +66,6 @@ describe('float32ToBlob / blobToFloat32', () => {
   it('round-trips an empty vector', () => {
     const back = blobToFloat32(float32ToBlob(new Float32Array([])));
     expect(back.length).toBe(0);
-  });
-});
-
-describe('hashContent', () => {
-  it('is stable: same input → same hash', () => {
-    expect(hashContent('ciao mondo')).toBe(hashContent('ciao mondo'));
-  });
-
-  it('differs for different input', () => {
-    expect(hashContent('a')).not.toBe(hashContent('b'));
-  });
-
-  it('returns a hex string', () => {
-    expect(hashContent('x')).toMatch(/^[0-9a-f]+$/);
   });
 });
 

@@ -121,8 +121,10 @@ export function SettingsPanel(): JSX.Element | null {
               />
             </label>
 
-            {/* Provider config */}
-            <div className="space-y-3" aria-disabled={!enabled}>
+            {/* Provider config. Editable even when the feature is OFF —
+                configure-before-enable is a valid flow — so no disabled
+                signal on the group. */}
+            <div className="space-y-3">
               <Field
                 id="ollama-base-url"
                 label="URL Ollama"

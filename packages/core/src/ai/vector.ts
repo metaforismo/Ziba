@@ -1,12 +1,10 @@
 // Pure vector math + (de)serialization for embeddings. No driver, no
-// Electron — just numbers and bytes, so it's trivially unit-testable and
-// reusable from either process.
+// Electron, NO Node builtins — just numbers and bytes, so this package
+// stays bundleable for web + mobile reuse and is trivially unit-testable.
 //
-// `node:crypto` is the one Node builtin we lean on (for a stable content
-// hash). It's available everywhere this package runs (main process, tests)
-// and avoids pulling a hashing dependency into core.
+// Content hashing (SHA-256) lives in the Electron host, not here, to keep
+// core free of the crypto builtin. The fake provider uses its own pure-JS hash.
 
-import { createHash } from 'node:crypto';
 import { EMBED_TEXT_MAX_CHARS } from './types.js';
 
 /**
@@ -61,15 +59,6 @@ export function blobToFloat32(blob: Uint8Array): Float32Array {
     out[i] = view.getFloat32(i * 4, true /* little-endian */);
   }
   return out;
-}
-
-/**
- * Stable content hash. SHA-256 hex — collision-resistant enough that an
- * unchanged note reliably skips re-embedding, and a single edited byte
- * reliably triggers one.
- */
-export function hashContent(text: string): string {
-  return createHash('sha256').update(text, 'utf8').digest('hex');
 }
 
 /**

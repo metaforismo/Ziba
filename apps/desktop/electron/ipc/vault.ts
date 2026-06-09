@@ -61,12 +61,14 @@ export async function pickVaultFolder(args: {
  * (so we never leak the previous vault's watcher / DB handle).
  */
 async function teardown(): Promise<void> {
-  // Stop the embedding pass first so it doesn't write to a DB we're about
-  // to close. dispose() cancels any in-flight pass and clears the queue.
+  // Stop the embedding pass FIRST and AWAIT it so it doesn't write to a DB
+  // we're about to close. dispose() cancels the in-flight pass and resolves
+  // once the current batch has settled — bounded by one batch, not the
+  // whole vault. This must complete before `s.close()` below.
   const emb = getEmbeddingIndexer();
   if (emb) {
     try {
-      emb.dispose();
+      await emb.dispose();
     } catch {
       // best effort
     }
