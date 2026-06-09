@@ -11,6 +11,7 @@ import type {
   DatabaseViewLayout,
   DatabaseViewsFile,
   DetectedProperty,
+  EmbeddingStatus,
   Frontmatter,
   FullGraph,
   GraphEdge,
@@ -22,6 +23,8 @@ import type {
   PropertyType,
   RelationRow,
   ScalarFilter,
+  SemanticHit,
+  SemanticSettings,
   TypeCountRow,
 } from '@ziba/core';
 
@@ -37,6 +40,7 @@ export type {
   DatabaseViewLayout,
   DatabaseViewsFile,
   DetectedProperty,
+  EmbeddingStatus,
   FullGraph,
   GraphEdge,
   GraphNode,
@@ -44,6 +48,8 @@ export type {
   PropertyType,
   RelationRow,
   ScalarFilter,
+  SemanticHit,
+  SemanticSettings,
   TypeCountRow,
 };
 
@@ -105,9 +111,17 @@ export const IpcChannels = {
   // Settings / persisted state
   getRecentVaults: 'settings:recentVaults',
 
+  // AI semantic search (milestone 1)
+  semanticSearch: 'ai:semanticSearch',
+  getEmbeddingStatus: 'ai:embeddingStatus',
+  reindexEmbeddings: 'ai:reindexEmbeddings',
+  getSemanticSettings: 'ai:getSettings',
+  setSemanticSettings: 'ai:setSettings',
+
   // Watcher push events (main → renderer)
   vaultEvent: 'watcher:event',
   indexProgress: 'index:progress',
+  embeddingProgress: 'ai:embeddingProgress',
   databaseViewsChanged: 'database:viewsChanged',
 } as const;
 
@@ -202,6 +216,13 @@ export type IpcRequests = {
   [IpcChannels.getRelationsByTarget]: { targetPath: NotePath; kind?: string };
 
   [IpcChannels.getRecentVaults]: void;
+
+  // AI
+  [IpcChannels.semanticSearch]: { query: string; limit?: number };
+  [IpcChannels.getEmbeddingStatus]: void;
+  [IpcChannels.reindexEmbeddings]: void;
+  [IpcChannels.getSemanticSettings]: void;
+  [IpcChannels.setSemanticSettings]: { settings: Partial<SemanticSettings> };
 };
 
 export type Backlink = {
@@ -225,6 +246,19 @@ export type LinkReferencesResult = {
 };
 
 export type DatabaseViewsChangedPayload = DatabaseViewsFile;
+
+/**
+ * Result of a semantic search. A discriminated union so the renderer can
+ * distinguish "feature off", "provider down", and "ok with hits" WITHOUT
+ * parsing an error string — every degradation path is typed, never a crash.
+ */
+export type SemanticSearchResult =
+  | { ok: true; hits: SemanticHit[] }
+  | {
+      ok: false;
+      reason: 'disabled' | 'provider-unreachable' | 'not-indexed' | 'error';
+      message: string;
+    };
 
 /** A single full-text-search hit returned to the renderer. */
 export type SearchHit = {
@@ -294,6 +328,13 @@ export type IpcResponses = {
   [IpcChannels.getRelationsByTarget]: RelationRow[];
 
   [IpcChannels.getRecentVaults]: VaultInfo[];
+
+  // AI
+  [IpcChannels.semanticSearch]: SemanticSearchResult;
+  [IpcChannels.getEmbeddingStatus]: EmbeddingStatus;
+  [IpcChannels.reindexEmbeddings]: { started: boolean };
+  [IpcChannels.getSemanticSettings]: SemanticSettings;
+  [IpcChannels.setSemanticSettings]: SemanticSettings;
 };
 
 // ---- Push events (main → renderer, no response) ----
@@ -310,6 +351,18 @@ export type VaultEventPayload =
 
 export type IndexProgressPayload = { processed: number; total: number | null };
 
+/**
+ * Embedding-pass progress (main → renderer). `running` flips false when the
+ * pass finishes or is cancelled; `providerOk` lets the UI flag an Ollama
+ * outage without a separate status poll.
+ */
+export type EmbeddingProgressPayload = {
+  indexed: number;
+  total: number;
+  running: boolean;
+  providerOk: boolean;
+};
+
 // ---- API surface exposed via contextBridge to window.ziba ----
 
 export interface ZibaApi {
@@ -320,6 +373,7 @@ export interface ZibaApi {
 
   onVaultEvent(listener: (payload: VaultEventPayload) => void): () => void;
   onIndexProgress(listener: (payload: IndexProgressPayload) => void): () => void;
+  onEmbeddingProgress(listener: (payload: EmbeddingProgressPayload) => void): () => void;
   onDatabaseViewsChanged(listener: (payload: DatabaseViewsChangedPayload) => void): () => void;
 }
 

@@ -9,6 +9,7 @@ import {
 } from '@phosphor-icons/react';
 import type { JSX } from 'react';
 import { useSearchStore } from '../stores/search';
+import { useSemanticStore } from '../stores/semantic';
 import { THEMES, THEME_IDS, type ThemeId } from '../lib/theme';
 import { useUiStore } from '../stores/ui';
 import { Tooltip } from './ui/Tooltip';
@@ -24,6 +25,7 @@ function themeLabel(id: ThemeId): string {
 
 export function Ribbon(): JSX.Element {
   const openPalette = useSearchStore((s) => s.openPalette);
+  const openSettings = useSemanticStore((s) => s.openPanel);
   const mainView = useUiStore((s) => s.mainView);
   const setMainView = useUiStore((s) => s.setMainView);
   const themeId = useUiStore((s) => s.themeId);
@@ -73,8 +75,7 @@ export function Ribbon(): JSX.Element {
         />
         <RibbonButton
           label="Impostazioni"
-          disabled
-          tooltip="Impostazioni in arrivo nel pannello dedicato"
+          onClick={openSettings}
           icon={<Gear size={20} aria-hidden="true" />}
         />
       </div>

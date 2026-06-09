@@ -29,7 +29,7 @@ import {
 import { getFilesystemAdapter } from '../adapters/filesystem.electron.js';
 import { IpcChannels, type VaultEventPayload } from '../../shared/ipc.js';
 import { assertResolvedWithinVault, assertVaultRelative, IpcError } from '../security.js';
-import { markSelfWrite, requireIndexStore, requireVault } from '../state.js';
+import { getEmbeddingIndexer, markSelfWrite, requireIndexStore, requireVault } from '../state.js';
 
 /**
  * Push a synthetic 'change' vault event to the renderer after a
@@ -151,6 +151,10 @@ export async function saveNote(args: {
   // typedPaths, tags, and the database store.
   pushSyntheticChangeEvent(args.path, st.mtimeMs);
 
+  // AI: queue a (re)embed for this note. Debounced + skipped if the
+  // content hash is unchanged. No-op when the feature is disabled.
+  getEmbeddingIndexer()?.enqueue(args.path);
+
   return { mtimeMs: st.mtimeMs };
 }
 
@@ -182,6 +186,9 @@ export async function createNote(args: { path: NotePath; initialBody?: string })
   // Watcher echo suppressed for this write. Push a synthetic add/change
   // event so the renderer learns about the new file immediately.
   pushSyntheticChangeEvent(args.path, st.mtimeMs);
+
+  // AI: queue an embed for the new note. No-op when disabled.
+  getEmbeddingIndexer()?.enqueue(args.path);
 
   const title = parseMarkdown(body).headingTitle ?? deriveTitleFromPath(args.path);
 
@@ -258,6 +265,9 @@ export async function renameNote(args: {
   // the renamed note.
   await store.reresolveStaleWikilinks(args.from);
 
+  // AI: drop the old path's embedding and queue a re-embed at the new path.
+  await getEmbeddingIndexer()?.rename(args.from, args.to);
+
   return { newPath: args.to };
 }
 
@@ -273,6 +283,9 @@ export async function deleteNote(args: { path: NotePath }): Promise<void> {
   markSelfWrite(args.path);
   await fs.deleteFile(abs);
   await store.deleteNote(args.path);
+
+  // AI: drop this note's embedding too. No-op when disabled / absent.
+  await getEmbeddingIndexer()?.remove(args.path);
 }
 
 export async function searchByTitle(args: {

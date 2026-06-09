@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react';
 import { EmptyState } from './components/EmptyState';
 import { Layout } from './components/Layout';
 import { SearchPalette } from './components/SearchPalette';
+import { SettingsPanel } from './components/SettingsPanel';
 import { ToastStack } from './components/ToastStack';
 import { useEditorStore } from './stores/editor';
 import { useSearchStore } from './stores/search';
+import { useSemanticStore } from './stores/semantic';
 import { useTagsStore } from './stores/tags';
 import { useUiStore } from './stores/ui';
 import { useVaultStore } from './stores/vault';
@@ -55,10 +57,16 @@ export function App(): JSX.Element {
       setIndexProgress(p);
     });
 
+    // AI: keep the semantic-settings panel's status live during a pass.
+    const offEmbeddingProgress = ipc.onEmbeddingProgress((p) => {
+      useSemanticStore.getState().applyProgress(p);
+    });
+
     return () => {
       active = false;
       offVaultEvent();
       offIndexProgress();
+      offEmbeddingProgress();
     };
   }, [hydrateFromMain, applyVaultEvent, applyExternalChange, setIndexProgress]);
 
@@ -172,6 +180,7 @@ export function App(): JSX.Element {
     <>
       <Layout />
       <SearchPalette />
+      <SettingsPanel />
       <ToastStack />
     </>
   );

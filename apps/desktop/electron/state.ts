@@ -7,6 +7,7 @@
 
 import type { FilesystemAdapter, IndexStoreAdapter, NotePath, WatcherAdapter } from '@ziba/core';
 import type { VaultInfo } from '../shared/ipc.js';
+import type { EmbeddingIndexer } from './ai/embedding-indexer.js';
 import { IpcError } from './security.js';
 
 let currentVault: VaultInfo | null = null;
@@ -14,6 +15,7 @@ let indexStore: IndexStoreAdapter | null = null;
 let watcher: WatcherAdapter | null = null;
 let filesystem: FilesystemAdapter | null = null;
 let schemaWatcher: { stop: () => Promise<void> } | null = null;
+let embeddingIndexer: EmbeddingIndexer | null = null;
 
 // Paths we just wrote ourselves, with an expiry timestamp. The watcher
 // uses this to skip echoes of our own writes (chokidar's awaitWriteFinish
@@ -60,6 +62,14 @@ export function getSchemaWatcher(): { stop: () => Promise<void> } | null {
 
 export function setSchemaWatcher(w: { stop: () => Promise<void> } | null): void {
   schemaWatcher = w;
+}
+
+export function getEmbeddingIndexer(): EmbeddingIndexer | null {
+  return embeddingIndexer;
+}
+
+export function setEmbeddingIndexer(e: EmbeddingIndexer | null): void {
+  embeddingIndexer = e;
 }
 
 /**

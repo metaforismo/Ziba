@@ -29,6 +29,7 @@ function makeFailingApi(): ZibaApi {
     invoke: ((channel: string) => fail(`invoke('${channel}')`)) as ZibaApi['invoke'],
     onVaultEvent: () => fail('onVaultEvent'),
     onIndexProgress: () => fail('onIndexProgress'),
+    onEmbeddingProgress: () => fail('onEmbeddingProgress'),
     onDatabaseViewsChanged: () => fail('onDatabaseViewsChanged'),
   };
 }
