@@ -117,6 +117,25 @@ CREATE INDEX IF NOT EXISTS idx_note_props_key    ON note_properties(prop_key);
 CREATE INDEX IF NOT EXISTS idx_note_props_text   ON note_properties(prop_key, text_value);
 CREATE INDEX IF NOT EXISTS idx_note_props_number ON note_properties(prop_key, number_value);
 CREATE INDEX IF NOT EXISTS idx_note_props_date   ON note_properties(prop_key, date_value);
+
+-- AI semantic search (milestone 1). One embedding vector per note.
+-- \`content_hash\` + \`model_id\` let the indexer skip a note whose body and
+-- embedding model are both unchanged. \`vector\` is a Float32 little-endian
+-- BLOB (see \`float32ToBlob\` in core/ai). This table is additive — a new
+-- table needs no \`user_version\` bump (IF NOT EXISTS handles fresh + upgraded
+-- vaults). The data is a pure cache: deleting it just forces a re-embed.
+--
+-- No FK to \`notes\`: embeddings are written by an async background pass that
+-- can lag the notes upsert, and we don't want a missing-parent race to throw.
+-- The pipeline deletes the embedding explicitly on note delete instead.
+CREATE TABLE IF NOT EXISTS note_embeddings (
+  source_path  TEXT PRIMARY KEY,
+  content_hash TEXT NOT NULL,
+  model_id     TEXT NOT NULL,
+  dim          INTEGER NOT NULL,
+  vector       BLOB NOT NULL,
+  mtime        INTEGER NOT NULL
+);
 `.trim();
 
 /**
@@ -154,6 +173,7 @@ DROP TABLE IF EXISTS relations;
 DROP TABLE IF EXISTS object_types;
 DROP TABLE IF EXISTS notes_fts;
 DROP TABLE IF EXISTS note_properties;
+DROP TABLE IF EXISTS note_embeddings;
 DROP TABLE IF EXISTS tags;
 DROP TABLE IF EXISTS notes;
 `.trim();

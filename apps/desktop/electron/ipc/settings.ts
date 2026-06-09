@@ -7,13 +7,19 @@
 import { app } from 'electron';
 import path from 'node:path';
 import { promises as fsp } from 'node:fs';
+import { DEFAULT_SEMANTIC_SETTINGS, type SemanticSettings } from '@ziba/core';
 import type { VaultInfo } from '../../shared/ipc.js';
 
 const FILENAME = 'recent-vaults.json';
 const MAX_RECENT = 10;
+const SEMANTIC_FILENAME = 'semantic-settings.json';
 
 function filePath(): string {
   return path.join(app.getPath('userData'), FILENAME);
+}
+
+function semanticFilePath(): string {
+  return path.join(app.getPath('userData'), SEMANTIC_FILENAME);
 }
 
 export async function getRecentVaults(): Promise<VaultInfo[]> {
@@ -56,4 +62,53 @@ export async function pushRecentVault(v: VaultInfo): Promise<void> {
   const fp = filePath();
   await fsp.mkdir(path.dirname(fp), { recursive: true });
   await fsp.writeFile(fp, JSON.stringify(next, null, 2), 'utf8');
+}
+
+// ---- Semantic-search settings (per-app, not per-vault) ------------------
+//
+// Provider config (enabled / baseUrl / model) is a machine-level choice —
+// the same Ollama daemon serves every vault — so it lives in userData
+// alongside recent-vaults. The embeddings themselves are per-vault in
+// `<vault>/.ziba/index.db`.
+
+function coerceSemanticSettings(raw: unknown): SemanticSettings {
+  if (typeof raw !== 'object' || raw === null) return { ...DEFAULT_SEMANTIC_SETTINGS };
+  const r = raw as Partial<SemanticSettings>;
+  return {
+    enabled: typeof r.enabled === 'boolean' ? r.enabled : DEFAULT_SEMANTIC_SETTINGS.enabled,
+    baseUrl:
+      typeof r.baseUrl === 'string' && r.baseUrl.trim() !== ''
+        ? r.baseUrl.trim()
+        : DEFAULT_SEMANTIC_SETTINGS.baseUrl,
+    model:
+      typeof r.model === 'string' && r.model.trim() !== ''
+        ? r.model.trim()
+        : DEFAULT_SEMANTIC_SETTINGS.model,
+  };
+}
+
+export async function getSemanticSettings(): Promise<SemanticSettings> {
+  try {
+    const raw = await fsp.readFile(semanticFilePath(), 'utf8');
+    return coerceSemanticSettings(JSON.parse(raw));
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      return { ...DEFAULT_SEMANTIC_SETTINGS };
+    }
+    // Corrupt / unreadable: log and fall back to defaults (feature OFF) so
+    // the app never breaks over a bad settings file.
+    console.error('[settings] semantic-settings.json unreadable, using defaults:', err);
+    return { ...DEFAULT_SEMANTIC_SETTINGS };
+  }
+}
+
+export async function setSemanticSettings(
+  patch: Partial<SemanticSettings>,
+): Promise<SemanticSettings> {
+  const current = await getSemanticSettings();
+  const next = coerceSemanticSettings({ ...current, ...patch });
+  const fp = semanticFilePath();
+  await fsp.mkdir(path.dirname(fp), { recursive: true });
+  await fsp.writeFile(fp, JSON.stringify(next, null, 2), 'utf8');
+  return next;
 }

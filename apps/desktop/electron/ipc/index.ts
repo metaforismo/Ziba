@@ -51,6 +51,13 @@ import {
   getRelationsByTarget,
 } from './types.js';
 import { getRecentVaults } from './settings.js';
+import {
+  semanticSearch,
+  getEmbeddingStatus,
+  reindexEmbeddings,
+  getSemanticSettingsHandler,
+  setSemanticSettingsHandler,
+} from './ai.js';
 
 type Handler<C extends keyof IpcRequests> = (
   args: IpcRequests[C],
@@ -138,6 +145,13 @@ export function registerIpcHandlers(win: BrowserWindow): void {
 
   // Settings
   handle(IpcChannels.getRecentVaults, () => getRecentVaults());
+
+  // AI semantic search (milestone 1)
+  handle(IpcChannels.semanticSearch, (args) => semanticSearch(args));
+  handle(IpcChannels.getEmbeddingStatus, () => getEmbeddingStatus());
+  handle(IpcChannels.reindexEmbeddings, () => reindexEmbeddings());
+  handle(IpcChannels.getSemanticSettings, () => getSemanticSettingsHandler());
+  handle(IpcChannels.setSemanticSettings, (args) => setSemanticSettingsHandler(args));
 }
 
 /**

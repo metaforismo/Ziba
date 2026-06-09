@@ -7,27 +7,38 @@
 import { dialog, BrowserWindow } from 'electron';
 import { promises as fsp } from 'node:fs';
 import path from 'node:path';
-import { indexVault } from '@ziba/core';
+import {
+  deriveTitleFromPath,
+  getFrontmatterTitle,
+  indexVault,
+  loadNote as coreLoadNote,
+  parseMarkdown,
+  scanVault,
+  type NotePath,
+} from '@ziba/core';
 import { IpcChannels, type VaultInfo } from '../../shared/ipc.js';
 import { getFilesystemAdapter } from '../adapters/filesystem.electron.js';
 import { SqliteIndexStore } from '../adapters/index-store.sqlite.js';
 import { ChokidarWatcher } from '../adapters/watcher.chokidar.js';
+import { EmbeddingIndexer } from '../ai/embedding-indexer.js';
 import { bootstrapSchemas, watchSchemas } from '../schema-loader.js';
 import { IpcError } from '../security.js';
 import {
   consumeIfSelfWrite,
   getCurrentVault,
+  getEmbeddingIndexer,
   getIndexStore,
   getSchemaWatcher,
   getWatcher,
   requireIndexStore,
   setCurrentVault,
+  setEmbeddingIndexer,
   setFilesystem,
   setIndexStore,
   setSchemaWatcher,
   setWatcher,
 } from '../state.js';
-import { pushRecentVault } from './settings.js';
+import { getSemanticSettings, pushRecentVault } from './settings.js';
 
 export async function pickVaultFolder(args: {
   defaultPath?: string;
@@ -50,6 +61,17 @@ export async function pickVaultFolder(args: {
  * (so we never leak the previous vault's watcher / DB handle).
  */
 async function teardown(): Promise<void> {
+  // Stop the embedding pass first so it doesn't write to a DB we're about
+  // to close. dispose() cancels any in-flight pass and clears the queue.
+  const emb = getEmbeddingIndexer();
+  if (emb) {
+    try {
+      emb.dispose();
+    } catch {
+      // best effort
+    }
+    setEmbeddingIndexer(null);
+  }
   const w = getWatcher();
   if (w) {
     try {
@@ -159,6 +181,24 @@ export async function openVault(win: BrowserWindow, args: { root: string }): Pro
   });
   setWatcher(watcher);
 
+  // AI semantic search (milestone 1). Build the embedding indexer for this
+  // vault. It is gated behind the per-app "enabled" setting — when OFF, the
+  // indexer is still constructed (so toggling on later works) but does ZERO
+  // work and makes ZERO Ollama calls. The initial full pass runs in the
+  // background (fire-and-forget) so it never blocks vault open.
+  const semanticSettings = await getSemanticSettings();
+  const embedder = new EmbeddingIndexer(
+    indexStore,
+    makeBodyLoader(root),
+    () => listVaultNotePaths(root),
+    () => (win.isDestroyed() ? null : win),
+    semanticSettings,
+  );
+  setEmbeddingIndexer(embedder);
+  if (semanticSettings.enabled) {
+    void embedder.runFullPass(false);
+  }
+
   const info: VaultInfo = {
     root,
     name: path.basename(root) || root,
@@ -168,6 +208,37 @@ export async function openVault(win: BrowserWindow, args: { root: string }): Pro
   await pushRecentVault(info);
 
   return info;
+}
+
+/**
+ * Build a NoteBodyLoader bound to a vault root. Reads a note's title +
+ * body from disk for embedding. Returns null when the file is gone so the
+ * indexer can skip it without throwing.
+ */
+function makeBodyLoader(
+  root: string,
+): (p: NotePath) => Promise<{ title: string; body: string } | null> {
+  const fs = getFilesystemAdapter();
+  return async (notePath: NotePath) => {
+    try {
+      const note = await coreLoadNote(fs, root, notePath);
+      const title =
+        getFrontmatterTitle(note.frontmatter) ??
+        parseMarkdown(note.content).headingTitle ??
+        deriveTitleFromPath(notePath);
+      return { title, body: note.content };
+    } catch {
+      return null;
+    }
+  };
+}
+
+/** List every `.md` note path in the vault (vault-relative) for a full pass. */
+async function listVaultNotePaths(root: string): Promise<NotePath[]> {
+  const fs = getFilesystemAdapter();
+  const out: NotePath[] = [];
+  for await (const p of scanVault(fs, root)) out.push(p);
+  return out;
 }
 
 export async function closeVault(): Promise<void> {

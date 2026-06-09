@@ -11,6 +11,7 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import {
   IpcChannels,
   type DatabaseViewsChangedPayload,
+  type EmbeddingProgressPayload,
   type IndexProgressPayload,
   type IpcRequests,
   type IpcResponses,
@@ -46,6 +47,16 @@ const api: ZibaApi = {
     ipcRenderer.on(IpcChannels.indexProgress, wrapped);
     return () => {
       ipcRenderer.off(IpcChannels.indexProgress, wrapped);
+    };
+  },
+
+  onEmbeddingProgress(listener: (payload: EmbeddingProgressPayload) => void): () => void {
+    const wrapped = (_e: IpcRendererEvent, payload: EmbeddingProgressPayload): void => {
+      listener(payload);
+    };
+    ipcRenderer.on(IpcChannels.embeddingProgress, wrapped);
+    return () => {
+      ipcRenderer.off(IpcChannels.embeddingProgress, wrapped);
     };
   },
 

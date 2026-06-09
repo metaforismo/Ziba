@@ -3,6 +3,7 @@
 // keep the IPC contract enforced by the shared types.
 
 import type { Frontmatter, Note, NotePath, NoteSummary } from '@ziba/core';
+import type { EmbeddingStatus, SemanticSettings } from '@ziba/core';
 import type {
   Backlink,
   DatabaseQuery,
@@ -10,12 +11,14 @@ import type {
   DatabaseViewDefinition,
   DatabaseViewsChangedPayload,
   DatabaseViewsFile,
+  EmbeddingProgressPayload,
   FullGraph,
   IndexProgressPayload,
   LinkReferencesResult,
   ObjectTypeRow,
   RelationRow,
   SearchHit,
+  SemanticSearchResult,
   TagSummary,
   TypeCountRow,
   VaultEventPayload,
@@ -169,12 +172,32 @@ export const ipc = {
     return api().invoke(IpcChannels.getRecentVaults);
   },
 
+  // AI semantic search (milestone 1)
+  semanticSearch(args: { query: string; limit?: number }): Promise<SemanticSearchResult> {
+    return api().invoke(IpcChannels.semanticSearch, args);
+  },
+  getEmbeddingStatus(): Promise<EmbeddingStatus> {
+    return api().invoke(IpcChannels.getEmbeddingStatus);
+  },
+  reindexEmbeddings(): Promise<{ started: boolean }> {
+    return api().invoke(IpcChannels.reindexEmbeddings);
+  },
+  getSemanticSettings(): Promise<SemanticSettings> {
+    return api().invoke(IpcChannels.getSemanticSettings);
+  },
+  setSemanticSettings(args: { settings: Partial<SemanticSettings> }): Promise<SemanticSettings> {
+    return api().invoke(IpcChannels.setSemanticSettings, args);
+  },
+
   // Push subscriptions — return an unsubscribe function.
   onVaultEvent(listener: (payload: VaultEventPayload) => void): () => void {
     return api().onVaultEvent(listener);
   },
   onIndexProgress(listener: (payload: IndexProgressPayload) => void): () => void {
     return api().onIndexProgress(listener);
+  },
+  onEmbeddingProgress(listener: (payload: EmbeddingProgressPayload) => void): () => void {
+    return api().onEmbeddingProgress(listener);
   },
   onDatabaseViewsChanged(listener: (payload: DatabaseViewsChangedPayload) => void): () => void {
     return api().onDatabaseViewsChanged(listener);

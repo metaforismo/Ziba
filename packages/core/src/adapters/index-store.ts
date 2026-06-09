@@ -241,7 +241,60 @@ export interface IndexStoreAdapter {
   deleteObjectType(id: string): Promise<void>;
 
   clear(): Promise<void>;
+
+  // ---- AI semantic search (milestone 1) -------------------------------
+  //
+  // These are OPTIONAL on the interface so non-SQLite / in-memory adapters
+  // (and existing tests) don't have to implement embeddings. Callers in the
+  // embedding pipeline guard with `'upsertEmbedding' in store` /
+  // optional-chaining before use.
+
+  /** Insert or replace a note's embedding row. */
+  upsertEmbedding?(row: EmbeddingStoreRow): Promise<void>;
+
+  /** Delete a note's embedding. No-op when absent. */
+  deleteEmbedding?(sourcePath: NotePath): Promise<void>;
+
+  /**
+   * Fingerprint for the skip-if-unchanged check: returns the stored
+   * content_hash + model_id for a path, or null if no embedding exists.
+   */
+  getEmbeddingMeta?(sourcePath: NotePath): Promise<EmbeddingMeta | null>;
+
+  /**
+   * All embeddings as decoded rows (path, title, vector, …) for the
+   * brute-force cosine scan. Title is joined from `notes` so the search
+   * result can show a label without a second round-trip.
+   */
+  getAllEmbeddings?(): Promise<EmbeddingStoreRow[]>;
+
+  /** Counts for the status surface: how many notes have an embedding, and total notes. */
+  getEmbeddingCounts?(): Promise<{ indexed: number; total: number }>;
+
+  /** Drop every embedding row (used by reindex / disable). */
+  clearEmbeddings?(): Promise<void>;
 }
+
+/**
+ * Row shape exchanged with the embedding store. `vector` is decoded
+ * (Float32Array); the SQLite layer (de)serializes the BLOB. `title` is
+ * empty on write (joined on read).
+ */
+export type EmbeddingStoreRow = {
+  sourcePath: NotePath;
+  title: string;
+  contentHash: string;
+  modelId: string;
+  dim: number;
+  vector: Float32Array;
+  mtimeMs: number;
+};
+
+/** Just enough to decide whether a note needs re-embedding. */
+export type EmbeddingMeta = {
+  contentHash: string;
+  modelId: string;
+};
 
 // Re-export the entry shape so callers can import it from this module.
 export type { RelationEntry };

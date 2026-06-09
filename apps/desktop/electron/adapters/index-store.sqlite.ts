@@ -15,11 +15,15 @@ import {
   SCHEMA_SQL,
   EXPECTED_USER_VERSION,
   MIGRATION_DROP_SQL,
+  blobToFloat32,
+  float32ToBlob,
   type DatabaseGroup,
   type DatabaseQuery,
   type DatabaseResult,
   type DatabaseRow,
   type DetectedProperty,
+  type EmbeddingMeta,
+  type EmbeddingStoreRow,
   type FullGraph,
   type FullTextHit,
   type IndexStoreAdapter,
@@ -137,6 +141,13 @@ export class SqliteIndexStore implements IndexStoreAdapter {
     listObjectTypes: Database.Statement;
     getTypeCounts: Database.Statement;
     getTypedPaths: Database.Statement;
+    upsertEmbedding: Database.Statement;
+    deleteEmbedding: Database.Statement;
+    getEmbeddingMeta: Database.Statement;
+    getAllEmbeddings: Database.Statement;
+    countEmbeddings: Database.Statement;
+    countNotes: Database.Statement;
+    clearEmbeddings: Database.Statement;
   } | null = null;
 
   async init(vaultRoot: string): Promise<void> {
@@ -375,6 +386,38 @@ export class SqliteIndexStore implements IndexStoreAdapter {
           AND text_value IS NOT NULL
           AND text_value <> ''
       `),
+      // ---- AI semantic search (milestone 1) ----
+      upsertEmbedding: db.prepare(`
+        INSERT INTO note_embeddings (source_path, content_hash, model_id, dim, vector, mtime)
+        VALUES (@source_path, @content_hash, @model_id, @dim, @vector, @mtime)
+        ON CONFLICT(source_path) DO UPDATE SET
+          content_hash = excluded.content_hash,
+          model_id     = excluded.model_id,
+          dim          = excluded.dim,
+          vector       = excluded.vector,
+          mtime        = excluded.mtime
+      `),
+      deleteEmbedding: db.prepare(`DELETE FROM note_embeddings WHERE source_path = ?`),
+      getEmbeddingMeta: db.prepare(`
+        SELECT content_hash, model_id FROM note_embeddings WHERE source_path = ?
+      `),
+      // Join titles from `notes` so search hits carry a label. LEFT JOIN
+      // would keep embeddings whose note row vanished; INNER JOIN drops
+      // those orphans from search (they'd have no title to show anyway).
+      getAllEmbeddings: db.prepare(`
+        SELECT e.source_path AS source_path,
+               n.title       AS title,
+               e.content_hash AS content_hash,
+               e.model_id     AS model_id,
+               e.dim          AS dim,
+               e.vector       AS vector,
+               e.mtime        AS mtime
+        FROM note_embeddings e
+        JOIN notes n ON n.path = e.source_path
+      `),
+      countEmbeddings: db.prepare(`SELECT COUNT(*) AS c FROM note_embeddings`),
+      countNotes: db.prepare(`SELECT COUNT(*) AS c FROM notes`),
+      clearEmbeddings: db.prepare(`DELETE FROM note_embeddings`),
     };
   }
 
@@ -939,6 +982,74 @@ export class SqliteIndexStore implements IndexStoreAdapter {
     }
 
     return out;
+  }
+
+  // ---- AI semantic search (milestone 1) ---------------------------------
+
+  async upsertEmbedding(row: EmbeddingStoreRow): Promise<void> {
+    const s = this.require();
+    // Store the vector as a Node Buffer so better-sqlite3 binds it as a
+    // BLOB. `float32ToBlob` already gives us little-endian bytes.
+    s.upsertEmbedding.run({
+      source_path: row.sourcePath,
+      content_hash: row.contentHash,
+      model_id: row.modelId,
+      dim: row.dim,
+      vector: Buffer.from(float32ToBlob(row.vector)),
+      mtime: row.mtimeMs,
+    });
+    return Promise.resolve();
+  }
+
+  async deleteEmbedding(sourcePath: NotePath): Promise<void> {
+    const s = this.require();
+    s.deleteEmbedding.run(sourcePath);
+    return Promise.resolve();
+  }
+
+  async getEmbeddingMeta(sourcePath: NotePath): Promise<EmbeddingMeta | null> {
+    const s = this.require();
+    const row = s.getEmbeddingMeta.get(sourcePath) as
+      | { content_hash: string; model_id: string }
+      | undefined;
+    if (!row) return null;
+    return { contentHash: row.content_hash, modelId: row.model_id };
+  }
+
+  async getAllEmbeddings(): Promise<EmbeddingStoreRow[]> {
+    const s = this.require();
+    type Row = {
+      source_path: string;
+      title: string;
+      content_hash: string;
+      model_id: string;
+      dim: number;
+      vector: Buffer;
+      mtime: number;
+    };
+    const rows = s.getAllEmbeddings.all() as Row[];
+    return rows.map((r) => ({
+      sourcePath: r.source_path,
+      title: r.title,
+      contentHash: r.content_hash,
+      modelId: r.model_id,
+      dim: r.dim,
+      vector: blobToFloat32(r.vector),
+      mtimeMs: r.mtime,
+    }));
+  }
+
+  async getEmbeddingCounts(): Promise<{ indexed: number; total: number }> {
+    const s = this.require();
+    const indexed = (s.countEmbeddings.get() as { c: number }).c;
+    const total = (s.countNotes.get() as { c: number }).c;
+    return Promise.resolve({ indexed, total });
+  }
+
+  async clearEmbeddings(): Promise<void> {
+    const s = this.require();
+    s.clearEmbeddings.run();
+    return Promise.resolve();
   }
 }
 

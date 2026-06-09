@@ -257,6 +257,9 @@ export function installMockIpc(overrides: MockHandlers = {}): MockController {
     }) as ZibaApi['invoke'],
     onVaultEvent: onVaultEventSpy as unknown as ZibaApi['onVaultEvent'],
     onIndexProgress: onIndexProgressSpy as unknown as ZibaApi['onIndexProgress'],
+    // No-op subscription: tests that need embedding progress can extend the
+    // mock; the default just registers and immediately unsubscribes.
+    onEmbeddingProgress: (() => () => {}) as ZibaApi['onEmbeddingProgress'],
     onDatabaseViewsChanged:
       onDatabaseViewsChangedSpy as unknown as ZibaApi['onDatabaseViewsChanged'],
   };
